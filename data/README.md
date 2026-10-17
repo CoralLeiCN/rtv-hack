@@ -6,6 +6,33 @@ at `~/data/ceda/external-videos.json` on that VM; `~` means the SSH user's home.
 While an ingest batch is processing, the VM copy is the live record and the
 repository copy is a snapshot as of its `updated_at_utc` timestamp.
 
+## Wildlife datasets
+
+The repository index also includes wildlife records verified through the live,
+database-backed VSS retrieval API on **17 October 2026**. These additions have
+their own `verification` timestamps; the top-level `updated_at_utc` still dates
+the original VM snapshot.
+
+| Dataset | Location | Fully indexed uploads | Indexed segments | Approx. footage |
+| --- | --- | ---: | ---: | ---: |
+| MammAlps | Swiss National Park | 156 | 565 | 41.5 min |
+| KABR | Mpala Research Centre | 57 | 316 | 25.7 min |
+
+All 213 observed uploads are private and have stored AI-generated descriptions.
+MammAlps includes forest and alpine camera footage, including nighttime scenes;
+sample descriptions mention deer, marmots, grazing and animal movement. KABR
+includes savanna and aerial footage, with descriptions of giraffes and zebras
+grazing and walking; 40 uploads are tagged RGB and 17 thermal. These are summaries
+of stored descriptions, not independently verified species identifications.
+
+Counts include pilot and quality-test uploads and do not establish the number
+of distinct original recordings or completeness of either source dataset.
+Original download URLs, revisions, licences and citations remain unverified and
+are explicitly left unknown in these records. The additions are local to this
+repository; preserve them when refreshing from the VM snapshot.
+
+## Index conventions
+
 Source records include the original download URL, dataset catalogue and DOI,
 licence and citation, destination, expected size, checksum, and separate download
 and VSS ingestion states. Derived clips link to that source and record their

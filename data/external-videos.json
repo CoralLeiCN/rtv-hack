@@ -2780,6 +2780,122 @@
         "snapshot_at_utc": "2026-10-17T11:02:52.091247+00:00",
         "manifest_updated_at_utc": "2026-10-17T11:02:50.975842+00:00"
       }
+    },
+    {
+      "id": "wildlife-mammalps",
+      "name": "MammAlps",
+      "source_url": null,
+      "citation": null,
+      "description": "Forest and alpine wildlife camera footage, including nighttime scenes. Sample stored AI descriptions mention deer, marmots, grazing and animal movement.",
+      "description_scope": "Summary of indexed upload metadata and sampled AI-generated descriptions; individual media and species identifications have not been independently reviewed.",
+      "access": {
+        "public": null,
+        "account_required": null,
+        "licence": null
+      },
+      "provenance_status": "Original download source, dataset revision, licence and citation not yet recovered; identity confirmed by indexed dataset tags and location.",
+      "ingestion": {
+        "status": "indexed",
+        "visibility": "private",
+        "indexed_at_utc": null,
+        "indexed_video_count": 156,
+        "indexed_segment_count": 565,
+        "indexed_duration_minutes_approx": 41.5,
+        "camera_id_count": 12,
+        "location": "Swiss National Park",
+        "video_counts_by_status": {
+          "indexed": 156
+        },
+        "video_counts_by_tag": {
+          "wildlife": 156,
+          "wf_20261017T103148": 146,
+          "mammalps": 156,
+          "rgb": 146,
+          "wildlife_quality_20261017": 8,
+          "baseline": 10,
+          "pilot_v1": 2,
+          "wildlife_pilot_20261017": 2
+        },
+        "videos_with_stored_description": 156,
+        "count_scope": "Fully indexed parent uploads visible to the workshop account, including pilot and quality-test uploads. Counts do not establish distinct original recordings or completeness of the source dataset. Tag counts overlap."
+      },
+      "verification": {
+        "observed_on_utc": "2026-10-17",
+        "recorded_at_utc": "2026-10-17T13:01:22.714274Z",
+        "method": "Live database-backed VSS retrieval API: dashboard segment counts and paginated Explore records, authenticated and ACL-filtered.",
+        "endpoints": [
+          "/api/v1/metadata/schema",
+          "/api/v1/dashboard/stats?scope=all",
+          "/api/v1/videos/explore"
+        ],
+        "explore_parameters": {
+          "scope": "all",
+          "location": "Swiss National Park",
+          "limit": 48
+        },
+        "dataset_tag": "mammalps",
+        "all_observed_uploads_fully_indexed": true,
+        "all_observed_uploads_private": true,
+        "download_checksums_verified": false
+      }
+    },
+    {
+      "id": "wildlife-kabr",
+      "name": "KABR",
+      "source_url": null,
+      "citation": null,
+      "description": "Savanna wildlife footage, including aerial views. Sample stored AI descriptions mention giraffes and zebras grazing and walking; indexed uploads include RGB and thermal footage.",
+      "description_scope": "Summary of indexed upload metadata and sampled AI-generated descriptions; individual media and species identifications have not been independently reviewed.",
+      "access": {
+        "public": null,
+        "account_required": null,
+        "licence": null
+      },
+      "provenance_status": "Original download source, dataset revision, licence and citation not yet recovered; identity confirmed by indexed dataset tags and location.",
+      "ingestion": {
+        "status": "indexed",
+        "visibility": "private",
+        "indexed_at_utc": null,
+        "indexed_video_count": 57,
+        "indexed_segment_count": 316,
+        "indexed_duration_minutes_approx": 25.7,
+        "camera_id_count": 21,
+        "location": "Mpala Research Centre",
+        "video_counts_by_status": {
+          "indexed": 57
+        },
+        "video_counts_by_tag": {
+          "wildlife": 57,
+          "wf_20261017T103148": 55,
+          "kabr": 57,
+          "rgb": 40,
+          "thermal": 17,
+          "pilot_v1": 2,
+          "baseline": 2,
+          "wildlife_pilot_20261017": 2
+        },
+        "videos_with_stored_description": 57,
+        "count_scope": "Fully indexed parent uploads visible to the workshop account, including pilot and quality-test uploads. Counts do not establish distinct original recordings or completeness of the source dataset. Tag counts overlap."
+      },
+      "verification": {
+        "observed_on_utc": "2026-10-17",
+        "recorded_at_utc": "2026-10-17T13:01:22.714274Z",
+        "method": "Live database-backed VSS retrieval API: dashboard segment counts and paginated Explore records, authenticated and ACL-filtered.",
+        "endpoints": [
+          "/api/v1/metadata/schema",
+          "/api/v1/dashboard/stats?scope=all",
+          "/api/v1/videos/explore"
+        ],
+        "explore_parameters": {
+          "scope": "all",
+          "location": "Mpala Research Centre",
+          "limit": 48
+        },
+        "dataset_tag": "kabr",
+        "all_observed_uploads_fully_indexed": true,
+        "all_observed_uploads_private": true,
+        "download_checksums_verified": false
+      }
     }
   ],
   "ingest_batches": [
