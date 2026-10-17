@@ -93,6 +93,7 @@ export async function runReferenceLoop(options: {
   status: () => string;
   perform: (action: NonNullable<Candidate['action']>) => Promise<void>;
   onProgress: (progress: LoopProgress) => void;
+  onAction?: (candidate: Candidate, cycle: number, status: 'started' | 'completed' | 'failed' | 'cancelled') => Promise<void>;
   firstCycle?: number;
   transitionMs?: number;
   readinessTimeoutMs?: number;
@@ -120,8 +121,16 @@ export async function runReferenceLoop(options: {
       checkSignal(signal);
       options.onProgress({ cycle, rank: slot.rank, phase: 'running', candidate: slot.candidate });
       checkSignal(signal);
-      await interruptible(options.perform(slot.candidate.action), signal);
-      checkSignal(signal);
+      await options.onAction?.(slot.candidate, cycle, 'started');
+      try {
+        checkSignal(signal);
+        await interruptible(options.perform(slot.candidate.action), signal);
+        checkSignal(signal);
+      } catch (error) {
+        await options.onAction?.(slot.candidate, cycle, signal.aborted ? 'cancelled' : 'failed');
+        throw error;
+      }
+      await options.onAction?.(slot.candidate, cycle, 'completed');
       options.onProgress({ cycle, rank: slot.rank, phase: 'completed', candidate: slot.candidate });
       await waitFor(options.transitionMs ?? 450, signal);
     }

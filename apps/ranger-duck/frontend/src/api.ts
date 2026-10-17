@@ -134,3 +134,15 @@ export async function cancelEncounter(encounterId: string): Promise<void> {
     method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(10000),
   });
 }
+
+export async function captureAction(input: {
+  clip_id: string; search_id: string; execution_id: string; cycle: number;
+  primitive: Primitive; status: 'started' | 'completed' | 'failed' | 'cancelled';
+  state: unknown;
+}): Promise<void> {
+  const result = await readResponse<{ status: string }>(await fetch('/demo-api/action-outcome', {
+    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input), signal: AbortSignal.timeout(10000), keepalive: true,
+  }));
+  if (result.status !== 'recorded') throw new Error('The action capture could not be saved. Check backend capture storage.');
+}

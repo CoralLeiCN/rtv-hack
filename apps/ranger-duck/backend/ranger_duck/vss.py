@@ -7,6 +7,7 @@ import httpx
 from .config import Settings
 from .errors import DemoError, timeout_error, upstream_error
 from .stream import close_stream
+from .capture import Capture
 
 # httpx INFO logs include the playback query token. Keep these libraries quiet.
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -24,8 +25,9 @@ def animal_search_scope(animal: str) -> dict:
 
 
 class VSSClient:
-    def __init__(self, settings: Settings, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(self, settings: Settings, transport: httpx.AsyncBaseTransport | None = None, capture=None):
         self.settings = settings
+        self.capture = capture or Capture()
         self.http = httpx.AsyncClient(
             timeout=httpx.Timeout(settings.request_timeout_sec),
             follow_redirects=False, transport=transport, trust_env=False,
@@ -73,6 +75,12 @@ class VSSClient:
             return token
 
     async def search(self, query: str, tags: list[str] | None = None, *, top_k: int = 15) -> dict:
+        return await self.capture.call('vss.search',
+            {'query': query, 'tags': ['wildlife'] if tags is None else tags, 'top_k': top_k,
+             'llm_top_n': 1, 'min_similarity': 0.3, 'include_public': True},
+            lambda: self._search(query, tags, top_k=top_k))
+
+    async def _search(self, query: str, tags: list[str] | None = None, *, top_k: int = 15) -> dict:
         self._require_config()
         try:
             async with asyncio.timeout(self.settings.search_timeout_sec):

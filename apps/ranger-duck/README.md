@@ -32,9 +32,11 @@ Start the API in another terminal:
 ```bash
 cd apps/ranger-duck/backend
 python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[test]'
-.venv/bin/python -m uvicorn ranger_duck.app:app --host 127.0.0.1 --port 18000 --workers 1
+.venv/bin/python -m pip install -e '.[test,capture]'
+.venv/bin/ranger-duck-serve --port 18000
 ```
+
+When `RANGER_WEAVE_PROJECT` is configured, this starts the W&B exporter with the API and resumes pending captures after every restart. Save `WANDB_API_KEY` privately in the backend `.env`. Use `--env-file /absolute/path/to/backend/.env` to reuse that saved configuration from another worktree; secrets are never committed or copied by Git. See [capture setup](backend/README.md#capture-search-codex-decisions-and-action-outcomes).
 
 Open the Local URL printed by Vite. Browser API calls and video playback use
 that origin and its session cookies. The asset script checks pinned sizes and

@@ -27,6 +27,7 @@ class Session:
     expires: float
     clips: dict[str, tuple[str, float]] = field(default_factory=dict)
     searches: dict[tuple[str, bool], SearchSnapshot] = field(default_factory=dict)
+    actions: dict[str, dict] = field(default_factory=dict)
 
 
 class ClipRegistry:
@@ -55,7 +56,9 @@ class ClipRegistry:
     def add(self, session_id: str, source: str) -> str:
         clips = self.sessions[session_id].clips
         if len(clips) >= 60:
-            del clips[next(iter(clips))]
+            oldest = next(iter(clips))
+            del clips[oldest]
+            self.sessions[session_id].actions.pop(oldest, None)
         clip_id = secrets.token_urlsafe(24)
         clips[clip_id] = (source, time.monotonic() + self.ttl)
         return clip_id

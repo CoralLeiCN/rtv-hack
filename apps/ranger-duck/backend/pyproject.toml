@@ -11,9 +11,12 @@ dependencies = ["anyio>=4,<5", "fastapi>=0.115,<1", "httpx>=0.28,<1", "python-do
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10"]
+capture = ["weave>=0.52.24,<1"]
 
 [project.scripts]
 ranger-duck-review = "ranger_duck.review:main"
+ranger-duck-export-captures = "ranger_duck.capture:main"
+ranger-duck-serve = "ranger_duck.serve:main"
 
 [tool.setuptools.packages.find]
 include = ["ranger_duck*"]

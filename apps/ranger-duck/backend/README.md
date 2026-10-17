@@ -42,7 +42,7 @@ For one production page, set `RANGER_STATIC_DIR` to the frontend's existing buil
 
 ## Local archive configuration
 
-Required configuration names: `INGRESS_URL`, `USERNAME`, `PASSWORD`. The backend automatically reads `.env` in this backend directory, regardless of the working directory. Exported environment variables take precedence, including empty values. It does not source shell files or search other directories for configuration.
+Required configuration names: `INGRESS_URL`, `USERNAME`, `PASSWORD`. The backend automatically reads `.env` in this backend directory, regardless of the working directory. Exported environment variables take precedence, including empty values. Set `RANGER_ENV_FILE` to an existing absolute file path to explicitly share one private config across checkouts. The app and exporter use the same loader; an invalid explicit path fails instead of silently falling back. It does not source shell files or search other directories for configuration.
 
 For local setup, copy `example.env` to `.env` in this directory, set `INGRESS_URL` to the full URL including `https://`, and fill in `USERNAME` and `PASSWORD` privately. `.env` is ignored by Git; keep real values out of `example.env`. Quote values containing spaces or `#`; `${...}` is treated literally. Restart the backend after changing `.env`. Use the configured archive service directly from this Mac; local startup does not require a VM backend.
 
@@ -129,6 +129,50 @@ Up to 15 distinct segment results are returned in original upstream order. `rank
 At most 256 browser sessions and 60 clip capabilities per session are held. Cookies are HttpOnly/SameSite and IDs are opaque. A different session, expiration, restart, or capacity eviction yields the same `404 clip_not_found`. Search again to refresh access.
 
 Video requests accept one standard byte range. The proxy forwards `Range`/`If-Range`, supports GET and HEAD, and preserves 206/416 plus range headers. If upstream HEAD is unsupported, it opens a streaming GET and closes after headers without reading the body. No arbitrary URL proxy, upstream redirect, presigned link, or JWT is sent to the browser. A failure after streaming begins interrupts playback; retrying/researching is the UI recovery.
+
+## Capture search, Codex decisions, and action outcomes
+
+Normal backend startup records private JSONL events in `backend/.captures/`
+(override with `RANGER_CAPTURE_DIR`). Restart the backend and rebuild/reload the
+frontend after installing this change. Files are owner-only and ignored by Git.
+Each event has a timestamp, event ID and run ID linking:
+
+- The complete VSS search response, before filtering, normalization, deduplication
+  or selection. This includes every returned hit and its original source, caption,
+  score, segment times and other returned fields; it does not download video bytes.
+- Codex instructions, context, output schema, raw final output, validated decision
+  and returned explanation. Private internal reasoning is not available.
+- Issued actions and browser-reported outcomes, including simulator state. Loop
+  outcomes also retain playback and companion status. Encounter mode reports each
+  action start/completion/failure/cancellation. Missing browser reports remain
+  unknown; a closed tab cannot be assumed to have completed an action.
+
+Credentials, bearer tokens and signed URL query strings are stripped before
+writing. Stable video source paths remain private training provenance. Capture
+does not sample or truncate search hits/captions. `/demo-api/health` exposes
+`capture_enabled` and `capture_write_failed`; a disk failure is also logged
+without payloads. Encounter execution stops if its capture cannot be saved.
+
+To send captures to W&B Weave, create a team-only project, set
+`RANGER_WEAVE_PROJECT=ENTITY/PROJECT` and `WANDB_API_KEY` privately in the backend
+`.env` (or use an existing SDK login). Start the app and exporter together so both restart from the same saved configuration:
+
+```bash
+.venv/bin/python -m pip install -e '.[capture]'
+.venv/bin/ranger-duck-serve --port 18000
+```
+
+For another checkout, use `ranger-duck-serve --env-file /absolute/path/to/backend/.env`. The startup log prints the selected file path, never its values. Secrets stay outside Git and are not copied into future worktrees. Install `.[capture]` in each checkout's Python environment. Captures remain local to the running checkout unless `RANGER_CAPTURE_DIR` is explicitly set.
+
+For a separately managed backend, run `ranger-duck-export-captures --follow` alongside it; do not also use the combined launcher. Omit `--follow` for a one-time export. The exporter reads the same `.env`, uploads
+pending events, and verifies their event IDs by reading them back from Weave.
+Private per-project acknowledgement files let subsequent runs skip confirmed
+events. Stop the exporter before starting another against the same directory.
+The continuous exporter also retries initialization failures after restart. An interrupted upload may create a duplicate remote call; `event_id` is the
+deduplication key. Use `run_id` to group decisions, results and outcomes in Weave.
+Original event time and elapsed duration are retained as attributes; the Weave
+call itself is created at export time. Local files remain the durable copy when
+W&B is unavailable. This adds capture only, with no labelling or training job.
 
 ## Verify
 

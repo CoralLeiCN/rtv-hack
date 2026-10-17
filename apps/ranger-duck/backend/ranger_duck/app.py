@@ -25,6 +25,9 @@ from .vss import VSSClient, animal_search_scope
 from .loop import LoopService, install_loop_routes
 from .loop_agent import CYCLE_TIMEOUT, CodexAgent
 from .encounter import EncounterService, PLAN_TIMEOUT, ENCOUNTER_TIMEOUT
+from .capture import Capture, CapturedAgent
+from .loop import StrictModel, Telemetry
+from .loop_agent import Primitive
 
 SCENARIOS = {
     "deer-feeding": {"id": "deer-feeding", "label": "Forage together", "animal": "deer", "behavior_hint": "feeding",
@@ -67,6 +70,16 @@ class PlanRequest(BaseModel):
     broaden: bool = False
 
 
+class ActionCapture(StrictModel):
+    clip_id: str = Field(min_length=1, max_length=100)
+    search_id: str = Field(min_length=1, max_length=100)
+    execution_id: str = Field(min_length=1, max_length=150)
+    cycle: int = Field(ge=1)
+    primitive: Primitive
+    status: Literal['started', 'completed', 'failed', 'cancelled']
+    state: Telemetry | None = None
+
+
 class ProxyStreamingResponse(StreamingResponse):
     """Own the upstream connection even when sending fails before iteration."""
     def __init__(self, upstream: httpx.Response, content, **kwargs):
@@ -85,7 +98,8 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     settings = settings or Settings.from_env()
     manifest = manifest if manifest is not None else Manifest.load(settings.manifest_path)
     registry = ClipRegistry(settings.clip_ttl_sec, settings.max_sessions)
-    client = VSSClient(settings, transport)
+    capture = Capture(settings.capture_dir, (settings.password, settings.username))
+    client = VSSClient(settings, transport, capture)
     opaque_key = secrets.token_bytes(32)
 
     def opaque_parent(source: str | None) -> str | None:
@@ -108,9 +122,10 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     app = FastAPI(title="Ranger Duck backend", version="1", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.registry = registry
     app.state.vss = client
-    agent = loop_agent if loop_agent is not None else CodexAgent()
-    loop_service = LoopService(registry, client, manifest, public_text, agent)
-    encounter_service = EncounterService(registry, manifest, public_text, agent)
+    app.state.capture = capture
+    agent = CapturedAgent(loop_agent if loop_agent is not None else CodexAgent(capture), capture)
+    loop_service = LoopService(registry, client, manifest, public_text, agent, capture)
+    encounter_service = EncounterService(registry, manifest, public_text, agent, capture)
     app.state.loop_service = loop_service
     app.state.encounter_service = encounter_service
     install_loop_routes(app, loop_service)
@@ -144,6 +159,7 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
                 "loop_agent_available": loop_service.agent.available,
                 "loop_cycle_timeout_ms": CYCLE_TIMEOUT * 1000,
                 "encounter_agent_available": agent.available,
+                "capture_enabled": capture.directory is not None, "capture_write_failed": capture.failed,
                 "encounter_plan_timeout_ms": PLAN_TIMEOUT * 1000,
                 "encounter_timeout_ms": ENCOUNTER_TIMEOUT * 1000})
         establish_cookie(response, registry.session(request.cookies.get(COOKIE_NAME)))
@@ -221,8 +237,14 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
                     "dataset_id": public_text(segment.dataset_id, 100) or None,
                     "source_label": public_text(source_label, 150), "parent_id": opaque_parent(segment.parent),
                     "segment_start_sec": segment.start, "segment_end_sec": segment.end}})
-        response = JSONResponse({"encounter_id": payload.encounter_id,
-            "search_id": secrets.token_urlsafe(24), "mode": payload.mode,
+        search_id = secrets.token_urlsafe(24)
+        run_id = capture.run_id(session_id, 'encounter:' + payload.encounter_id)
+        for candidate in candidates:
+            if candidate['action']:
+                registry.sessions[session_id].actions[candidate['clip_id']] = {
+                    'search_id': search_id, 'run_id': run_id, 'action': candidate['action']}
+        body = {"encounter_id": payload.encounter_id,
+            "search_id": search_id, "mode": payload.mode,
             "match_type": "broader_behavior" if payload.broaden else "species_interaction",
             "status": "ok" if any(c["action"] for c in candidates) else "no_supported_imitation" if candidates else "no_results",
             "query": snapshot.query, "elapsed_ms": round((time.monotonic() - started) * 1000),
@@ -234,9 +256,24 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
             "warnings": ([manifest.warning] if manifest.warning else []) +
                 (["Agent-planned actions marked video_caption use exact excerpts from existing video-model captions, not a visual review. Interaction or similar individual behavior can supply evidence; the requested encounter never supplies a missing motion."]
                  if any(c["action_basis"] == "video_caption" for c in candidates) else []) +
-                (["Replaying a previous live search. Video playback still requires VSS access."] if payload.mode == "replay" else [])})
+                (["Replaying a previous live search. Video playback still requires VSS access."] if payload.mode == "replay" else [])}
+        capture.emit('encounter.result', payload.model_dump(), body, run_id=run_id)
+        response = JSONResponse(body)
         establish_cookie(response, session_id)
         return response
+
+    @app.post('/demo-api/action-outcome')
+    async def action_outcome(payload: ActionCapture, request: Request):
+        owner = request.cookies.get(COOKIE_NAME)
+        registry.resolve(owner, payload.clip_id)
+        issued = registry.sessions[owner].actions.get(payload.clip_id)
+        if not issued or issued['search_id'] != payload.search_id or issued['action']['primitive'] != payload.primitive:
+            raise DemoError('invalid_outcome', 'The outcome must match an issued action.', 409)
+        if payload.status == 'completed' and (payload.state is None or payload.state.status != 'complete'):
+            raise DemoError('invalid_outcome', 'Completion requires completed simulator state.', 422)
+        capture.emit('encounter.action.' + payload.status, issued['action'], payload.model_dump(),
+                     run_id=issued['run_id'], outcome_source='browser_report')
+        return {'status': 'recorded' if capture.directory and not capture.failed else 'capture_unavailable'}
 
     @app.api_route("/demo-api/clips/{clip_id}/video", methods=["GET", "HEAD"])
     async def video(clip_id: str, request: Request):

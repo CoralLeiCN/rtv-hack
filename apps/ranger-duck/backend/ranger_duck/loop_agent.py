@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from typing import Literal
 
 from .errors import DemoError
+from .capture import Capture
 
 Primitive = Literal['stand_hold', 'head_scan', 'short_walk', 'ground_pick', 'head_nod', 'sit_cycle']
 ActivePrimitive = Literal['short_walk', 'ground_pick', 'head_nod', 'sit_cycle']
@@ -57,7 +58,8 @@ class ActionDecision(Decision):
 
 
 class CodexAgent:
-    def __init__(self):
+    def __init__(self, capture=None):
+        self.capture = capture or Capture()
         self.executable = shutil.which('codex')
         self.slots = asyncio.Semaphore(2)
 
@@ -102,6 +104,8 @@ class CodexAgent:
             'Never claim the duck has already performed the requested action.\nINPUT:\n'
         )
         instructions = getattr(schema, 'agent_instructions', instructions)
+        self.capture.emit('codex.input', {'instructions': instructions, 'context': context,
+            'output_schema': schema.model_json_schema()}, model='gpt-6-luna', reasoning='returned_explanation_only')
         async with self.slots:
             with tempfile.TemporaryDirectory(prefix='ranger-agent-') as directory:
                 root = Path(directory)
@@ -122,7 +126,9 @@ class CodexAgent:
                     await process.communicate((instructions + json.dumps(context)).encode())
                     if process.returncode != 0 or not output.is_file() or output.stat().st_size > getattr(schema, 'max_output_bytes', 16000):
                         raise ValueError('No valid decision')
-                    return schema.model_validate_json(output.read_bytes())
+                    raw = output.read_text()
+                    self.capture.emit('codex.output', output=raw, model='gpt-6-luna')
+                    return schema.model_validate_json(raw)
                 except (OSError, ValueError, ValidationError):
                     raise DemoError('agent_failed', 'Codex could not produce a valid decision. Check its login and CLI version on the backend host, then retry.', 503) from None
                 finally:

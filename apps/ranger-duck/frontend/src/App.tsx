@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, getEncounters, getHealth, cancelEncounter, type Encounter, type EncounterPlan, type Health, type SearchMode, type SearchResult } from './api';
+import { ApiError, getEncounters, getHealth, cancelEncounter, captureAction, type Encounter, type EncounterPlan, type Health, type SearchMode, type SearchResult } from './api';
+import { reactionState } from './agentLoop';
 import { responseIsCurrent, runReferenceLoop, sequenceSlots, motionLabel, loopPhaseLabel, STAGE_INDEX, STAGES, visibleCandidates, type LoopProgress, type Stage } from './demo';
 import { searchEncounter } from './encounterAgent';
 import { AgentLoopPanel } from './components/AgentLoopPanel';
@@ -187,6 +188,7 @@ export default function App() {
     activeLoop.current = { response, cycle: firstCycle };
     motionActive.current = true;
     const generation = ++actionGeneration.current;
+    const executionId = crypto.randomUUID();
     const isCurrent = () => !controller.signal.aborted && generation === actionGeneration.current && response.encounter_id === activeEncounter.current;
     setLoopRunning(true);
     setActionError(null);
@@ -200,6 +202,12 @@ export default function App() {
       attend: () => duck.current!.ensureInteraction(),
       status: () => duck.current?.status() ?? 'failed',
       perform: action => duck.current!.perform({ primitive: action.primitive, evidenceId: action.evidence_id, maxDurationMs: action.max_duration_ms }),
+      onAction: (candidate, cycle, status) => captureAction({
+        clip_id: candidate.clip_id, search_id: response.search_id,
+        execution_id: `${executionId}_${cycle}_${candidate.clip_id}`, cycle,
+        primitive: candidate.action!.primitive, status,
+        state: duck.current ? reactionState(duck.current.telemetry()) : null,
+      }),
       onProgress: progress => {
         if (!isCurrent()) return;
         activeLoop.current = { response, cycle: progress.cycle };

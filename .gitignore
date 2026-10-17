@@ -43,6 +43,7 @@ Thumbs.db
 *.log
 tmp/
 resp.json
+.captures/
 /research/
 
 # --- organizer verification script (internal) ---

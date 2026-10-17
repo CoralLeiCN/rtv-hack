@@ -9,6 +9,24 @@ from dotenv import dotenv_values
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
+def env_file() -> Path:
+    """Use one explicit file across the app and exporter, including worktrees."""
+    override = os.environ.get("RANGER_ENV_FILE")
+    if not override:
+        return ENV_FILE
+    path = Path(override).expanduser()
+    if not path.is_absolute() or not path.is_file():
+        raise ValueError("RANGER_ENV_FILE must name an existing absolute file path")
+    return path
+
+
+def env_values():
+    values = {key: value for key, value in dotenv_values(env_file(), interpolate=False).items()
+              if value is not None}
+    values.update(os.environ)
+    return values
+
+
 @dataclass(frozen=True)
 class Settings:
     ingress_url: str = field(default="", repr=False)
@@ -21,6 +39,7 @@ class Settings:
     secure_cookie: bool = False
     manifest_path: Path | None = None
     static_dir: Path | None = None
+    capture_dir: Path | None = None
 
     @property
     def configured(self) -> bool:
@@ -37,9 +56,7 @@ class Settings:
     def from_env(cls) -> "Settings":
         # Resolve relative to the backend, independent of the launch directory.
         # Exported variables win; keep passwords literal and avoid mutating os.environ.
-        values = {key: value for key, value in dotenv_values(ENV_FILE, interpolate=False).items()
-                  if value is not None}
-        values.update(os.environ)
+        values = env_values()
 
         def bounded(name: str, default: float, low: float, high: float) -> float:
             try:
@@ -58,4 +75,5 @@ class Settings:
             secure_cookie=values.get("RANGER_SECURE_COOKIE", "false").lower() == "true",
             manifest_path=Path(values["RANGER_REFERENCE_MANIFEST"]) if values.get("RANGER_REFERENCE_MANIFEST") else None,
             static_dir=Path(values["RANGER_STATIC_DIR"]) if values.get("RANGER_STATIC_DIR") else None,
+            capture_dir=Path(values.get('RANGER_CAPTURE_DIR') or ENV_FILE.parent / '.captures'),
         )

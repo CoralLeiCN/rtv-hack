@@ -68,6 +68,38 @@ describe('evidence authorization and asynchronous invalidation', () => {
 });
 
 describe('automatic top-three loop', () => {
+  it.each(['completed', 'failed', 'cancelled'] as const)('captures the actual %s action outcome', async status => {
+    const controller = new AbortController();
+    const captured: string[] = [];
+    const task = runReferenceLoop({
+      candidates: [reviewed()], signal: controller.signal, prepareCycle: async () => {},
+      approach: async () => {}, attend: async () => {}, status: () => 'ready',
+      perform: async () => {
+        if (status === 'failed') throw new Error('Controller failed');
+        if (status === 'cancelled') controller.abort();
+      },
+      onAction: async (clip, cycle, state) => {
+        expect(clip.clip_id).toBe('reviewed');
+        expect(cycle).toBe(1);
+        captured.push(state);
+        if (state === 'completed') controller.abort();
+      },
+      onProgress: () => {},
+    }).catch(error => error);
+    await task;
+    expect(captured).toEqual(['started', status]);
+  });
+
+  it('does not start an action when its capture cannot be persisted', async () => {
+    const perform = vi.fn();
+    await expect(runReferenceLoop({
+      candidates: [reviewed()], signal: new AbortController().signal,
+      prepareCycle: async () => {}, approach: async () => {}, attend: async () => {},
+      status: () => 'ready', perform, onProgress: () => {},
+      onAction: async () => { throw new Error('Capture unavailable'); },
+    })).rejects.toThrow('Capture unavailable');
+    expect(perform).not.toHaveBeenCalled();
+  });
   it('approaches for compatible actions in source order, attends to the animal each cycle, and never overlaps actions', async () => {
     vi.useFakeTimers();
     const controller = new AbortController();

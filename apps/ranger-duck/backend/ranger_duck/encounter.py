@@ -8,6 +8,7 @@ from .encounter_agent import EncounterQueryDecision, EncounterActionsDecision, c
 from .errors import DemoError
 from .interaction import ACTIVE_PRIMITIVES, classify_interaction
 from .session import COOKIE_NAME
+from .capture import Capture
 
 PLAN_TIMEOUT = 60
 ENCOUNTER_TIMEOUT = 180
@@ -25,7 +26,8 @@ class EncounterPlan:
 
 
 class EncounterService:
-    def __init__(self, registry, manifest, public_text, agent):
+    def __init__(self, registry, manifest, public_text, agent, capture=None):
+        self.capture = capture or Capture()
         self.registry, self.manifest, self.public_text, self.agent = registry, manifest, public_text, agent
         self.plans: dict[str, EncounterPlan] = {}
         self.tasks: dict[str, tuple[str, asyncio.Task]] = {}
@@ -66,7 +68,15 @@ class EncounterService:
         prior = self.tasks.pop(owner, None)
         if prior:
             prior[1].cancel()
-        task = asyncio.create_task(operation())
+        async def captured():
+            with self.capture.scope(self.capture.run_id(owner, 'encounter:' + encounter_id)):
+                self.capture.emit('encounter.request', {'encounter_id': encounter_id})
+                try:
+                    return await operation()
+                except BaseException as error:
+                    self.capture.emit('encounter.failed', error_type=type(error).__name__)
+                    raise
+        task = asyncio.create_task(captured())
         self.tasks[owner] = (encounter_id, task)
 
         async def watch_disconnect():

@@ -16,6 +16,7 @@ from .session import COOKIE_NAME
 from .encounter_agent import combined_behavior_query
 from .interaction import ACTIVE_PRIMITIVES, classify_interaction
 from .vss import animal_search_scope
+from .capture import Capture
 
 
 class StrictModel(BaseModel):
@@ -65,7 +66,8 @@ class LoopSession:
 
 
 class LoopService:
-    def __init__(self, registry, client, manifest, public_text, agent=None):
+    def __init__(self, registry, client, manifest, public_text, agent=None, capture=None):
+        self.capture = capture or Capture()
         self.registry, self.client, self.manifest = registry, client, manifest
         self.public_text = public_text
         self.agent = agent or CodexAgent()
@@ -93,6 +95,8 @@ class LoopService:
         if loop.task:
             loop.task.cancel()
         if loop.pending:
+            self.capture.emit('loop.action.interrupted', loop.pending, {'status': 'unknown'},
+                run_id=self.capture.run_id(loop.owner, 'loop:' + loop.id))
             # No invented telemetry: an interrupted issued action has unknown outcome.
             loop.history.append({**loop.pending['context'], 'outcome': {'status': 'cancelled', 'state': None}})
             loop.history = loop.history[-5:]
@@ -226,7 +230,9 @@ def install_loop_routes(app, service):
         if loop.paused or loop.pending or loop.task:
             raise DemoError('loop_not_ready', 'Resume the loop or finish the current cycle before searching again.', 409)
         async def bounded():
-            return await asyncio.wait_for(service.select(loop), timeout=CYCLE_TIMEOUT)
+            with service.capture.scope(service.capture.run_id(loop.owner, 'loop:' + loop.id)):
+                return await service.capture.call('loop.cycle', {'session_id': loop.id},
+                    lambda: asyncio.wait_for(service.select(loop), timeout=CYCLE_TIMEOUT))
         task = loop.task = asyncio.create_task(bounded())
         try:
             return await task
@@ -254,6 +260,8 @@ def install_loop_routes(app, service):
         if payload.status == 'completed' and (payload.playback != 'ended' or payload.state.status != 'complete' or payload.companion.status != 'completed'):
             raise DemoError('invalid_outcome', 'Completion requires finished playback, companion animation, and duck action.', 422)
         loop.history = (loop.history + [{**pending['context'], 'outcome': payload.model_dump()}])[-5:]
+        service.capture.emit('loop.action.outcome', pending, payload.model_dump(),
+            run_id=service.capture.run_id(loop.owner, 'loop:' + loop.id), outcome_source='browser_report')
         loop.pending = None
         loop.paused = payload.status != 'completed'
         if not loop.paused:
