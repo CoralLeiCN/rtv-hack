@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ranger Duck · interface mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (see README.md) ---------- */
+:root{
+  --ink:#08080c; --ink-2:#101018; --ink-3:#1c1c28; --rule:#2a2a36;
+  --paper:#faf8f2; --paper-2:#f2ecdd; --muted:#B8B2A4; --muted-2:#7a756b; --muted-3:#4a463f;
+  --orange:#FF7A2F; --yellow:#FFD23F; --pink:#FF2FA8; --teal:#2FF0E6;
+  --moss:#2F6B3F; --moss-2:#3B7F4A; --moss-3:#28583A; --bark:#8B5A2B; --bark-2:#A86B35; --bark-3:#9C6430; --bark-4:#5A3E2B;
+  --display:"Anton","Impact",sans-serif; --body:"DM Sans",system-ui,sans-serif; --mono:"DM Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--paper);font-family:var(--body);-webkit-font-smoothing:antialiased}
+a{color:var(--yellow)}a:hover{color:var(--orange)}
+.display{font-family:var(--display);text-transform:uppercase;letter-spacing:0.02em;font-weight:400}
+.mono{font-family:var(--mono)}
+.label{font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted)}
+.btn{font-family:var(--display);text-transform:uppercase;letter-spacing:0.04em;font-size:18px;line-height:1;border:3px solid var(--paper);background:var(--ink-2);color:var(--paper);padding:13px 20px 11px;cursor:pointer;box-shadow:6px 6px 0 var(--paper);transition:transform .08s,box-shadow .08s;min-height:44px}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:7px 7px 0 var(--paper)}
+.btn:active{transform:translate(4px,4px);box-shadow:2px 2px 0 var(--paper)}
+.btn.primary{background:var(--orange);color:var(--ink-2);border-color:var(--ink-2);box-shadow:6px 6px 0 var(--yellow)}
+.btn.primary:hover{box-shadow:7px 7px 0 var(--yellow)}
+.btn.primary:active{box-shadow:2px 2px 0 var(--yellow)}
+.btn:disabled,.btn:disabled:hover{background:var(--ink-2);color:var(--muted-2);border:3px dashed var(--muted-3);box-shadow:none;transform:none;cursor:not-allowed}
+.tab{font-family:var(--display);text-transform:uppercase;letter-spacing:0.04em;font-size:16px;line-height:1;border:2px solid var(--paper);background:transparent;color:var(--paper);padding:11px 18px 9px;cursor:pointer;min-height:44px}
+.tab.on{background:var(--paper);color:var(--ink-2)}
+.tab:hover{background:var(--ink-3)}.tab.on:hover{background:var(--paper)}
+.seg{font-family:var(--body);font-weight:700;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;border:2px solid var(--paper);background:transparent;color:var(--paper);padding:8px 12px;cursor:pointer;min-height:36px}
+.seg.on{background:var(--yellow);color:var(--ink-2);border-color:var(--yellow)}
+.card{display:flex;gap:12px;border:2px solid var(--rule);background:var(--ink-2);padding:12px;cursor:pointer;text-align:left;color:var(--paper);width:100%;font:inherit;transition:transform .08s}
+.card:hover{border-color:var(--paper)}
+.card.sel{border:3px solid var(--orange);box-shadow:6px 6px 0 var(--orange);padding:11px;transform:translate(-2px,-2px)}
+.badge{font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:4px 7px 3px;border:2px solid currentColor;white-space:nowrap}
+.badge.rev{background:var(--teal);color:var(--ink-2);border-color:var(--teal)}
+.badge.unrev{color:var(--muted);border-style:dashed}
+.badge.hot{background:var(--pink);color:var(--ink-2);border-color:var(--pink)}
+.step{display:flex;align-items:center;gap:10px;padding:10px 14px 8px;border:2px solid var(--rule);color:var(--muted-2);font-family:var(--display);text-transform:uppercase;letter-spacing:0.04em;font-size:15px;line-height:1;white-space:nowrap}
+.step.done{border-color:var(--paper);color:var(--paper)}
+.step.cur{border-color:var(--ink-2);background:var(--orange);color:var(--ink-2);box-shadow:5px 5px 0 var(--yellow)}
+.step.bad{border-color:var(--ink-2);background:var(--pink);color:var(--ink-2);box-shadow:5px 5px 0 var(--paper)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--pink);display:inline-block}
+.dot.live{animation:blink 1s steps(2,start) infinite}
+.sticker{background:var(--paper);color:var(--ink-2);border:3px solid var(--ink-2);box-shadow:6px 6px 0 var(--orange);padding:10px 14px}
+.main{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:24px;padding:24px 28px 8px;flex:1 1 auto}
+@media (max-width:980px){.main{grid-template-columns:minmax(0,1fr)}}
+.scene{position:relative;background:#14141c;border:3px solid var(--paper);box-shadow:10px 10px 0 var(--ink-2);overflow:hidden}
+.scene svg{display:block;width:100%;height:auto}
+.hud{position:absolute;font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--paper)}
+.deer{transition:transform 1.8s cubic-bezier(.2,.75,.2,1)}
+.deer.out{transform:translateX(520px)}
+.deer.in{transform:translateX(0)}
+.deer.amble{animation:amble 5.5s ease-in-out infinite alternate}
+.deerhead{transition:transform 1s cubic-bezier(.3,.7,.2,1);transform-box:view-box;transform-origin:710px 365px}
+.deerhead.graze{transform:rotate(68deg)}
+.deerhead.alert{transform:rotate(-6deg)}
+.duckhead{transform-box:view-box;transform-origin:330px 395px}
+.duck.scan .duckhead{animation:scan 1.3s ease-in-out infinite alternate}
+.duck.dip .duckhead{animation:dip 2.8s cubic-bezier(.4,0,.3,1) 1 forwards}
+.duck.walk{animation:stroll 2s ease-in-out 1 forwards}
+.duck.hold .duckbody{animation:breathe 1.5s ease-in-out infinite alternate}
+.duckbody{transform-box:view-box;transform-origin:300px 430px}
+.legs{transform-box:view-box;transform-origin:300px 460px}
+.duck.walk .legs{animation:waddle .35s ease-in-out infinite alternate}
+.progress{height:8px;background:var(--rule);border:2px solid var(--paper);position:relative}
+.progress>div{position:absolute;left:0;top:0;bottom:0;background:var(--orange);transition:width .25s linear}
+.scan{position:absolute;left:0;right:0;height:3px;background:rgba(47,240,230,.85);animation:scanline 1.6s linear infinite;pointer-events:none}
+.iconbtn{width:44px;height:44px;border:2px solid var(--paper);background:var(--ink-2);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.iconbtn:hover{background:var(--ink-3)}
+.ir{background:repeating-linear-gradient(0deg,#1a1f22 0 2px,#15191c 2px 4px)}
+.hidden{display:none !important}
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.box{border:2px solid var(--paper);padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--ink-2)}
+.alert{border:3px solid var(--pink);background:var(--ink-2);padding:14px;display:flex;flex-direction:column;gap:10px}
+.empty{border:2px dashed var(--rule);padding:22px 16px;text-align:center;color:var(--muted-2);font-size:14px;line-height:1.4}
+dl.kv{margin:0;display:grid;grid-template-columns:120px minmax(0,1fr);gap:6px 12px;font-size:11.5px;line-height:1.5}
+dl.kv dt{color:var(--muted-2)}dl.kv dd{margin:0}
+@keyframes blink{to{visibility:hidden}}
+@keyframes scan{from{transform:rotate(-16deg)}to{transform:rotate(16deg)}}
+@keyframes dip{0%{transform:rotate(0)}35%{transform:rotate(62deg) translate(6px,8px)}55%{transform:rotate(62deg) translate(6px,8px)}100%{transform:rotate(0)}}
+@keyframes stroll{from{transform:translateX(0)}to{transform:translateX(110px)}}
+@keyframes waddle{from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
+@keyframes breathe{from{transform:scale(1)}to{transform:scale(1.025)}}
+@keyframes amble{from{transform:translateX(0)}to{transform:translateX(-120px)}}
+@keyframes scanline{from{top:-4px}to{top:100%}}
+</style>
+</head>
+<body>
+<div style="display:flex;flex-direction:column;min-height:100vh">
+
+  <!-- ===== Header ===== -->
+  <header style="display:flex;flex-wrap:wrap;align-items:center;gap:16px 28px;padding:16px 28px;border-bottom:3px solid var(--paper)">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div aria-hidden="true" style="width:44px;height:44px;background:var(--yellow);border:3px solid var(--ink-2);box-shadow:4px 4px 0 var(--orange);display:flex;align-items:center;justify-content:center">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><circle cx="12" cy="16" r="8" fill="#101018"/><circle cx="17" cy="9" r="5" fill="#101018"/><path d="M21 9 L27 11 L21 13 Z" fill="#FF7A2F"/><circle cx="18.5" cy="8" r="1.2" fill="#FFD23F"/></svg>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <h1 class="display" style="margin:0;font-size:34px;line-height:.95">Ranger Duck</h1>
+        <div class="label" style="color:var(--orange)">Field unit AV-1 · retrieval-guided imitation</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="label" style="margin-right:4px">Encounter</span>
+      <div id="tabs" role="group" aria-label="Encounter scenario" style="display:flex;gap:10px"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:18px;margin-left:auto;flex-wrap:wrap">
+      <div id="encLabel" class="mono" style="font-size:12px;color:var(--muted);letter-spacing:.06em"></div>
+      <button id="btnStart" class="btn primary" data-action="start">Start</button>
+      <button class="btn" data-action="reset">Reset</button>
+    </div>
+  </header>
+
+  <!-- ===== Main ===== -->
+  <main class="main">
+    <section aria-label="Shared simulation scene" style="display:flex;flex-direction:column;gap:14px;min-width:0">
+      <div class="scene">
+        <svg viewBox="0 0 960 560" role="img" aria-label="Simulated clearing with Microduck and a scripted deer">
+          <rect width="960" height="560" fill="#14141c"/>
+          <circle cx="820" cy="88" r="38" fill="#f2ecdd"/><circle cx="836" cy="80" r="34" fill="#14141c"/>
+          <polygon points="0,290 120,230 230,270 340,210 470,262 600,222 720,268 850,236 960,270 960,340 0,340" fill="#1c1c28"/>
+          <g fill="#0b0b10"><polygon points="60,330 100,180 140,330"/><polygon points="130,330 160,220 190,330"/><polygon points="820,330 860,170 900,330"/><polygon points="880,330 910,230 940,330"/><polygon points="400,330 425,250 450,330"/></g>
+          <rect y="330" width="960" height="230" fill="#2F6B3F"/>
+          <polygon points="0,330 960,330 960,360 0,352" fill="#3B7F4A"/>
+          <g fill="#28583A"><ellipse cx="180" cy="520" rx="90" ry="14"/><ellipse cx="520" cy="545" rx="130" ry="12"/><ellipse cx="860" cy="500" rx="70" ry="10"/></g>
+          <rect x="150" y="345" width="320" height="185" fill="none" stroke="#FFD23F" stroke-width="2" stroke-dasharray="8 8" opacity=".8"/>
+          <rect x="560" y="330" width="300" height="200" fill="none" stroke="#2FF0E6" stroke-width="2" stroke-dasharray="8 8" opacity=".8"/>
+
+          <!-- Deer: visual actor only, no collision -->
+          <g id="deer" class="deer out">
+            <g transform="translate(600,380)">
+              <g stroke="#5A3E2B" stroke-width="12" stroke-linecap="round"><line x1="20" y1="60" x2="14" y2="140"/><line x1="48" y1="62" x2="52" y2="140"/><line x1="96" y1="60" x2="92" y2="140"/><line x1="122" y1="58" x2="130" y2="140"/></g>
+              <polygon points="0,10 70,-8 140,-4 150,34 128,72 20,78 -8,46" fill="#8B5A2B"/>
+              <polygon points="70,-8 140,-4 150,34 90,30" fill="#A86B35"/>
+              <polygon points="0,10 70,-8 90,30 20,40" fill="#9C6430"/>
+              <polygon points="-8,46 -40,70 -22,40" fill="#8B5A2B"/>
+            </g>
+            <g id="deerhead" class="deerhead">
+              <polygon points="700,370 735,300 762,296 740,382" fill="#9C6430"/>
+              <polygon points="735,300 790,290 806,312 782,330 760,320" fill="#A86B35"/>
+              <polygon points="782,330 820,326 806,312" fill="#8B5A2B"/>
+              <polygon points="740,298 748,278 760,296" fill="#8B5A2B"/>
+              <circle cx="784" cy="306" r="4" fill="#101018"/>
+              <g stroke="#f2ecdd" stroke-width="4" stroke-linecap="round" fill="none"><path d="M752 294 L744 258 L728 240"/><path d="M744 258 L756 236"/><path d="M762 292 L776 256 L772 232"/><path d="M776 256 L796 246"/></g>
+            </g>
+          </g>
+
+          <!-- Microduck (in the real app this is the MuJoCo/Three.js body) -->
+          <g id="duck" class="duck">
+            <g class="legs" stroke="#FF7A2F" stroke-width="7" stroke-linecap="round"><line x1="286" y1="458" x2="282" y2="498"/><line x1="314" y1="458" x2="318" y2="498"/><line x1="270" y1="500" x2="296" y2="500"/><line x1="306" y1="500" x2="332" y2="500"/></g>
+            <g class="duckbody">
+              <polygon points="248,420 228,394 258,410" fill="#FFD23F"/>
+              <ellipse cx="300" cy="430" rx="52" ry="40" fill="#FFD23F"/>
+              <ellipse cx="300" cy="438" rx="34" ry="22" fill="#F2C12E"/>
+              <rect x="268" y="416" width="26" height="14" fill="#101018"/>
+              <rect x="296" y="422" width="10" height="8" fill="#2FF0E6"/>
+            </g>
+            <g class="duckhead">
+              <circle cx="334" cy="376" r="27" fill="#FFD23F"/>
+              <polygon points="356,372 394,382 356,392" fill="#FF7A2F"/>
+              <circle cx="344" cy="368" r="5" fill="#101018"/><circle cx="346" cy="366" r="1.5" fill="#faf8f2"/>
+              <rect x="316" y="356" width="18" height="8" fill="#101018"/>
+            </g>
+          </g>
+          <text x="156" y="362" fill="#FFD23F" font-family="DM Mono, monospace" font-size="11" letter-spacing="1.5">WALK AREA · 2 S MAX</text>
+          <text x="566" y="347" fill="#2FF0E6" font-family="DM Mono, monospace" font-size="11" letter-spacing="1.5">ENCOUNTER ZONE</text>
+        </svg>
+        <div id="scan" class="scan hidden" aria-hidden="true"></div>
+        <div class="hud" style="top:12px;left:14px;display:flex;align-items:center;gap:10px"><span class="dot live" aria-hidden="true"></span><span>SIM · MuJoCo WASM · 50 Hz policy loop</span></div>
+        <div id="clock" class="hud" style="top:12px;right:14px"></div>
+        <div class="hud" style="bottom:12px;right:14px;display:flex;gap:14px"><span id="scenarioTag"></span><span id="encLabel2"></span></div>
+        <div class="sticker mono" style="position:absolute;left:20px;bottom:16px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:10px">
+          <span class="label" style="color:var(--ink-2)">duck.status()</span><span id="duckStatus" style="font-weight:500"></span>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+        <div style="flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:6px">
+          <div class="label">Encounter event · supplied by the simulation</div>
+          <div id="sceneCaption" style="font-size:17px;line-height:1.35"></div>
+        </div>
+        <pre id="encounterJson" class="mono" style="margin:0;flex:1 1 320px;min-width:0;font-size:11.5px;line-height:1.6;color:var(--muted);border-left:3px solid var(--rule);padding-left:14px;white-space:pre-line"></pre>
+      </div>
+    </section>
+
+    <aside aria-label="Live archive search" style="display:flex;flex-direction:column;gap:18px;min-width:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <h2 class="display" style="margin:0;font-size:24px;line-height:1;display:flex;align-items:center;gap:10px"><span id="recdot" class="dot live hidden" aria-hidden="true"></span>Archive search</h2>
+        <div role="group" aria-label="Search mode" style="display:flex">
+          <button id="modeLive" class="seg" data-action="live">Live</button>
+          <button id="modeReplay" class="seg" data-action="replay" style="margin-left:-2px">Replay</button>
+        </div>
+      </div>
+
+      <div class="box">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline"><span class="label">Query</span><span id="statusLabel" class="label"></span></div>
+        <div id="queryText" class="mono" style="font-size:14px;line-height:1.45;color:var(--yellow);min-height:20px"></div>
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+          <span class="mono" style="font-size:11px;color:var(--muted);letter-spacing:.06em">POST /demo-api/search · tag wildlife · top_k 15 · llm_top_n 0</span>
+          <span id="elapsed" class="mono" style="font-size:20px;font-weight:500"></span>
+        </div>
+        <div id="matchNote" class="mono hidden" style="font-size:11.5px;color:var(--pink);letter-spacing:.04em"></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="label">Reference candidates · <span id="resultCount"></span></span><span class="label" style="color:var(--muted-2)">ranked by similarity</span></div>
+        <div id="results" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
+      <div id="selection"></div>
+    </aside>
+  </main>
+
+  <!-- ===== Stage strip ===== -->
+  <footer style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 24px;padding:18px 28px 22px;border-top:3px solid var(--paper);margin-top:16px">
+    <ol id="steps" style="list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px"></ol>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span class="label" style="color:var(--muted-2)">Rehearse</span>
+      <button class="seg" data-action="rehearse-nomatch">No match</button>
+      <button class="seg" data-action="rehearse-timeout">Timeout</button>
+      <span class="mono" style="font-size:11px;color:var(--muted-2);letter-spacing:.06em;margin-left:8px">END OF TAPE · BE KIND, REWIND</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* ======================================================================
+   Mock data. In the real app this comes from GET /demo-api/encounters
+   and POST /demo-api/search (see README.md § Data contracts).
+   ====================================================================== */
+const SCENARIOS = {
+  feeding:  { label:"Feeding",  animal:"deer", hint:"feeding",  description:"A deer lowers its head to feed in a clearing.",                       query:"deer feeding with its head lowered",             broadQuery:"large mammal feeding, head lowered to the ground", results:["ref-07","ref-03","ref-11"] },
+  walking:  { label:"Walking",  animal:"deer", hint:"walking",  description:"A deer walks slowly across the clearing.",                           query:"deer walking slowly through a forest clearing",  broadQuery:"large mammal walking slowly across open ground",  results:["ref-05","ref-03","ref-09"] },
+  standing: { label:"Standing", animal:"deer", hint:"standing", description:"A deer stands still at the edge of the clearing, ears forward.",      query:"deer standing still and alert in a clearing",    broadQuery:"large mammal standing motionless",                results:["ref-11","ref-02","ref-05"] }
+};
+const REFS = {
+  "ref-03": { id:"ref-03", cam:"03", caption:"A deer lowers its head to the grass and feeds in a forest clearing at dawn.", hash:"sha256:9e1c…b74a", reviewed:true,  animal:"Red deer", behavior:"Feeding with head lowered", primitive:"ground_pick", bound:"One complete beak-dip cycle · about 2.8 s", reason:"Head drops below the shoulder line and stays down for several seconds.", source:"20261017_102903_5e195e5b.mp4", parent:"b6ed2e302d7112b0", start:12, len:15, provenance:"MammAlps S1/C1/E103", clip:"clp_4f0a21", stamp:"2026-10-17 10:29", sims:{feeding:"0.45",walking:"0.33",standing:"0.30"}, dur:2800 },
+  "ref-07": { id:"ref-07", cam:"07", caption:"A flock of sheep grazes on a hillside while a camera watches from below.", hash:"sha256:11d9…02ef", reviewed:false, note:"Not reviewed. Inspected footage shows a single deer; the caption species is wrong. Copy stays unavailable until a reviewer records the behavior.", source:"20261017_102907_d99f76b1.mp4", parent:"4aa2579c16d48aad", start:4, len:15, provenance:"MammAlps S1/C1/E117", clip:"clp_8b31c7", stamp:"2026-10-17 10:29", sims:{feeding:"0.46",walking:"0.27",standing:"0.22"} },
+  "ref-11": { id:"ref-11", cam:"11", caption:"A deer stands motionless at the edge of the trees, ears forward.", hash:"sha256:7a40…c913", reviewed:true,  animal:"Red deer", behavior:"Standing still", primitive:"stand_hold", bound:"Three seconds in a neutral standing pose", reason:"No translation for the full segment; stationary is not resting, so no sit.", source:"20261017_102903_2ea57765.mp4", parent:"7f720ec9ee3aaa02", start:31, len:15, provenance:"MammAlps S1/C1/E118", clip:"clp_c2e9d0", stamp:"2026-10-17 10:29", sims:{feeding:"0.37",walking:"0.24",standing:"0.44"}, dur:3000 },
+  "ref-05": { id:"ref-05", cam:"05", caption:"Two deer walk slowly across a clearing from left to right.", hash:"sha256:e3b7…51aa", reviewed:true,  animal:"Red deer", behavior:"Walking", primitive:"short_walk", bound:"Slow walk for at most two seconds inside the marked area", reason:"Steady gait across the frame with no feeding or alarm behavior.", source:"20261017_102903_669e2fee.mp4", parent:"c8e1c8ab2dada906", start:2, len:15, provenance:"MammAlps S1/C1/E100", clip:"clp_19f7e4", stamp:"2026-10-17 10:29", sims:{feeding:"0.21",walking:"0.41",standing:"0.28"}, dur:2000 },
+  "ref-09": { id:"ref-09", cam:"09", caption:"A horse walks along a dirt path between trees.", hash:"sha256:52c0…9d1e", reviewed:false, note:"Not reviewed. Caption says horse; inspected footage shows an antlered deer. Species disagreement requires renewed review before any movement.", source:"20261017_102906_699ee4de.mp4", parent:"b3b1ae52c147e2cb", start:9, len:15, provenance:"MammAlps S1/C1/E117", clip:"clp_6d2b08", stamp:"2026-10-17 10:29", sims:{feeding:"0.18",walking:"0.29",standing:"0.19"} },
+  "ref-02": { id:"ref-02", cam:"02", caption:"An empty clearing with no animals visible.", hash:"sha256:0bb3…e77c", reviewed:false, note:"Not reviewed. No animal is visible in the segment, so there is no behavior to copy.", source:"20261017_102905_f48c9874.mp4", parent:"cb5c4402a356a2f0", start:0, len:15, provenance:"MammAlps S1/C1/E103", clip:"clp_a7e310", stamp:"2026-10-17 10:29", sims:{feeding:"0.19",walking:"0.17",standing:"0.31"} }
+};
+const STEPS = ["Encounter","Searching","Reference ready","Imitating","Complete"];
+const STAGE_INDEX = { idle:-1, encounter:0, searching:1, ready:2, nomatch:1, failed:1, imitating:3, complete:4 };
+const PRIMITIVE_CLASS = { ground_pick:"dip", short_walk:"walk", stand_hold:"hold" };
+
+/* ======================================================================
+   State machine: idle → encounter → searching → ready → imitating → complete
+                                   ↘ nomatch / failed
+   ====================================================================== */
+const state = {
+  scenario:"feeding", stage:"idle", mode:"live", encounter:1,
+  results:[], selected:null, elapsed:0, rehearsal:null, broadened:false,
+  playing:false, videoT:0, detailsOpen:false, actionPct:0,
+  duckStatus:"ready"
+};
+let timers = [];
+const later = (ms, fn) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+const every = (ms, fn) => { const t = setInterval(fn, ms); timers.push(t); return t; };
+const clearTimers = () => { timers.forEach(t => { clearTimeout(t); clearInterval(t); }); timers = []; };
+const set = (patch) => { Object.assign(state, patch); render(); };
+const pad = (n) => { n = Math.floor(n); return (n < 10 ? "0" : "") + n; };
+const mmss = (s) => pad(s / 60) + ":" + pad(s % 60);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function start() {
+  if (state.stage !== "idle") return;
+  const id = state.encounter;
+  set({ stage:"encounter", results:[], selected:null, elapsed:0, broadened:false, duckStatus:"ready", detailsOpen:false });
+  later(1900, () => { if (state.encounter === id) beginSearch(id, false); });   // animal reaches the zone → query fires
+}
+function beginSearch(id, broad) {
+  const t0 = Date.now();
+  set({ stage:"searching", elapsed:0, results:[], selected:null, duckStatus:"ready · scanning" });
+  const tick = every(50, () => { if (state.encounter !== id) return clearInterval(tick); set({ elapsed: Date.now() - t0 }); });
+  const reh = state.rehearsal;
+  const latency = state.mode === "replay" ? 700 : (reh === "timeout" ? 3000 : 2300 + Math.random() * 1600);   // live deadline is 12 s in the real app
+  later(latency, () => {
+    if (state.encounter !== id) return;
+    clearInterval(tick);
+    const elapsed = Date.now() - t0;
+    if (reh === "timeout") return set({ stage:"failed", elapsed, rehearsal:null, duckStatus:"ready" });
+    if (reh === "nomatch" && !broad) return set({ stage:"nomatch", elapsed, results:[], duckStatus:"ready · holding pose" });
+    set({ stage:"ready", elapsed, results: SCENARIOS[state.scenario].results.slice(), rehearsal:null, duckStatus:"ready" });
+  });
+}
+function select(refId) {
+  if (state.stage !== "ready" && state.stage !== "complete") return;
+  if (state.selected === refId) return;
+  stopVideo();
+  set({ selected:refId, stage:"ready", playing:false, videoT:0, detailsOpen:false, duckStatus:"ready", actionPct:0 });   // changing the reference invalidates the previous action
+}
+function copy() {
+  const ref = REFS[state.selected];
+  if (!ref || !ref.reviewed || state.stage !== "ready") return;   // only reviewed references returned by THIS search can move the duck
+  const id = state.encounter, t0 = Date.now(), dur = ref.dur;
+  set({ stage:"imitating", actionPct:0, duckStatus:"busy · " + ref.primitive });
+  const tick = every(60, () => { if (state.encounter !== id) return clearInterval(tick); set({ actionPct: Math.min(100, (Date.now() - t0) / dur * 100) }); });
+  later(dur + 350, () => { if (state.encounter !== id) return; clearInterval(tick); set({ stage:"complete", actionPct:100, duckStatus:"complete · back in normal mode" }); });
+}
+function reset() {
+  clearTimers(); stopVideo();
+  set({ stage:"idle", encounter: state.encounter + 1, results:[], selected:null, elapsed:0, playing:false, videoT:0, detailsOpen:false, rehearsal:null, broadened:false, actionPct:0, duckStatus:"ready" });
+}
+function setScenario(k) { if (state.scenario === k) return; reset(); set({ scenario:k }); }
+
+/* playback mock: segment-local time + source-relative archive time */
+let vid = null;
+function stopVideo() { clearInterval(vid); vid = null; }
+function togglePlay() {
+  const ref = REFS[state.selected]; if (!ref) return;
+  if (state.playing) { stopVideo(); return set({ playing:false }); }
+  set({ playing:true, videoT: state.videoT >= ref.len ? 0 : state.videoT });
+  vid = every(250, () => { const t = state.videoT + 0.25; if (t >= ref.len) { stopVideo(); set({ videoT:ref.len, playing:false }); } else set({ videoT:t }); });
+}
+function rewind() { stopVideo(); set({ videoT:0, playing:false }); }
+
+/* ======================================================================
+   Render
+   ====================================================================== */
+const $ = (id) => document.getElementById(id);
+let lastSelKey = null;
+
+function render() {
+  const st = state, sc = SCENARIOS[st.scenario], ref = st.selected ? REFS[st.selected] : null;
+  const is = (k) => st.stage === k;
+  const encLabel = "encounter-" + String(st.encounter).padStart(3, "0");
+  const q = st.broadened ? sc.broadQuery : sc.query;
+  const eligible = !!(ref && ref.reviewed);
+
+  // header
+  $("tabs").innerHTML = Object.keys(SCENARIOS).map(k => `<button class="tab ${st.scenario === k ? "on" : ""}" data-action="scenario" data-key="${k}">${SCENARIOS[k].label}</button>`).join("");
+  $("encLabel").textContent = encLabel; $("encLabel2").textContent = encLabel;
+  $("btnStart").disabled = !is("idle");
+
+  // scene
+  let deerCls = is("idle") ? "out" : "in", headCls = "", duckCls = "";
+  if (!is("idle") && !is("encounter")) {
+    if (st.scenario === "feeding") headCls = "graze";
+    if (st.scenario === "standing") headCls = "alert";
+    if (st.scenario === "walking") deerCls = "in amble";
+  }
+  if (is("searching")) duckCls = "scan";
+  if (is("imitating") && ref) duckCls = PRIMITIVE_CLASS[ref.primitive] || "";
+  if (is("complete") && ref && ref.primitive === "short_walk") duckCls = "walk";
+  $("deer").setAttribute("class", "deer " + deerCls);
+  $("deerhead").setAttribute("class", "deerhead " + headCls);
+  $("duck").setAttribute("class", "duck " + duckCls);
+  $("scan").classList.toggle("hidden", !is("searching"));
+  $("recdot").classList.toggle("hidden", !is("searching"));
+  $("scenarioTag").textContent = "SCENARIO " + sc.hint.toUpperCase();
+  $("duckStatus").textContent = st.duckStatus;
+  $("sceneCaption").textContent = is("idle") ? `Press Start. The ${sc.animal} enters the clearing, and the search begins when it reaches the marked zone.` : sc.description;
+  $("encounterJson").textContent = is("idle") ? "{ awaiting Start }" :
+    `{ "encounter_id": "${encLabel}",\n  "scenario_id": "${sc.animal}-${sc.hint}",\n  "input_mode": "scripted_scene",\n  "animal": "${sc.animal}", "behavior_hint": "${sc.hint}" }`;
+
+  // query box
+  let statusLabel = "idle", statusColor = "var(--muted-2)";
+  if (is("encounter")) { statusLabel = "waiting for encounter zone"; statusColor = "var(--yellow)"; }
+  if (is("searching")) { statusLabel = st.mode === "replay" ? "replaying cached run" : "live request in flight"; statusColor = "var(--orange)"; }
+  if (is("ready") || is("imitating") || is("complete")) { statusLabel = (st.mode === "replay" ? "replay · " : "live · ") + st.results.length + " candidates"; statusColor = "var(--teal)"; }
+  if (is("nomatch")) { statusLabel = "no supported match"; statusColor = "var(--pink)"; }
+  if (is("failed")) { statusLabel = "deadline reached · aborted"; statusColor = "var(--pink)"; }
+  $("statusLabel").textContent = statusLabel; $("statusLabel").style.color = statusColor;
+  $("queryText").textContent = is("idle") ? "—" : q;
+  $("elapsed").textContent = (is("idle") || is("encounter")) ? "— s" : (st.elapsed / 1000).toFixed(2) + " s";
+  $("matchNote").classList.toggle("hidden", !st.broadened);
+  $("matchNote").textContent = `Match type: broader category · query changed from “${sc.query}”`;
+  $("modeLive").classList.toggle("on", st.mode === "live"); $("modeReplay").classList.toggle("on", st.mode === "replay");
+
+  // results
+  $("resultCount").textContent = st.results.length ? `${st.results.length} of 15 hits shown` : "none yet";
+  let html = "";
+  if (st.results.length) {
+    html = st.results.map((id, i) => {
+      const r = REFS[id], sel = st.selected === id;
+      return `<button class="card ${sel ? "sel" : ""}" data-action="select" data-key="${id}" aria-pressed="${sel}">
+        <div class="ir" style="width:92px;height:68px;flex:0 0 auto;border:2px solid var(--paper);position:relative;overflow:hidden">
+          <span class="mono" style="position:absolute;top:3px;left:5px;font-size:9px;letter-spacing:.08em">CAM ${r.cam}</span>
+          <span class="mono" style="position:absolute;bottom:3px;left:5px;font-size:9px;color:var(--yellow);letter-spacing:.08em">${mmss(r.start)}</span>
+          <span class="display" style="position:absolute;right:5px;top:2px;font-size:22px;opacity:.9">${pad(i + 1)}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:0;flex:1 1 auto">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="badge ${r.reviewed ? "rev" : "unrev"}">${r.reviewed ? "Reviewed · " + esc(r.behavior) : "Unreviewed"}</span>
+            <span class="mono" style="font-size:11px;color:var(--muted)">sim ${r.sims[st.scenario]}</span>
+          </div>
+          <div class="clamp2" style="font-size:13.5px;line-height:1.35">${esc(r.caption)}</div>
+          <div class="mono" style="font-size:10.5px;color:var(--muted-2);letter-spacing:.04em">${esc(r.source.replace(/^\d+_\d+_/, "…"))} · ${mmss(r.start)}–${mmss(r.start + r.len)}</div>
+        </div></button>`;
+    }).join("");
+  } else if (is("nomatch")) {
+    html = `<div class="alert"><div class="display" style="font-size:20px;line-height:1;color:var(--pink)">No supported imitation found</div>
+      <div style="font-size:13.5px;line-height:1.4;color:var(--muted)">No reviewed reference for this species was returned. Microduck holds its pose.</div>
+      <button class="btn" data-action="broaden" style="align-self:flex-start;font-size:15px">Search broader category</button></div>`;
+  } else if (is("failed")) {
+    html = `<div class="alert"><div class="display" style="font-size:20px;line-height:1;color:var(--pink)">Search did not finish</div>
+      <div style="font-size:13.5px;line-height:1.4;color:var(--muted)">Request aborted at the deadline. No cached result was substituted.</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap"><button class="btn" data-action="retry" style="font-size:15px">Retry live</button><button class="btn" data-action="retry-replay" style="font-size:15px">Use replay</button></div></div>`;
+  } else {
+    html = `<div class="empty">${is("searching") ? "Ranking archive segments…" : is("encounter") ? "Animal entering the encounter zone. Search starts on arrival." : "Choose an encounter and press Start."}</div>`;
+  }
+  $("results").innerHTML = html;
+
+  // selection panel (rebuild only when its shape changes; times update in place)
+  const selKey = [st.selected, st.stage, st.detailsOpen, st.playing].join("|");
+  if (!ref) {
+    $("selection").innerHTML = st.results.length ? `<div class="empty" style="padding:18px 16px">Select a reference card to play its segment and see whether it can move the duck.</div>` : "";
+    lastSelKey = null;
+  } else if (selKey !== lastSelKey) {
+    lastSelKey = selKey;
+    let copyLabel = "Copy this behavior", copyNote = "Copy runs one bounded primitive through the existing controller. Completion is observed, not timed.";
+    if (!ref.reviewed) copyNote = "Copy unavailable: only a reviewed reference returned by this search can move the duck.";
+    if (is("imitating")) { copyLabel = "Imitating · " + ref.primitive; copyNote = `Waiting for entry into ${ref.primitive} and return to normal mode before reporting completion.`; }
+    if (is("complete")) { copyLabel = "Imitation complete"; copyNote = `Observed entry and exit for ${ref.primitive}. Choose another reviewed reference or Reset.`; }
+    const playIcon = st.playing
+      ? `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="4" height="12" fill="currentColor"/><rect x="9" y="2" width="4" height="12" fill="currentColor"/></svg>`
+      : `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><polygon points="3,2 14,8 3,14" fill="currentColor"/></svg>`;
+    $("selection").innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><span class="label">Selected reference · ${ref.id}</span><span class="mono" style="font-size:11px;color:var(--muted-2)">${esc(ref.provenance)}</span></div>
+        <div class="ir" style="position:relative;aspect-ratio:16/9;border:3px solid var(--paper);box-shadow:8px 8px 0 var(--ink-2);overflow:hidden">
+          <svg viewBox="0 0 320 180" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true">
+            <polygon points="0,110 60,96 130,106 200,92 260,104 320,96 320,180 0,180" fill="#20272a"/>
+            <g fill="#0f1314"><polygon points="30,112 44,60 58,112"/><polygon points="270,108 286,54 300,108"/></g>
+            <g transform="translate(150,118)" fill="#4a4f52"><polygon points="0,0 36,-6 60,10 50,30 8,32 -6,20"/><polygon points="52,0 66,-30 76,-28 70,8" opacity=".9"/></g>
+          </svg>
+          <span class="mono hud" style="top:8px;left:10px;display:flex;gap:8px;align-items:center"><span class="dot live" aria-hidden="true"></span>CAM ${ref.cam} · REC</span>
+          <span class="mono hud" style="top:8px;right:10px">${ref.stamp}</span>
+          <span class="mono hud" style="bottom:8px;left:10px;color:var(--yellow)">ARCHIVE <span id="archiveTime"></span></span>
+          <span class="mono hud" style="bottom:8px;right:10px">SEG <span id="videoTime"></span> / ${mmss(ref.len)}</span>
+          ${st.playing ? "" : `<button data-action="play" aria-label="Play segment" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:64px;border:3px solid var(--ink-2);background:var(--yellow);box-shadow:5px 5px 0 var(--orange);cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><polygon points="5,3 19,11 5,19" fill="#101018"/></svg></button>`}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="iconbtn" data-action="play" aria-label="${st.playing ? "Pause" : "Play"}">${playIcon}</button>
+          <button class="iconbtn" data-action="rewind" aria-label="Back to segment start"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="2" height="12" fill="currentColor"/><polygon points="14,2 5,8 14,14" fill="currentColor"/></svg></button>
+          <div class="progress" style="flex:1 1 auto" aria-label="Segment position"><div id="progress"></div></div>
+          <span class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${mmss(ref.start)}–${mmss(ref.start + ref.len)}</span>
+        </div>
+        <div style="border:3px solid var(--paper);background:var(--ink-2);padding:14px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><span class="label">Reviewed behavior → duck move</span><span class="badge ${eligible ? "rev" : "hot"}">${eligible ? "Reviewed · eligible" : "Unreviewed · copy unavailable"}</span></div>
+          ${eligible ? `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+              <div style="display:flex;flex-direction:column;gap:4px"><span class="label" style="color:var(--muted-2)">Observed in footage</span><span style="font-size:16px;font-weight:600;line-height:1.3">${esc(ref.behavior)}</span><span style="font-size:12.5px;color:var(--muted);line-height:1.4">${esc(ref.reason)}</span></div>
+              <div style="display:flex;flex-direction:column;gap:4px;border-left:3px solid var(--orange);padding-left:12px"><span class="label" style="color:var(--muted-2)">Allowed primitive</span><span class="mono" style="font-size:16px;color:var(--orange);font-weight:500">${ref.primitive}</span><span style="font-size:12.5px;color:var(--muted);line-height:1.4">${esc(ref.bound)}</span></div>
+            </div>`
+          : `<div style="font-size:13.5px;line-height:1.45;color:var(--muted);border-left:3px solid var(--pink);padding-left:12px">${esc(ref.note)}</div>`}
+          <button class="btn primary" data-action="copy" ${(!eligible || !is("ready")) ? "disabled" : ""} style="font-size:20px;width:100%">${copyLabel}</button>
+          ${is("imitating") ? `<div class="progress" aria-label="Action progress"><div id="actionProgress" style="background:var(--teal)"></div></div>` : ""}
+          <div class="mono" style="font-size:11.5px;color:var(--muted);letter-spacing:.04em;line-height:1.5">${copyNote}</div>
+          <button class="seg" data-action="details" style="align-self:flex-start" aria-expanded="${st.detailsOpen}">${st.detailsOpen ? "Hide evidence details" : "Evidence details"}</button>
+          ${st.detailsOpen ? `<dl class="kv mono">
+            <dt>model caption</dt><dd>${esc(ref.caption)}</dd>
+            <dt>caption hash</dt><dd>${ref.hash}</dd>
+            <dt>reviewed label</dt><dd style="color:var(--teal)">${ref.reviewed ? esc(ref.animal + " · " + ref.behavior) : "none recorded"}</dd>
+            <dt>source</dt><dd>${ref.source}</dd>
+            <dt>parent video</dt><dd>${ref.parent}</dd>
+            <dt>segment</dt><dd>${mmss(ref.start)}–${mmss(ref.start + ref.len)} · source-relative</dd>
+            <dt>clip id</dt><dd>${ref.clip}</dd>
+            <dt>provenance</dt><dd>${esc(ref.provenance)}</dd>
+          </dl>` : ""}
+        </div>
+      </div>`;
+  }
+  if (ref) {
+    $("archiveTime").textContent = mmss(ref.start + st.videoT);
+    $("videoTime").textContent = mmss(st.videoT);
+    $("progress").style.width = (st.videoT / ref.len * 100).toFixed(1) + "%";
+    const ap = $("actionProgress"); if (ap) ap.style.width = st.actionPct.toFixed(0) + "%";
+  }
+
+  // stage strip
+  const idx = STAGE_INDEX[st.stage];
+  $("steps").innerHTML = STEPS.map((label, i) => {
+    let cls = "";
+    if ((is("nomatch") || is("failed")) && i === 1) cls = "bad"; else if (i < idx) cls = "done"; else if (i === idx) cls = "cur";
+    return `<li class="step ${cls}"><span class="mono" style="font-size:11px;opacity:.7">${pad(i + 1)}</span>${label}</li>`;
+  }).join("");
+}
+
+/* clock in the trail-cam HUD */
+setInterval(() => { const d = new Date(); $("clock").textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }, 1000);
+
+/* event delegation */
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-action]"); if (!el) return;
+  const k = el.dataset.key;
+  ({
+    start, reset, copy, broaden: () => { set({ broadened:true }); beginSearch(state.encounter, true); },
+    retry: () => { set({ mode:"live" }); beginSearch(state.encounter, false); },
+    "retry-replay": () => { set({ mode:"replay" }); beginSearch(state.encounter, false); },
+    scenario: () => setScenario(k), select: () => select(k),
+    live: () => set({ mode:"live" }), replay: () => set({ mode:"replay" }),
+    play: togglePlay, rewind, details: () => set({ detailsOpen: !state.detailsOpen }),
+    "rehearse-nomatch": () => { reset(); set({ rehearsal:"nomatch" }); },
+    "rehearse-timeout": () => { reset(); set({ rehearsal:"timeout" }); }
+  })[el.dataset.action]();
+});
+render();
+</script>
+</body>
+</html>
