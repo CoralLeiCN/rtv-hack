@@ -1,12 +1,10 @@
 # --- root .md files: whitelist, not blacklist ---
-# Only these root-level docs are attendee-facing / public. Any new root .md is internal
+# Only the repository overview and agent instructions are kept at the root.
+# Hackathon documents live in docs/hackathon/. New root .md files are internal
 # by default and must be explicitly un-ignored below to ship. Doesn't affect
 # .cursor/ or .agents/, where Markdown files contain shipped agent guidance.
 /*.md
 !/README.md
-!/BEFORE_YOU_BUILD.md
-!/BUILD_DAY.md
-!/ARCHITECTURE_REFERENCE.md
 !/AGENTS.md
 
 # --- internal / agent context (not for attendees) ---

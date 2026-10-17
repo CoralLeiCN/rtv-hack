@@ -1,6 +1,6 @@
 # Builders Challenge Reference
 
-A deeper dive into the architecture behind [README.md](README.md) — the models, the
+A deeper dive into the architecture behind [build day guide](BUILD_DAY.md) — the models, the
 DataEngine pipeline, and the full video corpus. Team setup and credentials are covered
 there; this doc doesn't repeat them.
 
@@ -40,7 +40,7 @@ S3 chunks (bucket)  →  Segmenter  →  S3 segments (bucket)
 
 A separate **events / prompt-suggester** function runs on a schedule and feeds UI suggestions.
 
-![VAST DataEngine pipeline](docs/hackathon/vss-pipeline.png)
+![VAST DataEngine pipeline](vss-pipeline.png)
 
 **VAST DataEngine (pipeline’s tab)** — view the pipeline’s flow, logs, and traces. Treat the graph as given for the challenge (re-ingest / upload via skills; don’t rebuild functions or redeploy the pipeline).
 

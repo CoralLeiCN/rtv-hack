@@ -69,8 +69,8 @@ concerns justify it; otherwise, continue toward completing the task.
 - Keep direct DB operations in the team's bucket. Use the data VIP for writes;
   the Query Engine VIP is an optional read endpoint. Embeddings use 256 dimensions.
 - For workshop deliverables, build a web app, CLI, or script that can be demoed
-  from the VM. Use `README.md` for the workshop flow and
-  `ARCHITECTURE_REFERENCE.md` for stack boundaries and project ideas.
+  from the VM. Use `docs/hackathon/BUILD_DAY.md` for the workshop flow and
+  `docs/hackathon/ARCHITECTURE_REFERENCE.md` for stack boundaries and project ideas.
 - Collect missing choices and confirmations with `request_user_input_async`
   when available, or a concise chat question. Respect choices and authorization
   already supplied in the conversation.

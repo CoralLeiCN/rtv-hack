@@ -5,7 +5,7 @@ description: Guide a team through the VSS Build Day UI, skills, search and re-in
 
 # Build Day Quickstart
 
-Run the workshop flow in `README.md` interactively, using the Codex setup in
+Run the workshop flow in `docs/hackathon/BUILD_DAY.md` interactively, using the Codex setup in
 [docs/CODEX.md](../../../docs/CODEX.md). Kickoff and Access Infra should already
 be complete. Confirm that Codex can run commands in the configured workshop
 environment, such as Codex CLI in a VM terminal or an available remote session,
@@ -60,7 +60,7 @@ to build.
 
 Hand off, don't drive. Ask: what's the use case, specifically? ("flag someone missing a
 hard hat", not "watch for safety issues"). If they're not sure, point them at the video
-sources in `ARCHITECTURE_REFERENCE.md#video-corpus-already-indexed`.
+sources in `docs/hackathon/ARCHITECTURE_REFERENCE.md#video-corpus-already-indexed`.
 
 Remind them once: web app, CLI, or script only — no native app, the VM can't demo one.
 
@@ -78,7 +78,7 @@ walking through what they built.
 
 1. Confirm command execution is available in the configured workshop environment
    before live operations. If access is missing, use the Codex setup guide and
-   README.md sections 1–2 to explain what is needed. Local documentation edits do
+   docs/hackathon/BUILD_DAY.md sections 1–2 to explain what is needed. Local documentation edits do
    not require VM access.
 2. Go one step at a time. After each step, ask if it worked before moving on — don't
    dump Steps 1–4 at once.
