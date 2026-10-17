@@ -29,7 +29,7 @@ def test_full_search_and_decisions_survive_filters_and_link_to_outcome(tmp_path)
         cycle = next_cycle(client).json()
         assert client.post('/demo-api/loop/loop-1/outcome', json=outcome(cycle)).status_code == 200
     captured = events(tmp_path)
-    searches = [e for e in captured if e['kind'] == 'vss.search.completed']
+    searches = [e for e in captured if e['kind'] == 'archive.search.completed']
     assert searches[0]['output']['results'] == rows
     decisions = [e for e in captured if e['kind'] == 'codex.decision.completed']
     assert len(decisions) == 2
@@ -70,7 +70,7 @@ def test_encounter_outcomes_require_session_and_issued_action(tmp_path):
         assert client.post('/demo-api/action-outcome', json=payload).status_code == 404
     captured = events(tmp_path)
     result = next(e for e in captured if e['kind'] == 'encounter.action.completed')
-    assert result['run_id'] == next(e for e in captured if e['kind'] == 'vss.search.completed')['run_id']
+    assert result['run_id'] == next(e for e in captured if e['kind'] == 'archive.search.completed')['run_id']
     assert len([e for e in captured if e['kind'] == 'encounter.action.completed']) == 1
 
 
@@ -140,7 +140,7 @@ def test_raw_codex_output_is_retained_even_when_schema_validation_fails(tmp_path
 
 def test_weave_export_preserves_full_payload_and_join_keys(tmp_path, monkeypatch):
     capture = Capture(tmp_path)
-    capture.emit('vss.search.completed', {'query': 'deer'}, {'results': [ROW]}, run_id='run-1')
+    capture.emit('archive.search.completed', {'query': 'deer'}, {'results': [ROW]}, run_id='run-1')
     calls = []
     def log_call(**kw):
         calls.append(kw)
@@ -218,7 +218,7 @@ def test_unified_run_captures_search_decisions_and_one_validated_outcome(tmp_pat
         assert first.status_code == 200
         assert client.post('/demo-api/runs/run-1/outcome', json=body).json() == first.json()
     captured = events(tmp_path)
-    assert next(e for e in captured if e['kind'] == 'vss.search.completed')['output']['results'] == clips
+    assert next(e for e in captured if e['kind'] == 'archive.search.completed')['output']['results'] == clips
     assert len([e for e in captured if e['kind'] == 'codex.decision.completed']) == 2
     assert next(e for e in captured if e['kind'] == 'run.search.result')['output'] == result
     outcomes = [e for e in captured if e['kind'] == 'run.action.outcome']

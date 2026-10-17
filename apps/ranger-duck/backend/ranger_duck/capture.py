@@ -149,7 +149,7 @@ def main():
     args = parser.parse_args()
     if not args.project:
         parser.error('Set RANGER_WEAVE_PROJECT or pass --project ENTITY/PROJECT.')
-    # Load only the exporter credential, never forward the VSS environment to Weave.
+    # Load only the exporter credential, never forward the archive environment to Weave.
     if values.get('WANDB_API_KEY'):
         os.environ['WANDB_API_KEY'] = values['WANDB_API_KEY']
     import weave

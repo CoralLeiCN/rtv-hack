@@ -238,7 +238,7 @@ def test_broadening_keeps_cat_pair_and_authorized_search_scope():
         catalog = client.get("/demo-api/encounters").json()["encounters"]
     sent = json.loads(next(r.content for r in upstream.requests if r.url.path.endswith("/search")))
     assert response.json()["query"] == sent["query"] == "Cats interacting OR A cat alone showing similar observable motion"
-    assert sent["tags"] == ["meow-10k", "cat-behavior"] and sent["include_public"] is True
+    assert sent["tags"] == ["meow-10k", "cat-behavior"] and "include_public" not in sent
     assert all(s["role"] == "focal_animal" and s["animal"] == s["interaction_partner"] for s in catalog)
 
 

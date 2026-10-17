@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "microduck-video-archive"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1", "httpx>=0.28,<1", "psycopg[binary]>=3.2,<4", "qdrant-client>=1.19,<1.20", "python-dotenv>=1,<2"]
+
+[project.optional-dependencies]
+models = ["sentence-transformers>=5.7,<6", "transformers>=5.20.1,<6", "torch>=2.6"]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+video-archive = "video_archive.cli:main"
+
+[tool.setuptools.package-data]
+video_archive = ["*.sql"]

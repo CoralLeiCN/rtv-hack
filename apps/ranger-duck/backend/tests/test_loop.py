@@ -229,7 +229,7 @@ def test_pause_cancels_inflight_agent_without_issuing_action():
             assert (await task).status_code == 409
             assert stopped.is_set()
             assert next(iter(app.state.loop_service.sessions.values())).pending is None
-        await app.state.vss.close()
+        await app.state.archive.close()
     asyncio.run(scenario())
 
 

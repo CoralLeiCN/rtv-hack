@@ -1,8 +1,8 @@
 # Ranger Duck unified implementation plan
 
-Updated 17 October 2026. One page and one agent pipeline support the encounter
-and adaptive Loop behaviors. This supersedes the separate-mode plans in
-[plan.md](plan.md) and the Ranger Duck section of [spec.md](spec.md).
+One page and one agent pipeline support encounter and adaptive Loop behavior.
+The [archive specification](spec.md) defines retrieval, ingestion and media
+storage; the [implementation plan](../plan.md) records validation status.
 
 The interface follows the [design handoff](../apps/ranger-duck/design/README.md).
 See the [API contract](RANGER_DUCK_API.md), [startup guide](../apps/ranger-duck/README.md),
@@ -18,7 +18,7 @@ There is one persistent duck and one animal outside its arena.
 - Loop off is Encounter behavior: repeat the same up-to-three-action queue without a new search.
 - Loop on randomly chooses a different interaction for the same animal after the queue finishes, then plans a fresh query using that interaction, the original intent and actual outcomes. The first round uses the selected preset.
 - Changing the toggle preserves the current action and queue. It controls the next round boundary; an already-running search may finish.
-- Both toggle positions use the same query model, VSS settings, batch action/role planner, validation and execution coordinator.
+- Both toggle positions use the same query model, archive settings, batch action/role planner, validation and execution coordinator.
 - A changed intent/species creates a new run without replacing the physics body. Only explicit Reset resets the duck.
 
 ## Inputs and outputs
@@ -27,7 +27,7 @@ There is one persistent duck and one animal outside its arena.
 | --- | --- | --- |
 | Start run | Animal, catalog preset, optional intent, Loop setting | Session-scoped run and original intent |
 | Plan query | Current interaction, run intent and bounded actual-outcome history | Current scenario snapshot, required interaction and solitary-behavior query branches joined with OR, and a brief reason |
-| Retrieve | Validated generated query and species tags | Up to 15 ranked VSS segments and measured retrieval duration |
+| Retrieve | Validated generated query and species tags | Up to 15 ranked archive segments and measured retrieval duration |
 | Batch plan | Eligible captions, exact reviews and bounded motion choices | Grounded duck actions and companion role plans, or skip reasons |
 | Select | Validated candidates in archive order | First three compatible active actions, preserving original source ranks |
 | Execute | Video, duck action and supported companion role | Actual playback, physics and scripted-companion completion |
@@ -49,9 +49,9 @@ selection adds no model call or archive request.
 ## Shared architecture and latency
 
 The browser runs React, Three.js, MuJoCo WASM and the existing ONNX controller.
-The local FastAPI backend uses the presenter's local ChatGPT OAuth through Codex
-CLI. VSS remains the existing remote archive. No SSH agent bridge, model training,
-new database or shared ingest-pipeline change is needed.
+The local FastAPI backend runs the existing Codex CLI decision agent. The
+independent archive provides retrieval and playback using Qdrant, Neon Postgres
+and local media; Cosmos and EmbeddingGemma 2 support ingestion and search.
 
 One RunService owns planning, retrieval, queue/attempt state, outcome history,
 cancellation and replay. Both toggle settings use two agent calls per normal
@@ -64,9 +64,9 @@ must not delay the archive request. Expose query_agent_ms, vss_search_ms and
 action_agent_ms separately, plus total elapsed time. Shared code and call counts
 remove mode-specific overhead; actual model/network times remain variable.
 
-Use the existing VSS client with top_k 15, llm_top_n 1 and the authenticated
-archive scope. The deployed service still performs synthesis; do not claim
-retrieval-only latency. Cat requests use tags meow-10k and cat-behavior. The
+Use ArchiveClient with top_k 15 and server-side Bearer authentication. Search
+embeds the query and retrieves indexed caption vectors; it does not generate a
+summary. Cat requests use tags meow-10k and cat-behavior. The
 requested dataset identity is hf-smgjch-meow-10k, but dataset_id is not an exposed
 filter and absent result metadata must not be fabricated. Deer uses wildlife.
 
@@ -113,7 +113,7 @@ manual Pause and reference inspection remain paused.
 Replay saved round uses recorded decisions through the same queue/player/controller.
 It issues fresh playback capabilities, makes no agent/search call, stays clearly
 labeled as recorded and ends paused after one pass. Replay outcomes do not enter
-live planning history. Playback still needs VSS access. Snapshot identity belongs
+live planning history. Playback still needs archive access. Snapshot identity belongs
 to the run/round and its intent/scope, not only a scenario name.
 
 ## Verification

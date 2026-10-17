@@ -15,7 +15,7 @@ from .loop_agent import CodexAgent, QueryDecision, ActionDecision, Primitive, LI
 from .session import COOKIE_NAME
 from .encounter_agent import combined_behavior_query
 from .interaction import ACTIVE_PRIMITIVES, classify_interaction
-from .vss import animal_search_scope
+from .archive import animal_search_scope
 from .capture import Capture
 
 

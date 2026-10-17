@@ -32,8 +32,9 @@ session behavior.
 Choose Cat or Deer, a scenario preset and optionally edit the intent. Start
 creates one `/demo-api/runs` session. Query planning starts alongside the
 animal's appearance and proactive approach; it never waits for navigation.
-Both Loop settings use the same query, VSS retrieval and batched action planner.
+Both Loop settings use the same query, archive retrieval and batched action planner.
 The query reason and measured Query / VSS / Actions timings remain visible.
+The existing VSS label and `vss_search_ms` field refer to archive retrieval.
 
 - **Loop off:** repeat the issued queue, preserving the query and references.
   No automatic search or agent call occurs between passes.
@@ -46,7 +47,7 @@ The query reason and measured Query / VSS / Actions timings remain visible.
 
 The current round's interaction is shown separately from the original preset
 and optional intent. Once its query plan arrives, the same animal actor adopts
-that interaction before VSS retrieval begins; actor identity, navigation and
+that interaction before archive retrieval begins; actor identity, navigation and
 duck physics remain continuous. Replay restores its recorded interaction. The
 new ambient behavior supplies search context, not evidence for a duck action.
 
@@ -91,7 +92,7 @@ The recent outcome list records query reasons, source ranks, attempted actions
 and actual status. Replay saved round uses the same player and coordinator
 without new inference or retrieval; it is explicitly labeled and stops after
 one queue. Replay outcomes do not affect live agent history. Resume after a
-finished replay plans a fresh live round. Footage still streams from VSS, so
+finished replay plans a fresh live round. Footage still streams from the archive, so
 replay is not an offline backup.
 
 Archive timestamp formatting adapts the existing search app's `web/api.js`

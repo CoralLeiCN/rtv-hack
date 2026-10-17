@@ -19,9 +19,9 @@ def main():
     import uvicorn
     from server import app
 
-    missing = [name for name in ("INGRESS_URL", "USERNAME", "PASSWORD") if not os.environ.get(name)]
+    missing = [name for name in ("ARCHIVE_URL", "ARCHIVE_API_KEY") if not os.environ.get(name)]
     if missing:
-        print("Missing workshop configuration: " + ", ".join(missing) + ". Load it before searching.", flush=True)
+        print("Missing archive configuration: " + ", ".join(missing) + ". Load it before searching.", flush=True)
     print(f"Video search: http://{args.bind}:{args.port}", flush=True)
     uvicorn.run(app, host=args.bind, port=args.port, access_log=False, log_level="warning")
 

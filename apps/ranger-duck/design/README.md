@@ -18,7 +18,7 @@ MuJoCo canvas, and replace the mock data with the `/demo-api` routes.
 
 ## Current interaction update
 
-The current page combines Encounter and Loop with one Loop toggle and one agent pipeline. Off repeats the first three compatible active video actions; on generates a fresh query after those actions using actual outcomes. Both settings use the same query, search, batch action planner, and player. The page retains this export's visual design but supersedes its manual Copy flow and reviewed-only gating. One animal stays outside the box; the duck faces and approaches it before acting and keeps its physics state across videos and toggle changes. The original animal models remain in use. Single-animal footage is eligible; incompatible and passive results are filtered before selecting the three actions. The interface shows inferred versus reviewed action basis, query/VSS/action timings, and Start, Pause/Resume, Reset, and saved-round replay controls. See the current plan and API contract linked above; the original HTML mockups and state machine below remain historical design references.
+The current page combines Encounter and Loop with one Loop toggle and one agent pipeline. Off repeats the first three compatible active video actions; on generates a fresh query after those actions using actual outcomes. Both settings use the same query, search, batch action planner, and player. The page retains this export's visual design but supersedes its manual Copy flow and reviewed-only gating. One animal stays outside the box; the duck faces and approaches it before acting and keeps its physics state across videos and toggle changes. The original animal models remain in use. Single-animal footage is eligible; incompatible and passive results are filtered before selecting the three actions. The interface shows inferred versus reviewed action basis, query/retrieval/action timings, and Start, Pause/Resume, Reset, and saved-round replay controls. See the current plan and API contract linked above; the original HTML mockups and state machine below remain historical design references.
 
 With Loop on, each new round after the first randomly selects a different interaction for the same animal. Show that round's actual interaction near the scene and query. Change the existing actor's behavior without replacing it or resetting the duck. The selected preset remains the first-round seed; Loop off retains its current encounter and queue.
 
@@ -187,7 +187,7 @@ and should be driven by the controller's actual state if it is kept.
 - Search latency is random 2.3–3.9s live, 0.7s replay. The timeout rehearsal
   fires at 3s; the real deadline is 12s.
 - Captions, source ids, and similarities are lifted from
-  `experiments/wildlife/results/` so the cards look like real VSS output, but
+  `experiments/wildlife/results/` so the cards look like real archive output, but
   the review annotations are illustrative. Build the real manifest from
   visually inspected clips as the plan requires.
 - Video is a drawn frame with a 15s timer. Replace with `<video>` on the proxy

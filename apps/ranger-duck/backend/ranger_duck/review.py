@@ -10,7 +10,7 @@ from .evidence import Manifest, MOTIONS, SAFE_ID, normalize_segments
 def main() -> int:
     parser = argparse.ArgumentParser(description="Prepare private review manifests; never prints source identities.")
     commands = parser.add_subparsers(dest="command", required=True)
-    draft = commands.add_parser("draft", help="Create unreviewed entries from a private raw VSS search response")
+    draft = commands.add_parser("draft", help="Create unreviewed entries from a private raw archive search response")
     draft.add_argument("--input", type=Path, required=True)
     draft.add_argument("--output", type=Path, required=True)
     approve = commands.add_parser("approve", help="Mark one entry reviewed after watching its actual video")

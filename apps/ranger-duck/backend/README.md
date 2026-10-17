@@ -1,23 +1,24 @@
 # Ranger Duck backend
 
-A read-only FastAPI service for the single-page wildlife encounter demo. The frontend and Microduck simulator are built separately; this directory contains no frontend code. The shared [API contract](../../../docs/RANGER_DUCK_API.md) is the integration reference.
+The FastAPI app uses the independent archive for retrieval and playback and the
+existing locally authenticated Codex CLI for bounded action decisions. See the
+[API contract](../../../docs/RANGER_DUCK_API.md).
 
-The local service asks the signed-in Codex CLI to generate a query for the selected animal's interactions or similar individual behavior, retrieves ranked VSS clips, and asks the agent to plan bounded actions from their captions or exact reviews. It returns redacted references and proxies segment playback. A deterministic classifier requires the selected species and a supported visible behavior; returned footage may contain a solitary animal. The requested scenario never supplies a missing action. It never trains, uploads, re-ingests, deploys, or changes the shared pipeline.
+## Setup
 
-## Run locally without VSS configuration
-
-Python 3.11 or newer:
+First follow [archive setup](../../../docs/ARCHIVE.md). From this directory:
 
 ```bash
-cd apps/ranger-duck/backend
 python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[test]'
-.venv/bin/python -m uvicorn ranger_duck.app:app --host 127.0.0.1 --port 18000 --workers 1
+.venv/bin/pip install -e '.[test]'
+cp example.env .env
 ```
 
-`GET /demo-api/health` and `GET /demo-api/encounters` work immediately. Search returns `503 live_not_configured` until the backend has all three required environment variables. No mock data masquerades as live results.
-
-Use **one worker**: session capabilities and authentication cache live in memory. Restarting invalidates clip URLs. This is a local workshop service; keep it on loopback or behind your authenticated workshop access.
+Privately set ARCHIVE_URL and ARCHIVE_API_KEY in .env. Run the existing Codex CLI
+login flow on the backend host. Start with `.venv/bin/ranger-duck-serve`.
+Health and encounter metadata work without the archive; search reports missing
+configuration explicitly. Use one worker because session capabilities live in
+memory. Restarting invalidates clip URLs. Bind to loopback for local use.
 
 ## Connect the frontend
 
@@ -50,20 +51,6 @@ The backend preserves original archive ranks and selects the first three compati
 
 For one production page, set `RANGER_STATIC_DIR` to the frontend's existing build directory. The backend serves its `index.html` and assets at `/`; no frontend build or modification is performed here.
 
-## Local archive configuration
-
-Required configuration names: `INGRESS_URL`, `USERNAME`, `PASSWORD`. The backend automatically reads `.env` in this backend directory, regardless of the working directory. Exported environment variables take precedence, including empty values. Set `RANGER_ENV_FILE` to an existing absolute file path to explicitly share one private config across checkouts. The app and exporter use the same loader; an invalid explicit path fails instead of silently falling back. It does not source shell files or search other directories for configuration.
-
-For local setup, copy `example.env` to `.env` in this directory, set `INGRESS_URL` to the full URL including `https://`, and fill in `USERNAME` and `PASSWORD` privately. `.env` is ignored by Git; keep real values out of `example.env`. Quote values containing spaces or `#`; `${...}` is treated literally. Restart the backend after changing `.env`. Use the configured archive service directly from this Mac; local startup does not require a VM backend.
-
-The demo backend and Codex CLI run on the same Mac. Use `codex login` to
-complete ChatGPT OAuth if needed, then `codex login status` to check it. The
-application uses the existing login and does not read/copy OAuth tokens. Keep
-VSS credentials in the ignored backend `.env`; no SSH agent bridge is used.
-
-Search uses the authenticated user's existing VSS ACL scope. Deer scenarios retain the observed `wildlife` tag; cat scenarios use `tags: ["meow-10k", "cat-behavior"]` for the requested cat library. It does not guess metadata filters. The deployed VSS schema rejects `llm_top_n: 0`; this backend explicitly requests `llm_top_n: 1` and discards synthesis. The agent adds one query decision and one batched action-planning decision; VSS search still has its own deadline. Call it **Live search**, not synthesis-free search. Its actual duration is returned as `elapsed_ms`; any timeout is an error, never an automatic replay.
-
-Replay uses the last successful round in the current run and is labeled explicitly. Missing or expired snapshots return 409. Snapshots are memory-only; replayed video still streams from VSS. `broaden: true` relaxes the requested behavior while retaining species and both interaction/solitary query branches.
 
 ## Interaction evidence and optional human review
 
@@ -75,15 +62,15 @@ The controller inventory still contains six primitives. Retrieval selection in b
 
 An optional exact human review authorizes its supported behavior without requiring a partner. Previously reviewed solitary feeding footage is valid again when its source, parent, interval, caption hash, species, and behavior still match. Optional `interaction_partner` and `interaction_evidence` can describe a reviewed interaction but are not needed for a solitary pose. A stale, invalid, unsupported, or wrong-species review blocks action instead of silently falling back to inference. No downloaded/private footage or real source identities belong in Git.
 
-Store a raw VSS search JSON response in a private file **outside the repo**, then prepare a draft:
+Store a raw archive search JSON response in a private file **outside the repo**, then prepare a draft:
 
 ```bash
 .venv/bin/python -m ranger_duck.review draft --input /tmp/ranger-search.json --output /tmp/ranger-references.json
 ```
 
-The input must contain `results[]` with exact segment fields `source`, `original_video`, `reasoning_content`, `segment_start_sec`, and `segment_end_sec`. The local experiment query summaries and browser API responses are not raw VSS response files. Drafts are unreviewed and written with owner-only permissions; the command prints only counts.
+The input must contain `results[]` with exact segment fields `source`, `original_video`, `reasoning_content`, `segment_start_sec`, and `segment_end_sec`. The local experiment query summaries and browser API responses are not raw archive response files. Drafts are unreviewed and written with owner-only permissions; the command prints only counts.
 
-Watch the corresponding actual segment through the authorized VSS UI or demo playback. Only after verifying its animal and visible behavior:
+Watch the corresponding actual segment through the authorized application playback. Only after verifying its animal and visible behavior:
 
 ```bash
 .venv/bin/python -m ranger_duck.review approve \
@@ -121,33 +108,13 @@ Caption interpretation supports these six primitives:
 
 Sitting does not imply lying down, and merely looking up remains a head-attention approximation unless vertical head movement is explicit. The tested policy cannot reliably walk backward: retreat itself never becomes a forward walk or a still pause. A clip containing retreat may still supply a separately described supported motion; otherwise it remains ineligible with reason `unsupported_retreat`. Unsupported jumping, lying, fighting, biting, and contact do not become motions. A ceiling is not evidence of completion. The frontend observes the controller's actual completion and recovery.
 
-## Configuration and limits
-
-| Variable | Default / meaning |
-| --- | --- |
-| `RANGER_REFERENCE_MANIFEST` | Unset: empty reviews. Invalid file fails closed with a warning. |
-| `RANGER_STATIC_DIR` | Unset: API only. Existing frontend build directory if set. |
-| `RANGER_SEARCH_TIMEOUT_SEC` | 30 seconds for login/refresh/search combined; allowed 1–60. Search response reads use this budget rather than the shorter generic read timeout. |
-| `RANGER_REQUEST_TIMEOUT_SEC` | 10 seconds for connection, write, pool, authentication, and video reads; allowed 1–30. |
-| `RANGER_CLIP_TTL_SEC` | 1800 seconds; allowed 30–7200. |
-| `RANGER_SECURE_COOKIE` | `false` for local forwarded HTTP; set `true` for HTTPS hosting. |
-
-Health returns `search_timeout_ms` so the browser waits for the configured backend budget plus five seconds of connection/proxy grace. This avoids the earlier 10-second upstream read and 13-second browser abort cutting off valid slower searches. The timer still displays actual elapsed time, and the overall backend deadline remains enforced.
-
-Up to 15 distinct segment results are returned in original upstream order. `rank` preserves the original 1-based index even when a duplicate or invalid source is omitted. There is no parent diversity reranking. Any compatible action contributes to response `status: "ok"`; the frontend takes the first three compatible results after filtering the whole returned set. For example, eligible archive ranks 4, 7, 13, and 15 yield three displayed action slots backed by ranks 4, 7, and 13.
-
-At most 256 browser sessions and 60 clip capabilities per session are held. Each retained run protects only its selected queue (at most three capabilities, 24 across eight runs) from capacity eviction by other tabs. New rounds replace that protection; retirement and capability expiry release it. Cookies are HttpOnly/SameSite and IDs are opaque. A different session, expiration, restart, or capacity eviction of an unselected clip yields the same `404 clip_not_found`. Search again to refresh access.
-
-Video requests accept one standard byte range. The proxy forwards `Range`/`If-Range`, supports GET and HEAD, and preserves 206/416 plus range headers. If upstream HEAD is unsupported, it opens a streaming GET and closes after headers without reading the body. No arbitrary URL proxy, upstream redirect, presigned link, or JWT is sent to the browser. A failure after streaming begins interrupts playback; retrying/researching is the UI recovery.
-
 ## Capture search, Codex decisions, and action outcomes
 
 Normal backend startup records private JSONL events in `backend/.captures/`
-(override with `RANGER_CAPTURE_DIR`). Restart the backend and rebuild/reload the
-frontend after installing this change. Files are owner-only and ignored by Git.
+(override with `RANGER_CAPTURE_DIR`). Files are owner-only and ignored by Git.
 Each event has a timestamp, event ID and run ID linking:
 
-- The complete VSS search response, before filtering, normalization, deduplication
+- The complete archive search response, before filtering, normalization, deduplication
   or selection. This includes every returned hit and its original source, caption,
   score, segment times and other returned fields; it does not download video bytes.
 - Codex instructions, context, output schema, raw final output, validated decision
@@ -159,7 +126,7 @@ Each event has a timestamp, event ID and run ID linking:
   completion. Legacy encounter and loop endpoints retain their capture events.
 
 Credentials, bearer tokens and signed URL query strings are stripped before
-writing. Stable video source paths remain private training provenance. Capture
+writing. Stable video source identities remain private training provenance. Capture
 does not sample or truncate search hits/captions. `/demo-api/health` exposes
 `capture_enabled` and `capture_write_failed`; a disk failure is also logged
 without payloads. Unified runs stop issuing actions if capture storage fails;
@@ -186,24 +153,7 @@ Original event time and elapsed duration are retained as attributes; the Weave
 call itself is created at export time. Local files remain the durable copy when
 W&B is unavailable. This adds capture only, with no labelling or training job.
 
-## Verify
+## Verification
 
-```bash
-.venv/bin/python -m pytest -q
-```
-
-Tests use fabricated upstream responses. They cover authentication caching/refresh, bounded timeouts, error redaction, live-only results, exact review binding and staleness, rank preservation, species and interaction grounding, negation, session isolation/expiry, ranges, HEAD, redirect rejection, and no-config startup. They do not establish the accuracy of a live video-model caption. Live playback remains the way to inspect the actual evidence.
-
-On 17 October 2026, all 163 backend tests passed after active-caption preference and the sitting/nodding additions. They cover later-rank selection, solitary behaviors, original rank preservation, exact legacy reviews, wrong actors/species, negation, provenance, and active behavior appearing after a still pose. Earlier live smoke tests established a session, returned 15 search candidates, replayed the same recorded result, and streamed 32 video bytes with status 206 and `video/mp4`. HEAD returned 200 with no body; an invalid range returned 416; another session could not access the clip (404). These checks do not replace visual footage review.
-
-## Local agent decisions
-
-The unified run pipeline uses a locally installed Codex CLI with the presenter's existing ChatGPT OAuth login. No OpenAI API key is required. The CLI must support `exec --ignore-user-config --ephemeral --output-schema`; see the [official CLI reference](https://developers.openai.com/codex/cli/reference).
-
-The first query uses the selected animal, encounter and optional original intent. Later adaptive rounds use that same intent plus real acknowledged outcomes. The structured decision requires both a same-species interaction branch and a similar solitary-behavior branch; the server validates each species scope and joins them with `OR`. Query generation is identical with Loop ON or OFF. Requested actions and failed attempts are never presented as observed successes.
-
-`loop_agent.py` remains the shared CLI runner. It runs ephemeral structured decisions using `gpt-6-luna` and forced ChatGPT sign-in, disables shell tools/apps/web/hooks/multi-agent tools, and does not load user custom config. Workshop credentials and API-key environment variables are excluded. Source URIs and video tokens never enter agent context. At most two decisions run concurrently across sessions.
-
-Health reports executable availability, not a successful inference probe. Missing login, incompatible CLI or unavailable model returns `agent_failed`. The application never installs Codex or modifies login/configuration. Pause/reset cancels pending work, including the CLI child process.
-
-Legacy `/encounter-plan`, `/search`, and `/loop` routes remain for compatibility. The single-page frontend uses only `/runs`; the legacy standalone Loop selector is not a second agent path for the new page. The shared run service reuses Encounter query/action validation, adding bounded optional role plans, session history, ordered execution attempts, and idempotent outcomes.
+Run `.venv/bin/python -m pytest tests -q`. Tests use fabricated archive responses
+and agent decisions. Full archive integration checks are documented in ARCHIVE.md.

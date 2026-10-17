@@ -16,7 +16,7 @@ from .evidence import normalize_segments
 from .loop import StrictModel, Telemetry, CompanionOutcome
 from .loop_agent import ActivePrimitive
 from .session import COOKIE_NAME
-from .vss import animal_search_scope
+from .archive import animal_search_scope
 
 MAX_RUNS_PER_SESSION = 8
 

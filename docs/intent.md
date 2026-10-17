@@ -1,64 +1,46 @@
-# Intent: web frontend for video search
+# Project intent
 
-## Ranger Duck interaction loop
+MicroDuck turns animal-video evidence into inspectable, bounded behavior in a
+browser simulation. Users can search for a moment, watch its source clip, and
+see how its caption supports a simulated duck action.
 
-Extend the search experience with a Loop mode that lets the simulated duck keep
-interacting with new archive videos for as long as the user leaves it enabled.
-The user supplies the initial prompt. An agent searches for two cats or two deer
-interacting and returns the top 10 clips without rejecting single-animal or weak
-matches. The simulated scene contains **one animal companion and the duck**.
-The companion represents one video animal; the duck represents the other.
-Codex identifies those two roles from the clip's caption, animates the companion
-as the first animal, and translates the counterpart's observed behavior into
-supported duck movements. Preserve the relationship and order between those
-behaviors rather than choosing an unrelated reaction.
+## Search and evidence
 
-For example, if one deer approaches while another watches, the single deer model
-approaches and the duck stands or turns its head to approximate the watching
-animal. If the caption does not establish two supported roles, keep the clip
-playable with a clearly labeled neutral pause instead of inventing a counterpart.
-These are caption-inferred approximations, not motion capture or visual review.
+The search interface accepts natural-language queries and returns matching video
+segments with captions and source-relative timestamps. Each segment plays inline.
+An independent archive stores local media, metadata and jobs in Neon Postgres,
+and caption embeddings in Qdrant. EmbeddingGemma 2 embeds queries and captions;
+self-hosted Cosmos 3 Reasoner produces captions during ingestion.
 
-Loop mode is additional to the existing encounter mode. Both scenes use one
-animal model plus the duck; encounter mode retains its direct search and
-fixed-sequence imitation controls.
+The applications keep archive credentials on the server. The configured library
+is shared by its users; Ranger Duck grants session-scoped playback capabilities.
+Source identity, intervals and exact captions remain attached to every action.
 
-The duck's actual reaction becomes input to the agent's next search. The agent
-selects a new video, the duck reacts again, and the cycle repeats. Each search
-should follow from the interaction that just happened while retaining the
-user's original intent. The experience should feel like an evolving sequence
-of interactions, rather than repeated playback of a fixed result list.
+## Encounter and Loop behavior
 
-The user controls whether the loop continues and can see how each clip, duck
-reaction, and subsequent search connect. The detailed
-flow and acceptance criteria are in the
-[Ranger Duck loop specification](spec.md#ranger-duck-loop-mode-additional-mode).
+One page contains a persistent simulated MicroDuck and one scripted cat or deer.
+The user selects an animal, encounter preset and optional intent. An agent plans
+a query, retrieves up to 15 clips, and proposes actions grounded in their captions.
+The first three compatible active references retain archive order.
 
-## Original search experience
+With Loop off, the current queue repeats without new searches. With Loop on,
+completed outcomes guide the next query for a different interaction of the same
+species. Toggle changes take effect at queue boundaries. Start, Pause, Resume
+and Reset remain under user control; replay is explicitly labeled and uses saved
+decisions while streaming the original clips.
 
-Build a web frontend that lets users search the existing VSS video archive from
-their browser. The goal is to make the archive's search capabilities accessible
-through a simple web interface.
+Supported reference-derived actions are walking, beak dipping, head nodding and
+sitting then standing. A solitary animal can supply supported motion evidence.
+Two-role plans need evidence for both animals; the requested encounter cannot
+supply missing behavior. Caption inference stays visibly distinct from human
+review. Actual playback, companion animation and duck physics must finish before
+the queue advances.
 
-The core experience is to enter a natural-language query, submit it, and review
-the matching video segments. Results should let users play each available
-segment inline and show its description and timestamps so they can understand
-which moments match their query.
+## Boundaries and implementation
 
-Users can search immediately, without signing in. A small Python FastAPI server
-will connect to the existing VSS APIs using the configured workshop account.
-It will keep credentials and session tokens on the server and refresh the VSS
-session when needed. Everyone using this frontend searches the data available
-to that configured account.
+These movements are caption-grounded approximations, not motion capture. The
+project does not control physical robots or interact with live animals. Navigation
+and search animations remain distinct from evidence-derived imitation.
 
-Search requests will use the existing `POST /api/v1/search` API and its defaults.
-The existing VSS services remain responsible for search and indexing. Keep the
-initial interface limited to the query, results with segment playback, and
-necessary status messages.
-
-The [specification](spec.md) defines the initial implementation scope and
-acceptance criteria.
-
-See the [retrieval API guide](../.agents/references/retrieval.md),
-[search skill](../.agents/skills/retrieval-search/SKILL.md), and
-[video skill](../.agents/skills/retrieval-videos/SKILL.md) for integration details.
+See the [archive specification](spec.md), [encounter and Loop plan](RANGER_DUCK_PLAN.md),
+[API contract](RANGER_DUCK_API.md), and [implementation plan](../plan.md).

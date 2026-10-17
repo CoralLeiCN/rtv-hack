@@ -275,7 +275,7 @@ def test_pause_cancels_inflight_query_and_late_result_cannot_issue_execution():
             assert (await task).status_code == 409 and stopped.is_set()
             run = next(iter(app.state.run_service.runs.values()))
             assert run.phase == 'paused' and run.pending is None
-        await app.state.encounter_service.close(); await app.state.vss.close()
+        await app.state.encounter_service.close(); await app.state.archive.close()
     asyncio.run(scenario())
 
 
@@ -349,7 +349,7 @@ def test_pausing_one_tab_cancels_only_its_inflight_agent_task():
             assert planned.status_code == 200, planned.text
             searched = await client.post('/demo-api/runs/tab-two/search', json={'plan_id': planned.json()['plan_id']})
             assert searched.status_code == 200 and searched.json()['queue']
-        await app.state.encounter_service.close(); await app.state.vss.close()
+        await app.state.encounter_service.close(); await app.state.archive.close()
     asyncio.run(scenario())
 
 

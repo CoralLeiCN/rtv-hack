@@ -2,19 +2,18 @@
 
 One page for a scripted wildlife encounter, live archive retrieval, reference playback, and evidence-guided imitation by a physics-simulated Microduck. The interface follows the [design handoff](design/README.md); the scene uses the official Microduck MuJoCo/ONNX controller.
 
-See the repository README for the [tech stack](../../README.md#ranger-duck-tech-stack)
-and [agent flow](../../README.md#how-agentic-search-works). The unified page uses the local Codex CLI to generate queries and supported
+See the repository README for the [tech stack](../../README.md#architecture)
+and [agent flow](../../README.md#evidence-and-simulation). The unified page uses the local Codex CLI to generate queries and supported
 responses from archive evidence, with one Loop toggle controlling new searches.
 
 ## Start the local demo
 
-Use Node.js 22.12 or newer and Python 3.11 or newer. Sign in to Codex on this
-Mac with `codex login` and check `codex login status`. Your existing ChatGPT
+Use Node.js 22.12 or newer and Python 3.11 or newer. Sign in to Codex on the
+backend host with `codex login` and check `codex login status`. Your existing ChatGPT
 OAuth login is reused; no OpenAI API key or SSH bridge is needed.
 
-Configure VSS privately in `backend/.env` using `backend/example.env` as the
-variable-name template. Live archive access needs `INGRESS_URL`, `USERNAME`
-and `PASSWORD`. Without them the simulator loads, but live query/search requests report
+Configure archive privately in `backend/.env` using `backend/example.env` as the
+variable-name template. Live archive access needs `ARCHIVE_URL` and `ARCHIVE_API_KEY`. Without them the simulator loads, but live query/search requests report
 missing configuration.
 
 From the repository root, prepare the frontend:
@@ -46,7 +45,7 @@ Assets, local `.env`, and build output are ignored by Git.
 
 1. Wait for the simulator and backend catalog. Choose Cat or Deer, then an encounter preset. The preset seeds an editable intent.
 2. Leave **Loop off** for Encounter behavior, or switch **Loop on** for adaptive searches. Press Start. One animal appears outside the box; query planning runs alongside the duck's facing and approach.
-3. The generated query includes both same-species interaction and similar individual behavior. It appears before retrieval starts. The same VSS request retrieves up to 15 candidates for either toggle setting.
+3. The generated query includes both same-species interaction and similar individual behavior. It appears before retrieval starts. The same archive request retrieves up to 15 candidates for either toggle setting.
 4. One batch agent call proposes grounded actions and companion roles. Validation excludes passive or unsupported results before choosing the first three compatible actions in original archive order.
 5. Each reference plays automatically. The duck and, where grounded, the single animal perform their supported roles. Playback and observed motion completion must finish before the next action. No Copy click is needed.
 6. **Loop off:** repeat this encounter and queue without another search. **Loop on:** after the queue completes, randomly choose a different interaction for the same animal and generate a fresh query using that interaction, the original intent and actual outcomes. The first round uses the selected preset. The toggle is read at the round boundary; changing it never reloads the duck or interrupts an action.
@@ -54,7 +53,7 @@ Assets, local `.env`, and build output are ignored by Git.
 
 The page keeps the simulation, agent query, three active cards, current reference,
 behavior mapping and actual movement controls together. Recent rounds retain
-queries, source ranks and outcomes. Query generation, VSS retrieval and action
+queries, source ranks and outcomes. Query generation, archive retrieval and action
 planning have separate measured timings. Both toggle positions share those
 operations, deadlines and batch sizes; neither waits for navigation before
 starting search and neither makes an agent call for each clip.
@@ -82,7 +81,7 @@ Cat encounters cover hissing boundaries, greetings and social play; deer encount
 
 The committed visual-review manifest remains empty; real source identities stay private. A manifest is optional for caption-derived interaction actions. An exact current solitary-feeding review can authorize its behavior without claiming a deer–deer interaction. The [review workflow](backend/README.md#interaction-evidence-and-optional-human-review) remains available for exact reviewed evidence.
 
-Replay saved round explicitly reuses recorded decisions through the same player and controller. It makes no agent/search call, remains labeled as recorded, and ends paused after that queue. Replay outcomes do not inform live planning; video still streams from VSS. An empty result offers an explicit broader search that relaxes the behavior query while retaining the species.
+Replay saved round explicitly reuses recorded decisions through the same player and controller. It makes no agent/search call, remains labeled as recorded, and ends paused after that queue. Replay outcomes do not inform live planning; video still streams from archive. An empty result offers an explicit broader search that relaxes the behavior query while retaining the species.
 
 ## Build and serve one page
 
@@ -91,7 +90,7 @@ cd apps/ranger-duck/frontend
 npm run build
 ```
 
-Set `RANGER_STATIC_DIR` to the absolute path of `frontend/dist` when starting the backend. That process serves the compiled frontend and `/demo-api` on one origin. Use one backend worker because replay and clip capabilities are held in process memory. Restarting invalidates them. No change to the shared VSS ingest pipeline is required.
+Set `RANGER_STATIC_DIR` to the absolute path of `frontend/dist` when starting the backend. That process serves the compiled frontend and `/demo-api` on one origin. Use one backend worker because replay and clip capabilities are held in process memory. Restarting invalidates them. Configure the independent archive using [the archive guide](../../docs/ARCHIVE.md).
 
 ## Verify
 
@@ -103,4 +102,4 @@ npm test
 npm run build
 ```
 
-See the [API contract](../../docs/RANGER_DUCK_API.md), [implementation plan](../../docs/RANGER_DUCK_PLAN.md), and simulator attribution under `frontend/src/simulator/` for integration details. Search latency is measured; the currently deployed VSS service requires one synthesis result even though this app discards that summary.
+See the [API contract](../../docs/RANGER_DUCK_API.md), [implementation plan](../../docs/RANGER_DUCK_PLAN.md), and simulator attribution under `frontend/src/simulator/` for integration details. Search latency is measured separately from agent planning.

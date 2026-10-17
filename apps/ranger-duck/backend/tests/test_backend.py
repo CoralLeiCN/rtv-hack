@@ -14,7 +14,7 @@ from ranger_duck.evidence import Manifest, Segment
 from ranger_duck.session import COOKIE_NAME
 from ranger_duck.encounter_agent import EncounterQueryDecision, EncounterActionsDecision
 
-SETTINGS = Settings(ingress_url="https://vss.invalid", username="test-user", password="test-secret")
+SETTINGS = Settings(archive_url="https://vss.invalid", api_key="test-secret")
 ROW = {"source": "s3://test-segments/clip.mp4", "original_video": "s3://test-parents/animal.mp4",
        "reasoning_content": "A deer lowers its head to feed.", "segment_start_sec": 0,
        "segment_end_sec": 5, "similarity_score": 0.8}
@@ -61,7 +61,7 @@ class Upstream:
             self.logins += 1
             return httpx.Response(200, json={"access_token": f"test-token-{self.logins}"})
         if request.url.path.endswith("/auth/me"):
-            return httpx.Response(200, json={"username": "test-user"})
+            return httpx.Response(200, json={"username": "test-secret"})
         if request.url.path.endswith("/search"):
             if self.search_delay:
                 await asyncio.sleep(self.search_delay)
@@ -146,10 +146,10 @@ def test_unreviewed_solitary_behavior_is_actionable_without_private_fields():
         assert item["provenance"]["segment_start_sec"] == 0
         assert item["provenance"]["dataset"] is None
         rendered = json.dumps(result)
-        for forbidden in ("s3://", "sql_query", "private SQL", "test-secret", "test-token", "test-user", "vectors"):
+        for forbidden in ("s3://", "sql_query", "private SQL", "test-secret", "test-token", "test-secret", "vectors"):
             assert forbidden not in rendered
         sent = json.loads(next(r.content for r in upstream.requests if r.url.path.endswith("/search")))
-        assert sent["llm_top_n"] == 1 and sent["tags"] == ["wildlife"]
+        assert sent["tags"] == ["wildlife"] and "llm_top_n" not in sent
         assert "metadata_filters" not in sent
         cookie = client.cookies.get(COOKIE_NAME)
         assert cookie
@@ -299,21 +299,10 @@ def test_search_budget_reaches_browser_and_upstream_without_extending_other_read
             assert timeouts["connect"] == timeouts["write"] == timeouts["pool"] == 7
 
 
-def test_auth_is_verified_cached_and_retried_once():
-    upstream = Upstream()
-    upstream.fail_search_once = True
-    client, _, _ = make_client(upstream)
-    with client:
-        search(client)
-        search(client)
-        assert upstream.logins == 2
-        assert sum(r.url.path.endswith("/auth/me") for r in upstream.requests) == 2
-        assert sum(r.url.path.endswith("/search") for r in upstream.requests) == 3
 
 
-def test_cat_scope_survives_auth_refresh_and_broadening_without_unsupported_dataset_filter():
+def test_cat_scope_survives_broadening_without_unsupported_dataset_filter():
     upstream = Upstream()
-    upstream.fail_search_once = True
     client, _, _ = make_client(upstream)
     with client:
         response = client.post("/demo-api/search", json={**PAYLOAD, "scenario_id": "cat-play", "broaden": True})
@@ -325,7 +314,7 @@ def test_cat_scope_survives_auth_refresh_and_broadening_without_unsupported_data
         replay = client.post("/demo-api/search", json={**PAYLOAD, "scenario_id": "cat-play", "broaden": True, "mode": "replay"})
         assert replay.json()["search_scope"] == scope
     requests = [json.loads(r.content) for r in upstream.requests if r.url.path.endswith("/search")]
-    assert len(requests) == 2
+    assert len(requests) == 1
     assert all(item["tags"] == ["meow-10k", "cat-behavior"] for item in requests)
     assert all("metadata_filters" not in item for item in requests)
 
@@ -390,15 +379,15 @@ def test_range_passthrough_uses_fixed_upstream_endpoint_and_closes_stream():
         request = upstream.requests[-1]
         assert request.url.path == "/api/v1/videos/stream"
         assert request.url.params["source"] == ROW["source"]
-        assert request.url.params["token"] == "test-token-1"
+        assert "token" not in request.url.params
+        assert request.headers["authorization"] == "Bearer test-secret"
         assert request.headers["range"] == "bytes=2-7" and request.headers["if-range"] == '"etag"'
         assert upstream.streams[-1].closed
         assert "location" not in response.headers
 
 
-def test_head_falls_back_without_reading_body_and_range_416_is_preserved():
+def test_head_does_not_read_body_and_range_416_is_preserved():
     upstream = Upstream()
-    upstream.head_405 = True
     client, _, _ = make_client(upstream)
     with client:
         url = search(client)["candidates"][0]["video_url"]
@@ -429,15 +418,6 @@ def test_invalid_range_is_local_and_redirect_is_not_forwarded():
         assert upstream.streams[-1].closed
 
 
-def test_video_auth_retry_does_not_expose_token_to_browser():
-    upstream = Upstream()
-    upstream.video_fail_once = True
-    client, _, _ = make_client(upstream)
-    with client:
-        url = search(client)["candidates"][0]["video_url"]
-        response = client.get(url)
-        assert response.status_code == 200 and upstream.logins == 2
-        assert "test-token" not in str(response.headers)
 
 
 def test_changed_caption_hash_and_invalid_manifest_fail_closed(tmp_path):
@@ -483,8 +463,8 @@ def test_upstream_cookies_are_not_sent_and_rejected_token_is_cleared():
             assert (await client.get(result["candidates"][0]["video_url"])).status_code == 200
             base.search_status = 401
             assert (await client.post("/demo-api/search", json=PAYLOAD)).status_code == 502
-            assert app.state.vss._token is None
-        await app.state.vss.close()
+            assert base.logins == 0
+        await app.state.archive.close()
 
     asyncio.run(run())
 
@@ -503,7 +483,7 @@ def test_malformed_source_and_configuration_do_not_crash():
     client, _, _ = make_client(Upstream([{**ROW, "source": "s3://[broken/clip.mp4"}]))
     with client:
         assert search(client)["status"] == "no_results"
-    client, _, _ = make_client(settings=replace(SETTINGS, ingress_url="https://[broken"))
+    client, _, _ = make_client(settings=replace(SETTINGS, archive_url="https://[broken"))
     with client:
         assert client.get("/demo-api/health").json()["live_configured"] is False
 
@@ -555,7 +535,7 @@ def test_health_bootstrap_keeps_replaced_search_in_one_session():
             for response in (current,):
                 url = response.json()["candidates"][0]["video_url"]
                 assert (await client.get(url)).status_code == 200
-        await app.state.vss.close()
+        await app.state.archive.close()
 
     asyncio.run(run())
 
@@ -604,3 +584,30 @@ def test_stream_cleanup_finishes_when_browser_cancels_or_send_fails():
 
     asyncio.run(run(False))
     asyncio.run(run(True))
+
+
+def test_archive_key_is_server_side_and_401_is_not_retried():
+    client, upstream, _ = make_client()
+    with client:
+        result = search(client)
+        assert client.get(result['candidates'][0]['video_url']).status_code == 200
+        assert all(r.headers['authorization'] == 'Bearer test-secret' for r in upstream.requests)
+        assert all('token' not in r.url.params for r in upstream.requests)
+        assert upstream.logins == 0
+        before = len(upstream.requests)
+        upstream.search_status = 401
+        assert client.post('/demo-api/search', json=PAYLOAD).status_code == 502
+        assert len(upstream.requests) == before + 1
+
+
+def test_local_media_references_are_valid_and_do_not_leak_paths():
+    from ranger_duck.evidence import valid_source
+    source = 'media://7e1404b8-e5cc-4d92-a09a-bf6815c2a209'
+    assert valid_source(source)
+    for bad in ('media://../../etc/passwd', source + '?token=x', source + '/clip', 'file:///etc/passwd'):
+        assert not valid_source(bad)
+    client, _, _ = make_client(Upstream([{**ROW, 'source': source, 'original_video': source}]))
+    with client:
+        result = search(client)
+        assert result['candidates']
+        assert 'media://' not in json.dumps(result)

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ranger-duck-backend"
 version = "0.1.0"
-description = "Read-only VSS search and video backend for Ranger Duck"
+description = "Independent archive search and video backend for Ranger Duck"
 requires-python = ">=3.11"
 dependencies = ["anyio>=4,<5", "fastapi>=0.115,<1", "httpx>=0.28,<1", "python-dotenv>=1,<2", "uvicorn>=0.34,<1"]
 

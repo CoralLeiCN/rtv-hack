@@ -1,16 +1,15 @@
 # --- root .md files: whitelist, not blacklist ---
-# Only the repository overview and agent instructions are kept at the root.
-# Hackathon documents live in docs/hackathon/. New root .md files are internal
-# by default and must be explicitly un-ignored below to ship. Doesn't affect
-# .cursor/ or .agents/, where Markdown files contain shipped agent guidance.
+# Keep the overview, agent instructions and implementation plan at the root.
+# Other root Markdown files are internal unless explicitly allowed below.
+# Product and operational documentation belongs in docs/.
 /*.md
 !/README.md
 !/AGENTS.md
 
-# --- internal / agent context (not for attendees) ---
+# --- local agent context ---
 .claude/
 
-# --- secrets & real per-team configs (keep only *.example tracked) ---
+# --- secrets and local service configs (keep only examples tracked) ---
 .env
 .env.*
 !.env.example
@@ -46,8 +45,13 @@ resp.json
 .captures/
 /research/
 
-# --- organizer verification script (internal) ---
+# --- local verification script ---
 verify-vm.sh
 
 # --- live screen ---
 screen/
+
+!/plan.md
+/media/
+.qdrant/
+*.egg-info/

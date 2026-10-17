@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 import re
+from uuid import UUID
 from urllib.parse import urlsplit
 
 from .interaction import classify_interaction, has_species_pair
@@ -24,7 +25,7 @@ def caption_hash(caption: str) -> str:
 
 def safe_text(value: object, limit: int = 4000) -> str:
     text = value if isinstance(value, str) else ""
-    text = re.sub(r"(?:s3|https?|file)://[^\s<>\"']+", "[private source]", text, flags=re.I)
+    text = re.sub(r"(?:media|s3|https?|file)://[^\s<>\"']+", "[private source]", text, flags=re.I)
     text = re.sub(r"\bBearer\s+\S+", "[redacted]", text, flags=re.I)
     text = re.sub(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b", "[redacted]", text)
     return "".join(c for c in text if c >= " " or c in "\n\t")[:limit]
@@ -37,6 +38,13 @@ def valid_source(value: object) -> bool:
         parsed = urlsplit(value)
     except ValueError:
         return False
+    if parsed.scheme == "media":
+        try:
+            return value == "media://" + str(UUID(parsed.netloc))
+        except ValueError:
+            return False
+    # Historical review manifests may contain S3 references. New archive
+    # responses and playback accept only media:// IDs; no S3 client is used.
     return bool(parsed.scheme == "s3" and parsed.netloc and parsed.path.strip("/")
                 and not parsed.query and not parsed.fragment and not parsed.username
                 and not any(ord(c) < 32 for c in value))

@@ -190,12 +190,12 @@ def test_agent_cannot_bypass_provenance_or_exact_review_vetoes():
 
 def test_agent_inputs_and_output_do_not_expose_private_configuration_or_sources():
     agent = Agent()
-    row = {**ROW, 'reasoning_content': 'A deer walks. s3://private/file.mp4 test-secret test-user https://vss.invalid'}
+    row = {**ROW, 'reasoning_content': 'A deer walks. s3://private/file.mp4 test-secret test-secret https://vss.invalid'}
     client, _, _ = make_client(Upstream([row]), agent=agent)
     with client:
         result = search(client)
     combined = json.dumps(agent.calls) + json.dumps(result)
-    for forbidden in ('s3://', 'test-secret', 'test-user', 'https://vss.invalid'):
+    for forbidden in ('s3://', 'test-secret', 'test-secret', 'https://vss.invalid'):
         assert forbidden not in combined
 
 
@@ -225,7 +225,7 @@ def test_cancel_inflight_planning_and_reuse_encounter_id_without_stale_plan():
             assert first['plan_id'] != second['plan_id']
             assert (await client.post('/demo-api/search', json={**PAYLOAD, 'plan_id': first['plan_id']})).status_code == 409
             assert (await client.post('/demo-api/search', json={**PAYLOAD, 'plan_id': second['plan_id']})).status_code == 200
-        await app.state.encounter_service.close(); await app.state.vss.close()
+        await app.state.encounter_service.close(); await app.state.archive.close()
     asyncio.run(scenario())
 
 

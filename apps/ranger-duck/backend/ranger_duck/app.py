@@ -1,4 +1,4 @@
-"""Frontend-facing v1 API. VSS credentials and source URIs stay server-side."""
+"""Frontend-facing v1 API. Archive credentials and source URIs stay server-side."""
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import hashlib
@@ -21,7 +21,7 @@ from .errors import DemoError, upstream_error
 from .evidence import Manifest, caption_hash, normalize_segments, safe_text
 from .session import COOKIE_NAME, ClipRegistry, SearchSnapshot
 from .stream import close_stream
-from .vss import VSSClient, animal_search_scope
+from .archive import ArchiveClient, animal_search_scope
 from .loop import LoopService, install_loop_routes
 from .loop_agent import CYCLE_TIMEOUT, CodexAgent
 from .encounter import EncounterService, PLAN_TIMEOUT, ENCOUNTER_TIMEOUT
@@ -99,8 +99,8 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     settings = settings or Settings.from_env()
     manifest = manifest if manifest is not None else Manifest.load(settings.manifest_path)
     registry = ClipRegistry(settings.clip_ttl_sec, settings.max_sessions)
-    capture = Capture(settings.capture_dir, (settings.password, settings.username))
-    client = VSSClient(settings, transport, capture)
+    capture = Capture(settings.capture_dir, (settings.api_key,))
+    client = ArchiveClient(settings, transport, capture)
     opaque_key = secrets.token_bytes(32)
 
     def opaque_parent(source: str | None) -> str | None:
@@ -108,7 +108,7 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
 
     def public_text(value: object, limit: int = 4000) -> str:
         result = safe_text(value, limit)
-        for secret in (settings.ingress_url, settings.password, settings.username):
+        for secret in (settings.archive_url, settings.api_key,):
             if secret:
                 result = result.replace(secret, "[redacted]")
         return result
@@ -138,7 +138,7 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
 
     app = FastAPI(title="Ranger Duck backend", version="1", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.registry = registry
-    app.state.vss = client
+    app.state.archive = client
     app.state.capture = capture
     agent = CapturedAgent(loop_agent if loop_agent is not None else CodexAgent(capture), capture)
     loop_service = LoopService(registry, client, manifest, public_text, agent, capture)
@@ -277,7 +277,7 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
             "warnings": ([manifest.warning] if manifest.warning else []) +
                 (["Agent-planned actions marked video_caption use exact excerpts from existing video-model captions, not a visual review. Interaction or similar individual behavior can supply evidence; the requested encounter never supplies a missing motion."]
                  if any(c["action_basis"] == "video_caption" for c in candidates) else []) +
-                (["Replaying a previous live search. Video playback still requires VSS access."] if payload.mode == "replay" else [])}
+                (["Replaying a previous live search. Video playback still requires archive access."] if payload.mode == "replay" else [])}
         capture.emit('encounter.result', payload.model_dump(), body, run_id=run_id)
         response = JSONResponse(body)
         establish_cookie(response, session_id)
@@ -313,6 +313,9 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
                 patterns = {"Content-Length": r"\d+", "Content-Range": r"bytes (?:\d+-\d+/\d+|\*/\d+)", "Accept-Ranges": r"bytes|none"}
                 if re.fullmatch(patterns[name], value):
                     headers[name] = value
+        etag = upstream.headers.get("etag")
+        if etag and len(etag) <= 512 and not any(ord(c) < 32 for c in etag):
+            headers["ETag"] = etag
         content_type = upstream.headers.get("content-type", "video/mp4").split(";")[0].strip().lower()
         # Reuse the simple search app's handling of storage's generic MIME types.
         if content_type in {"binary/octet-stream", "application/octet-stream"}:

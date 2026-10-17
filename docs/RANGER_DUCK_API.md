@@ -2,7 +2,7 @@
 
 Contract version 1, updated 17 October 2026 for the unified run pipeline and Loop toggle. The browser uses the run endpoints below; the older Encounter and Loop endpoints remain compatibility routes.
 
-Use relative `/demo-api/` URLs. For separate frontend development, proxy that prefix to the backend on `127.0.0.1:18000` through the frontend dev server. Forward cookies and Range headers. This preserves same-origin behavior and avoids exposing VSS credentials. Production may serve the built frontend through the same backend when a static directory is configured.
+Use relative `/demo-api/` URLs. For separate frontend development, proxy that prefix to the backend on `127.0.0.1:18000` through the frontend dev server. Forward cookies and Range headers. This preserves same-origin behavior and avoids exposing archive credentials. Production may serve the built frontend through the same backend when a static directory is configured.
 
 ## Unified runs
 
@@ -57,13 +57,15 @@ provenance and review vetoes cannot occupy a queue slot. Exact-caption role
 validation applies equally with the toggle on or off. Solitary behavior remains
 usable without inventing a second video subject.
 
-Normal new rounds use the same two model calls and one VSS request for both
+Normal new rounds use the same two model calls and one archive request for both
 settings. The batch call receives only deterministically eligible captions and
 returns compact action and role plans; there is no per-clip model request. Query
 and search execution are independent of browser navigation. Timings expose real
-query generation, VSS retrieval and action-planning duration rather than labeling
-all waiting as archive search. VSS still uses the same deployed search path,
-top_k 15, llm_top_n 1 and selected-species tags.
+query generation, archive retrieval and action-planning duration rather than labeling
+all waiting as archive search. The archive client sends top_k 15 and
+selected-species tags with server-side Bearer authentication. Search does not
+generate a summary. The `vss_search_ms` field retains its existing wire name
+for browser compatibility and measures archive retrieval.
 
 Outcome/control acknowledgements have this shape:
 
@@ -96,7 +98,7 @@ preserving the body.
 
 Replay uses a round snapshot with recorded intent/scope and refreshed opaque
 playback capabilities. It is labeled as recorded, runs once, then pauses. It does
-not add replay outcomes to live planning history. Video still requires VSS.
+not add replay outcomes to live planning history. Video still requires archive access.
 
 ## Shared endpoints and compatibility contracts
 
@@ -197,16 +199,16 @@ request; the backend watches disconnection and terminates the CLI subprocess.
 }
 ```
 
-The frontend creates a new encounter ID for every Start or reset cycle. `mode` defaults to `live`; `broaden` defaults to false. Live mode validates and executes the supplied plan. Without `plan_id`, it generates a plan internally. It retrieves VSS clips, then asks the agent for one batched caption-grounded action plan. It never falls back silently to replay. An explicit broader search relaxes the interaction wording while retaining the selected species, and returns `match_type: "broader_behavior"`. Normal searches retain the legacy `species_interaction` match label; individual behavior is also eligible. Cat requests send `tags: ["meow-10k", "cat-behavior"]`; deer requests retain `tags: ["wildlife"]`. This applies to Encounter and Loop mode, including broader searches.
+The frontend creates a new encounter ID for every Start or reset cycle. `mode` defaults to `live`; `broaden` defaults to false. Live mode validates and executes the supplied plan. Without `plan_id`, it generates a plan internally. It retrieves archive clips, then asks the agent for one batched caption-grounded action plan. It never falls back silently to replay. An explicit broader search relaxes the interaction wording while retaining the selected species, and returns `match_type: "broader_behavior"`. Normal searches retain the legacy `species_interaction` match label; individual behavior is also eligible. Cat requests send `tags: ["meow-10k", "cat-behavior"]`; deer requests retain `tags: ["wildlife"]`. This applies to Encounter and Loop mode, including broader searches.
 
 Cat responses include `search_scope` with the two applied tags,
 `requested_dataset_id: "hf-smgjch-meow-10k"` and `dataset_filter_applied: false`.
-The current VSS metadata schema does not expose `dataset_id` as a filter, so no
+The archive search schema does not expose `dataset_id` as a filter, so no
 unsupported metadata filter is sent. The requested ID describes configuration,
 not verified clip provenance. If the archive supplies an actual `dataset_id`,
 it is preserved separately in candidate provenance (or the Loop clip).
 
-Replay is an explicit request for the last successful live search in this browser session for the same scenario and broaden setting. It performs no new search or agent call, reuses recorded decisions, returns `mode: "replay"`, and issues fresh scoped clip IDs. A missing or expired snapshot returns 409 `replay_unavailable`. Snapshots expire after the clip TTL and disappear on restart; video playback still needs VSS connectivity. An older slow response cannot replace a newer snapshot. The UI must label replay and show the original recording time separately from the current request duration.
+Replay is an explicit request for the last successful live search in this browser session for the same scenario and broaden setting. It performs no new search or agent call, reuses recorded decisions, returns `mode: "replay"`, and issues fresh scoped clip IDs. A missing or expired snapshot returns 409 `replay_unavailable`. Snapshots expire after the clip TTL and disappear on restart; video playback still needs archive connectivity. An older slow response cannot replace a newer snapshot. The UI must label replay and show the original recording time separately from the current request duration.
 
 Illustrative response with a caption-inferred interaction:
 
@@ -265,7 +267,7 @@ Additional response fields are `query_basis: "agent"`, `query_reason`,
 adds `action_planner`, `agent_reason` and `evidence_excerpt` (an exact caption
 substring for valid inferred actions). All values are redacted for browser
 display. Search plus action planning has a 180-second deadline, including the
-existing VSS search budget. The browser adds five seconds of transport grace.
+existing archive search budget. The browser adds five seconds of transport grace.
 
 Candidate rules:
 
@@ -280,7 +282,7 @@ Candidate rules:
 - `eligibility_reason` is a machine-readable explanation such as `caption_behavior_match`, `reviewed_match`, `reference_changed`, `incomplete_metadata`, or `interaction_not_supported`. Clients tolerate additional reasons.
 - Supported `primitive` values are `ground_pick` (8000 ms motion window), `short_walk` (2000), `head_nod` (2400), `head_scan` (2400), `sit_cycle` (6000), and `stand_hold` (3000). `head_nod` needs explicit vertical head movement; `sit_cycle` needs explicit sitting/seated evidence, not lying. Retreat-only evidence is unsupported because backward walking was not reliable in physics checks.
 - `max_duration_ms` bounds the controller command; success requires observed execution and settling. It is not a promised completion time. The adapter rejects a sit window below 5500 ms and preserves the native stand-up when canceled; it does not abruptly switch policies.
-- `warnings` contains human-readable non-secret messages. No SQL, vectors, VSS tokens, or private storage URIs are returned.
+- `warnings` contains human-readable non-secret messages. No SQL, vectors, archive credentials, or private storage URIs are returned.
 
 Within each caption, retrieval-eligible actions are considered in this order: `short_walk`, `ground_pick`, `head_nod`, `sit_cycle`. The underlying classifier retains scan/hold for internal compatibility, but retrieval selection explicitly excludes them. The classifier checks all caption phrases at each priority, preserving selected-species actor attribution, negation and uncertainty checks. This selects active observed behavior over a simultaneous static description; it does not override an exact current review or reorder retrieval results. See the [motion inventory](RANGER_DUCK_ANIMATION.md).
 
@@ -421,7 +423,7 @@ own movement/video immediately on cancellation; server cancellation alone cannot
 control browser physics.
 
 Only one next request or outstanding action is allowed per session. Each cycle
-has a 180-second overall deadline, at most two VSS searches, and at most four
+has a 180-second overall deadline, at most two archive searches, and at most four
 structured Codex decisions (query and action selection per attempt). No-match
 attempts refine the query. Three consecutive failed cycle requests pause the
 session. The browser does not retry configuration failures or simulator failures

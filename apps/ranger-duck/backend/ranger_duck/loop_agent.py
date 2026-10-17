@@ -70,7 +70,7 @@ class CodexAgent:
     async def decide(self, context: dict, schema: type[Decision]):
         if not self.executable:
             raise DemoError('agent_unavailable', 'Install Codex CLI and sign in on the agent host to use agent planning.', 503)
-        # Do not pass workshop secrets or API keys to the agent process. Auth is
+        # Do not pass service secrets or API keys to the agent process. Auth is
         # handled by Codex using the presenter's existing login, never read here.
         env = {k: v for k, v in os.environ.items() if k in {
             'PATH', 'HOME', 'CODEX_HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'SYSTEMROOT',
