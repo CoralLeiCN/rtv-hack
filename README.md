@@ -2,7 +2,7 @@
 
 ## What We Built
 
-MicroDuck uses real-world animal videos to guide a simulated robot’s responses, combining video search, playback, agent-driven actions, and physics simulation. We ingested three Hugging Face datasets totaling **X minutes of video**.
+MicroDuck uses real-world animal videos to guide a simulated robot’s responses, combining video search, playback, agent-driven actions, and physics simulation. See [data sources](docs/data_sources.md) for datasets and ingestion status.
 
 ## Why It Matters
 
