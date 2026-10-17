@@ -4,6 +4,29 @@ This repository contains instructions and skills for building video agents on an
 already deployed VSS stack. Build on its search, metadata, detections, and video
 APIs. Do not rebuild or redeploy the shared DataEngine ingest pipeline.
 
+### Subagent delegation
+
+If at any point you can parallelize work by delegating tasks to another agent
+(no matter if you are the root or subagent), you should do so using collaboration
+tools if it could save time or improve quality.
+
+## Writing style
+
+Use plain language over jargon, and reference technical details only to the
+degree that it helps illustrate an idea or your work to the user. Communicate
+complex concepts in a clear and cohesive manner, and calibrate your writing to
+the level of background knowledge assumed from the user's prompt and context.
+
+## Test and verification
+
+Do not write tests for reversible, low-impact changes that mirror the
+implementation. If you do choose to verify your work with tests, make sure that
+the tests are meaningful and necessary to verify implementation.
+
+Run tests appropriate to the change and complete required checks. Once those
+pass, broaden or repeat testing only when new changes, failures, or unresolved
+concerns justify it; otherwise, continue toward completing the task.
+
 ## Codex skills
 
 - Use the matching skill in `.agents/skills/` before writing raw REST calls.
