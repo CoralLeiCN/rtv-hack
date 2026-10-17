@@ -1,0 +1,3 @@
+# Copy private local configuration into new Codex-managed worktrees.
+# Only paths belong here; the actual credentials remain Git-ignored.
+/apps/ranger-duck/backend/.env

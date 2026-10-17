@@ -42,7 +42,9 @@ For one production page, set `RANGER_STATIC_DIR` to the frontend's existing buil
 
 ## Live VM startup
 
-Required environment variable names: `INGRESS_URL`, `USERNAME`, `PASSWORD`. They must already be available in the configured workshop environment. The backend does not discover config files or source shell files itself.
+Required configuration names: `INGRESS_URL`, `USERNAME`, `PASSWORD`. The backend automatically reads `.env` in this backend directory, regardless of the working directory. Exported environment variables take precedence, including empty values. It does not source shell files or search other directories for configuration.
+
+For local setup, copy `example.env` to `.env` in this directory, set `INGRESS_URL` to the full URL including `https://`, and fill in `USERNAME` and `PASSWORD` privately. `.env` is ignored by Git; keep real values out of `example.env`. Quote values containing spaces or `#`; `${...}` is treated literally. Restart the backend after changing `.env`. Alternatively, continue loading the VM's existing `/config/*.config` into Bash as shown below.
 
 The checked workshop VM has Python 3.12 but lacks pip and the venv bootstrap package. If the ordinary venv setup above fails there, install dependencies into a private temporary directory without changing system packages. From this backend directory:
 

@@ -34,6 +34,19 @@ access. Keep those files outside the repository and do not paste credentials int
 chat. Bash examples using `mapfile` need Bash 4 or newer; run them on the workshop
 VM in one shell session so the configuration and JWT remain available.
 
+### Private configuration in local worktrees
+
+For Ranger Duck, keep the private configuration in
+`apps/ranger-duck/backend/.env` in your main checkout. This file is Git-ignored;
+use owner-only permissions (`chmod 600`). The root `.worktreeinclude` lists this
+exact path so Codex copies it into new local managed worktrees. The include file
+contains no credentials and can be committed.
+
+Copies are snapshots: changing the main checkout's `.env` does not update
+existing worktrees. Codex preserves an existing destination file and skips
+source symlinks. This does not apply to remote worktrees or worktrees created
+with the Git CLI. See the [Codex worktree documentation](https://learn.chatgpt.com/docs/environments/git-worktrees#copy-ignored-local-files-into-managed-worktrees).
+
 The retrieval deployment skills reference a separate VSS Blueprint checkout with
 `deployments/vss-k8s-application/`, `source-code/`, and `QUICK_DEPLOY.sh`. Those
 application sources are not included in this skills repository. The shared
