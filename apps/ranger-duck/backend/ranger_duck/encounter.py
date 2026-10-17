@@ -6,7 +6,7 @@ import time
 
 from .encounter_agent import EncounterQueryDecision, EncounterActionsDecision, combined_behavior_query
 from .errors import DemoError
-from .interaction import classify_interaction
+from .interaction import ACTIVE_PRIMITIVES, classify_interaction
 from .session import COOKIE_NAME
 
 PLAN_TIMEOUT = 60
@@ -122,7 +122,8 @@ class EncounterService:
         self.require_agent()
         choices, annotations = [], []
         for segment in segments:
-            annotation = self.manifest.annotate_interaction(segment, scenario['animal'], scenario['interaction_partner'])
+            annotation = self.manifest.annotate_interaction(segment, scenario['animal'], scenario['interaction_partner'],
+                                                           allowed_primitives=ACTIVE_PRIMITIVES)
             annotations.append(annotation)
             action = annotation['action']
             # A bounded imitation cannot wait on an arbitrarily long reference.
@@ -163,7 +164,7 @@ class EncounterService:
             valid = proposal.primitive in choice['allowed_actions']
             if item['action_basis'] != 'reviewed':
                 excerpt = proposal.evidence_excerpt.strip()
-                grounded, _ = classify_interaction(excerpt, scenario['animal'])
+                grounded, _ = classify_interaction(excerpt, scenario['animal'], allowed_primitives=ACTIVE_PRIMITIVES)
                 valid &= bool(excerpt and excerpt in choice['caption'] and grounded and grounded[1] == proposal.primitive)
                 if valid:
                     item['evidence_excerpt'] = excerpt

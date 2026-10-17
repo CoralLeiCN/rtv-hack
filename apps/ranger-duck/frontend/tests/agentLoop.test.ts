@@ -3,14 +3,14 @@ import { ApiError } from '../src/api';
 import { runAgentLoop, playAndReact, reactionState, runRoleActions, type AgentCycle, type ReactionOutcome } from '../src/agentLoop';
 
 const cycle: AgentCycle = {
-  session_id: 's', cycle_id: 'c', cycle: 1, query: 'two deer', query_reason: 'initial prompt', response_reason: 'look at companion',
+  session_id: 's', cycle_id: 'c', cycle: 1, query: 'two deer', query_reason: 'initial prompt', response_reason: 'approach companion',
   candidates: [],
   role_plan: { grounding: 'caption_roles', companion: { subject: 'Approaching deer', evidence: 'deer approach' },
-    duck: { subject: 'Other deer', evidence: 'each other' }, duck_behavior: 'looking', companion_behavior: 'approach', companion_duration_ms: 3000, timing: 'companion_first' },
-  action: { primitive: 'head_scan', evidence_id: 'e', max_duration_ms: 2400 },
+    duck: { subject: 'Other deer', evidence: 'each other' }, duck_behavior: 'moving', companion_behavior: 'approach', companion_duration_ms: 3000, timing: 'companion_first' },
+  action: { primitive: 'short_walk', evidence_id: 'e', max_duration_ms: 2400 },
   clip: { clip_id: 'v', video_url: '/demo-api/clips/v/video', caption: 'Two deer approach each other.', rank: 4, observed_behavior: 'social_approach', evidence_basis: 'video_caption', start_sec: 0, end_sec: 5 },
 };
-const outcome: ReactionOutcome = { cycle_id: 'c', primitive: 'head_scan', status: 'completed', playback: 'ended',
+const outcome: ReactionOutcome = { cycle_id: 'c', primitive: 'short_walk', status: 'completed', playback: 'ended',
   companion: { behavior: 'approach', status: 'completed' },
   state: { status: 'complete', position: [0, 0, 0.2], head_yaw: 0, simulation_time: 12 } };
 function deferred<T>() {
@@ -29,6 +29,12 @@ class Video extends EventTarget {
 }
 
 describe('agent loop sequencing', () => {
+  it.each(['head_scan', 'stand_hold'] as const)('rejects an older backend selecting %s before execution, without a dummy hold', async primitive => {
+    const execute = vi.fn(), report = vi.fn();
+    const next = vi.fn().mockResolvedValue({ ...cycle, action: { ...cycle.action, primitive } });
+    await expect(runAgentLoop({ signal: new AbortController().signal, next, execute, report, onSearch() {} })).rejects.toMatchObject({ code: 'passive_behavior_excluded' });
+    expect(next).toHaveBeenCalledTimes(1); expect(execute).not.toHaveBeenCalled(); expect(report).not.toHaveBeenCalled();
+  });
   it('keeps navigation-only telemetry out of the strict outcome schema', () => {
     const telemetry = { ...outcome.state, navigation: 'approaching', commands: { forward: 0.25, lateral: 0, yaw: 0.2 }, body_yaw: 0.1 };
     expect(reactionState(telemetry)).toEqual(outcome.state);
@@ -77,6 +83,11 @@ describe('agent loop sequencing', () => {
 });
 
 describe('playback and actual action completion', () => {
+  it.each(['head_scan', 'stand_hold'] as const)('does not start playback or an action for excluded %s', async primitive => {
+    const video = new Video(), perform = vi.fn();
+    await expect(playAndReact(video.element(), { ...cycle, action: { ...cycle.action, primitive } }, new AbortController().signal, perform, vi.fn())).rejects.toMatchObject({ code: 'passive_behavior_excluded' });
+    expect(video.play).not.toHaveBeenCalled(); expect(video.load).not.toHaveBeenCalled(); expect(perform).not.toHaveBeenCalled();
+  });
   it('waits for both playback end and actual action completion', async () => {
     const video = new Video(); const action = deferred<void>(); const perform = vi.fn(() => action.promise);
     let done = false;

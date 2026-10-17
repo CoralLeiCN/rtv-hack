@@ -22,18 +22,24 @@ def neutral_plan():
                     companion_behavior='standing', duck_behavior='unknown', timing='together')
 
 
-def paired_plan(caption, primitive='head_scan'):
+def paired_plan(caption, primitive='short_walk'):
     return RolePlan(grounding='caption_roles',
                     companion={'subject': 'Approaching deer', 'evidence': 'one deer approaches'},
-                    duck={'subject': 'Watching deer', 'evidence': caption[caption.index('the other deer'):].rstrip('.') if 'the other deer' in caption else 'the other deer watches'},
+                    duck={'subject': 'Walking deer', 'evidence': caption[caption.index('the other deer'):].rstrip('.') if 'the other deer' in caption else 'the other deer walks toward it'},
                     companion_behavior='approach', duck_behavior={'head_scan':'looking', 'stand_hold':'still', 'short_walk':'moving', 'ground_pick':'feeding'}.get(primitive, 'looking'), timing='companion_first')
+
+
+def single_plan(caption, primitive):
+    return RolePlan(grounding='single_behavior', companion={'subject': 'Unassigned', 'evidence': ''},
+                    duck={'subject': 'Observed animal', 'evidence': caption}, companion_behavior='standing',
+                    duck_behavior={'short_walk':'moving', 'ground_pick':'feeding', 'head_nod':'nodding', 'sit_cycle':'sitting'}.get(primitive, 'unknown'), timing='together')
 
 
 class Agent:
     available = True
     def __init__(self):
         self.calls = []
-        self.primitive = 'head_scan'
+        self.primitive = None
         self.invalid_id = False
         self.plan = None
 
@@ -45,12 +51,13 @@ class Agent:
             return QueryDecision(query=f"A {context['animal']} approaches another {context['animal']}",
                                  individual_query=f"A {context['animal']} walks alone", reason='Follow the prior actual reaction.')
         selected = next(c for c in context['candidates'] if c['allowed_actions'])
-        plan = self.plan or (paired_plan(selected['caption'], self.primitive) if 'one deer approaches' in selected['caption'] and 'the other deer' in selected['caption'] else neutral_plan())
+        primitive = self.primitive or selected['allowed_actions'][0]
+        plan = self.plan or (paired_plan(selected['caption'], primitive) if 'one deer approaches' in selected['caption'] and 'the other deer' in selected['caption'] else single_plan(selected['caption'], primitive))
         return ActionDecision.model_construct(candidate_id='unknown' if self.invalid_id else next(c['candidate_id'] for c in context['candidates'] if c['allowed_actions']),
-                              primitive=self.primitive, reason='Approximate the watching deer with a head scan.', role_plan=plan)
+                              primitive=primitive, reason='Approximate this observed active motion.', role_plan=plan)
 
 
-def row(index=0, caption='Two deer interact; one deer approaches and the other deer watches.'):
+def row(index=0, caption='Two deer interact; one deer approaches and the other deer walks toward it.'):
     return {**ROW, 'source': f's3://test-segments/{index}.mp4',
             'segment_start_sec': index * 10, 'segment_end_sec': index * 10 + 5,
             'reasoning_content': caption}
@@ -84,7 +91,7 @@ def test_actual_outcome_guides_next_search_and_clip_capabilities_work():
     with client:
         start(client)
         first = next_cycle(client).json()
-        assert first['action']['primitive'] == 'head_scan'
+        assert first['action']['primitive'] == 'short_walk'
         assert first['clip']['evidence_basis'] == 'video_caption'
         assert next_cycle(client).status_code == 409  # no overlap while action outstanding
         assert client.get(first['clip']['video_url']).status_code == 200
@@ -100,7 +107,7 @@ def test_actual_outcome_guides_next_search_and_clip_capabilities_work():
         assert 's3://' not in json.dumps(second)
 
 
-@pytest.mark.parametrize('invalid_id,primitive', [(True, 'head_scan'), (False, 'jump')])
+@pytest.mark.parametrize('invalid_id,primitive', [(True, 'short_walk'), (False, 'jump'), (False, 'head_scan'), (False, 'stand_hold')])
 def test_unknown_clip_and_behavior_inappropriate_action_are_rejected(invalid_id, primitive):
     agent = Agent(); agent.invalid_id = invalid_id; agent.primitive = primitive
     client, _, _, _ = setup(agent=agent)
@@ -169,12 +176,12 @@ def test_loop_session_isolation_and_reset():
         assert next_cycle(client, 'new-loop').json()['cycle'] == 1
 
 
-def test_caption_content_does_not_filter_results_but_stale_reviews_block_execution():
+def test_no_active_evidence_and_stale_reviews_block_execution():
     for caption in ['A lone deer is standing.', 'Two deer do not approach another deer.', 'Two cats are playing together.']:
         client, _, _, _ = setup([row(caption=caption)])
         with client:
             start(client)
-            assert next_cycle(client).status_code == 200
+            assert next_cycle(client).json()['error']['code'] == 'no_loop_match'
     item = reviewed(row(), interaction_partner='deer', interaction_evidence='One deer approaches another deer.')
     client, _, _, _ = setup([row(caption='Two deer are following another deer.')], manifest=Manifest([item]))
     with client:
@@ -230,11 +237,9 @@ def test_pause_cancels_inflight_agent_without_issuing_action():
     ('A deer walks across a clearing.', 'short_walk', 'moving'),
     ('A deer feeds.', 'ground_pick', 'feeding'),
     ('A deer raises its head.', 'head_nod', 'nodding'),
-    ('A deer looks around.', 'head_scan', 'looking'),
     ('A deer sits down.', 'sit_cycle', 'sitting'),
-    ('A deer stands still.', 'stand_hold', 'still'),
 ])
-def test_loop_can_imitate_six_supported_solitary_behaviors_without_a_second_role(caption, primitive, behavior):
+def test_loop_can_imitate_four_active_solitary_behaviors_without_a_second_role(caption, primitive, behavior):
     agent = Agent(); agent.primitive = primitive
     agent.plan = RolePlan(grounding='single_behavior',
         companion={'subject': 'Unassigned', 'evidence': ''},
@@ -262,7 +267,7 @@ def test_loop_single_behavior_needs_positive_selected_species_evidence(caption):
     client, _, _, _ = setup([row(caption=caption)], agent=agent)
     with client:
         start(client)
-        assert next_cycle(client).json()['error']['code'] == 'invalid_agent_action'
+        assert next_cycle(client).json()['error']['code'] == 'no_loop_match'
 
 
 @pytest.mark.parametrize('schema', [QueryDecision, EncounterQueryDecision])
@@ -310,15 +315,16 @@ def test_loop_validates_individual_query_branch_before_archive_search(individual
     assert not any(r.url.path.endswith('/search') for r in upstream.requests)
 
 
-@pytest.mark.parametrize('primitive', ['stand_hold', 'head_scan', 'short_walk', 'ground_pick'])
-def test_top_ten_are_returned_without_pair_or_behavior_filtering(primitive):
+@pytest.mark.parametrize('primitive,caption', [('short_walk', 'A deer walks.'), ('ground_pick', 'A deer feeds.'),
+                                              ('head_nod', 'A deer raises its head.'), ('sit_cycle', 'A deer sits.')])
+def test_top_ten_keep_raw_order_but_only_active_evidence_can_execute(primitive, caption):
     captions = ['Two deer interact; one deer approaches and the other deer watches.', 'A cat watches it.',
                 'Two deer graze together.', 'No animals are visible.',
                 'Possibly a deer.', 'A deer is standing.',
                 'A dog is walking.', 'A deer runs away.',
                 'A deer is visible.', 'A tree beside the road.',
                 'Two deer approach each other.']
-    captions[0] = 'Two deer interact; one deer approaches and the other deer ' + {'stand_hold':'stands still.', 'head_scan':'looks toward it.', 'short_walk':'walks toward it.', 'ground_pick':'feeds.'}[primitive]
+    captions[0] = caption
     agent = Agent(); agent.primitive = primitive
     client, upstream, agent, _ = setup([row(i, c) for i, c in enumerate(captions)], agent=agent)
     with client:
@@ -328,11 +334,11 @@ def test_top_ten_are_returned_without_pair_or_behavior_filtering(primitive):
         cycle = response.json()
         assert cycle['action']['primitive'] == primitive
         assert cycle['clip']['rank'] == 1
-        assert cycle['clip']['observed_behavior'] == 'caption_context'
+        assert cycle['clip']['observed_behavior']
         assert [c['caption'] for c in cycle['candidates']] == captions[:10]
         assert [c['rank'] for c in cycle['candidates']] == list(range(1, 11))
         assert agent.calls[1]['candidates'] == cycle['candidates']
-        assert all(c['allowed_actions'] for c in cycle['candidates'])
+        assert [c['rank'] for c in cycle['candidates'] if c['allowed_actions']] == [1, 3]
         search = next(r for r in upstream.requests if r.url.path.endswith('/search'))
         payload = json.loads(search.content)
         assert payload['top_k'] == 10
@@ -344,7 +350,7 @@ def test_top_ten_are_returned_without_pair_or_behavior_filtering(primitive):
 
 
 def test_unexecutable_and_duplicate_results_keep_original_top_ten_slots():
-    rows = [row(i, 'A deer is visible.') for i in range(11)]
+    rows = [row(i, 'A deer walks.') for i in range(11)]
     rows[0]['source'] = 'invalid'
     rows[1]['segment_end_sec'] = None
     rows[2]['segment_end_sec'] = rows[2]['segment_start_sec'] + 121
@@ -354,7 +360,7 @@ def test_unexecutable_and_duplicate_results_keep_original_top_ten_slots():
             if schema is QueryDecision:
                 return await super().decide(context, schema)
             return ActionDecision(candidate_id=context['candidates'][-1]['candidate_id'],
-                                  primitive='stand_hold', reason='Observe this clip.', role_plan=neutral_plan())
+                                  primitive='short_walk', reason='Copy the observed walk.', role_plan=single_plan(context['candidates'][-1]['caption'], 'short_walk'))
     client, _, _, _ = setup(rows, agent=SelectLastAgent())
     with client:
         start(client)
@@ -370,14 +376,55 @@ def test_unexecutable_and_duplicate_results_keep_original_top_ten_slots():
         assert next_cycle(client).json()['error']['code'] == 'invalid_agent_action'
 
 
-def test_single_animal_uses_neutral_loop_roles_and_main_encounter_imitation():
+def test_passive_solitary_clip_has_no_loop_or_encounter_fallback():
     client, _, _, _ = setup([row(caption='A lone deer is standing.')])
     with client:
         start(client)
-        assert next_cycle(client).status_code == 200
+        assert next_cycle(client).json()['error']['code'] == 'no_loop_match'
         old = client.post('/demo-api/search', json={'encounter_id': 'old', 'scenario_id': 'deer-standing'})
-        assert old.json()['status'] == 'ok'
-        assert old.json()['candidates'][0]['action']['primitive'] == 'stand_hold'
+        assert old.json()['status'] == 'no_supported_imitation'
+        assert old.json()['candidates'][0]['action'] is None
+        assert old.json()['candidates'][0]['eligibility_reason'] == 'passive_behavior_excluded'
+
+
+def test_loop_skips_passive_ranks_and_keeps_active_caption_sitting_alternative():
+    captions = ['A cat looks around.', 'A cat stands still.', 'A cat watches a toy.',
+                'A cat looks around and sits down.', 'A cat walks.']
+    client, _, _, _ = setup([row(i, caption) for i, caption in enumerate(captions)])
+    with client:
+        start(client, animal='cat')
+        cycle = next_cycle(client).json()
+    assert cycle['clip']['rank'] == 4 and cycle['action']['primitive'] == 'sit_cycle'
+    assert [item['rank'] for item in cycle['candidates']] == [1, 2, 3, 4, 5]
+    assert all(item['allowed_actions'] == [] and item['unavailable_reason'] == 'passive_behavior_excluded'
+               for item in cycle['candidates'][:3])
+
+
+def test_loop_all_passive_stops_after_bounded_requery_without_action_planning():
+    client, upstream, agent, _ = setup([row(0, 'A deer looks around.'), row(1, 'A deer stands still.')])
+    with client:
+        start(client)
+        response = next_cycle(client)
+    assert response.json()['error']['code'] == 'no_loop_match'
+    assert len(agent.calls) == 2 and all('candidates' not in context for context in agent.calls)
+    assert sum(r.url.path.endswith('/search') for r in upstream.requests) == 2
+
+
+def test_loop_passive_review_is_not_overridden_by_active_caption():
+    clip = row(caption='A deer stands still and then walks.')
+    client, _, _, _ = setup([clip], manifest=Manifest([reviewed(clip, behavior='standing')]))
+    with client:
+        start(client)
+        assert next_cycle(client).json()['error']['code'] == 'no_loop_match'
+
+
+def test_loop_cannot_assign_active_motion_to_a_passive_role_in_an_active_clip():
+    caption = 'Two deer interact; one deer approaches another deer and the other deer watches.'
+    agent = Agent(); agent.primitive = 'short_walk'; agent.plan = paired_plan(caption)
+    client, _, _, _ = setup([row(caption=caption)], agent=agent)
+    with client:
+        start(client)
+        assert next_cycle(client).json()['error']['code'] == 'invalid_agent_action'
 
 
 @pytest.mark.parametrize('change', ['fabricated_evidence', 'same_subject', 'unsupported_companion', 'wrong_duck_action'])
@@ -395,18 +442,12 @@ def test_invalid_two_role_plan_cannot_start_a_cycle(change):
         assert next_cycle(client).json()['error']['code'] == 'invalid_agent_action'
 
 
-def test_sparse_caption_keeps_clip_and_normalizes_neutral_roles():
+def test_agent_cannot_replace_active_evidence_with_neutral_fallback():
     agent = Agent(); agent.primitive = 'ground_pick'; agent.plan = neutral_plan()
-    client, _, _, _ = setup([row(caption='A deer is visible.')], agent=agent)
+    client, _, _, _ = setup([row(caption='A deer feeds.')], agent=agent)
     with client:
         start(client)
-        cycle = next_cycle(client).json()
-        assert len(cycle['candidates']) == 1
-        assert cycle['action']['primitive'] == 'stand_hold'
-        assert cycle['role_plan']['companion_behavior'] == 'standing'
-        assert cycle['role_plan']['grounding'] == 'insufficient_evidence'
-        assert cycle['role_plan']['duck']['evidence'] == ''
-        assert 'not an observed interaction' in cycle['response_reason']
+        assert next_cycle(client).json()['error']['code'] == 'invalid_agent_action'
 
 
 def test_both_role_outcomes_and_evidence_reach_next_query():

@@ -182,9 +182,11 @@ Candidate rules:
 - `max_duration_ms` bounds the controller command; success requires observed execution and settling. It is not a promised completion time. The adapter rejects a sit window below 5500 ms and preserves the native stand-up when canceled; it does not abruptly switch policies.
 - `warnings` contains human-readable non-secret messages. No SQL, vectors, VSS tokens, or private storage URIs are returned.
 
-Within each caption, supported actions are considered in this order: `short_walk`, `ground_pick`, `head_nod`, `head_scan`, `sit_cycle`, `stand_hold`. The classifier checks all caption phrases at each priority, preserving selected-species actor attribution, negation and uncertainty checks. This selects active observed behavior over a simultaneous static description; it does not override an exact current review or reorder retrieval results. See the [motion inventory](RANGER_DUCK_ANIMATION.md).
+Within each caption, retrieval-eligible actions are considered in this order: `short_walk`, `ground_pick`, `head_nod`, `sit_cycle`. The underlying classifier retains scan/hold for internal compatibility, but retrieval selection explicitly excludes them. The classifier checks all caption phrases at each priority, preserving selected-species actor attribution, negation and uncertainty checks. This selects active observed behavior over a simultaneous static description; it does not override an exact current review or reorder retrieval results. See the [motion inventory](RANGER_DUCK_ANIMATION.md).
 
-The frontend filters all returned candidates by compatibility, sorts by original `rank`, and uses up to three eligible actions. Queue positions are 1–3; source rank stays visible for provenance. Incompatible clips do not occupy a card or loop slot, and a later source rank can fill a queue position. If fewer than three qualify, show the actual count.
+Both modes exclude `head_scan` and `stand_hold` from retrieval-selected actions. The backend emits no action for passive-only evidence (`passive_behavior_excluded`), and the frontend also filters passive actions from stale or older responses before choosing slots. Mixed captions can still supply a supported active behavior, such as sitting despite also looking around.
+
+The frontend filters all returned candidates by active compatibility, sorts by original `rank`, and uses up to three eligible actions. Queue positions are 1–3; source rank stays visible for provenance. Incompatible clips do not occupy a card or loop slot, and a later source rank can fill a queue position. If fewer than three qualify, show the actual count.
 
 One animal stays outside the east side of the yellow box. As soon as it appears, the duck faces and approaches it as needed, including during query planning and search. It remains attentive between actions. Before an evidence action, the animal returns to its interaction anchor and faces the duck; the browser waits for that observed settling, then the duck approaches, settles and performs the action. Navigation is distinct from the reference-derived motion and does not overlap it. Preserve the same duck body and physics clock throughout; repeat the same queue without new searches or resets.
 
@@ -259,9 +261,9 @@ Playback starts at zero. Source URIs and credentials remain server-side.
 {
   "grounding": "caption_roles",
   "companion": {"subject": "Approaching deer", "evidence": "one deer approaches"},
-  "duck": {"subject": "Watching deer", "evidence": "the other deer watches"},
+  "duck": {"subject": "Following deer", "evidence": "the other deer follows"},
   "companion_behavior": "approach",
-  "duck_behavior": "looking",
+  "duck_behavior": "moving",
   "companion_duration_ms": 3000,
   "timing": "together"
 }
@@ -274,27 +276,27 @@ Supported companion behaviors are standing, alert, walking, approach, retreat,
 and feeding; cats also allow hissing, greeting, and play. Durations are fixed
 by the backend at 3000 ms. The duck action approximates the counterpart's
 observed behavior with the existing bounded primitives. The backend validates
-`duck_behavior` against its primitive: still → stand_hold, looking → head_scan,
-moving → short_walk, feeding → ground_pick, nodding → head_nod, sitting → sit_cycle. Unknown behavior uses the neutral fallback.
+`duck_behavior` against its retrieval-eligible primitive: moving → short_walk,
+feeding → ground_pick, nodding → head_nod, sitting → sit_cycle. Scanning and
+standing holds are excluded; missing behavior cannot become a neutral fallback.
 
 A supported individual behavior uses `grounding: "single_behavior"`, an exact
 selected-species duck evidence excerpt, an unassigned stationary companion and
 `together` timing. The backend independently checks the excerpt for that
 supported motion. No second observed animal is claimed.
 
-When neither supported individual behavior nor two roles can be established,
-Codex sets `grounding: "insufficient_evidence"`. The backend normalizes the plan to standing
-plus `stand_hold`, empty excerpts, unassigned subjects, and simultaneous timing.
-The result remains selectable and playable, with an explicit neutral-fallback
-explanation. No counterpart behavior is claimed. The UI labels both role mappings
-as caption-inferred approximations, not an exact video reconstruction.
+When no supported active behavior can be established, the clip cannot be
+selected. The backend rejects passive or insufficient-evidence plans instead of
+substituting `stand_hold`. With no eligible candidates, Loop makes its bounded
+query retry and then reports no compatible active motion. Scene companion
+standing remains allowed; the exclusion applies to the duck's evidence action.
 
 An outcome has this shape:
 
 ```json
 {
   "cycle_id": "opaque-cycle-id",
-  "primitive": "head_scan",
+  "primitive": "short_walk",
   "status": "completed",
   "playback": "ended",
   "companion": {"behavior": "approach", "status": "completed"},
@@ -333,21 +335,16 @@ The cycle response includes `candidates`, the same ranked list given to Codex:
 `candidate_id`, `rank`, `caption`, `observed_behavior`, `evidence_basis`,
 `allowed_actions`, and `unavailable_reason`. Return all available results up to
 10 in upstream order, without pair, species-presence, or behavior filtering,
-deduplication, or promotion from rank 11. Single-animal and weak matches remain
-selectable. The UI shows this list separately from the one selected clip.
+deduplication, or promotion from rank 11. Single-animal clips remain selectable when their captions support an active
+action; weak/passive matches remain listed with no allowed actions. The UI shows this list separately from the one selected clip.
 
 Unexecutable results remain listed with an empty `allowed_actions`: incomplete
 provenance, invalid source, stale/contradictory review, duration over 120 seconds,
-or a recently issued interval. When no candidate can execute, bounded recovery
-still applies. These checks are independent of caption content.
-All executable candidates offer the six bounded primitives: `stand_hold`,
-`head_scan`, `short_walk`, `ground_pick`, `head_nod` and `sit_cycle`, with ceilings
-of 3000/2400/2000/8000/2400/6000 ms respectively. The selected role evidence must
-support the chosen action.
-`observed_behavior: "caption_context"` does not assert a classified animal
-behavior. The caption is inferred evidence; the role plan separately identifies
-two subjects, supported individual behavior, or a neutral fallback. The scene
-contains one animal plus the duck in either mode.
+a recently issued interval, passive-only evidence or no supported active motion.
+The action list contains only the grounded active primitive for that caption or
+exact review. Supported active ceilings are walking 2000 ms, beak dip 8000 ms,
+head nod 2400 ms and sit/stand 6000 ms. Backend and frontend both reject scan/hold
+selection. Caption interpretation remains inferred, not visual review.
 
 Sessions are memory-only, tied to the browser cookie, bounded by the existing
 session capacity/TTL, and invalidated on backend restart. Use one backend worker.

@@ -18,6 +18,7 @@ OTHER_ACTOR = r"(?:dogs?|humans?|people|persons?|man|men|woman|women|child|child
 # Preference is within one video's caption, never a reranking of video results.
 MOTION_PRIORITY = {"short_walk": 0, "ground_pick": 1, "head_nod": 2,
                    "head_scan": 3, "sit_cycle": 4, "stand_hold": 5}
+ACTIVE_PRIMITIVES = frozenset({"short_walk", "ground_pick", "head_nod", "sit_cycle"})
 
 
 def _positive(pattern: str, text: str, *, reject_inside: re.Pattern | None = None,
@@ -94,7 +95,7 @@ def has_species_pair(text: str, animal: str) -> bool:
     return any(_positive(pattern, text, reject_inside=denied_companion)[0] for pattern in patterns)
 
 
-def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]:
+def classify_interaction(caption: str, animal: str, *, allowed_primitives: frozenset[str] | None = None) -> tuple[Motion | None, str]:
     if animal not in {"cat", "deer"}:
         return None, "unsupported_species"
     text = re.sub(r"\s+", " ", caption.casefold().replace("’", "'")).strip()
@@ -141,6 +142,7 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
         phrase, match, animal, paired=paired, inherited_animal=inherited))[0]
         for phrase, inherited in phrases if not other_actors.search(phrase))
     had_negation = False
+    excluded_positive = False
     # Sort by supported motion activity, retaining more specific semantic labels
     # within each primitive. Every rule examines all caption phrases before a
     # less active primitive is considered. Archive result order is unchanged.
@@ -238,7 +240,12 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
                     # Generic play cannot conceal a clip whose only described
                     # movement is unsupported jumping, contact, or object play.
                     continue
+            if allowed_primitives is not None and primitive not in allowed_primitives:
+                excluded_positive = True
+                continue
             return (behavior, primitive, duration, explanation), "caption_behavior_match"
+    if excluded_positive:
+        return None, "passive_behavior_excluded"
     if has_retreat:
         return None, "unsupported_retreat"
     if had_negation:

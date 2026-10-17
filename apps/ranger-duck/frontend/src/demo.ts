@@ -11,9 +11,14 @@ export function searchDeadlineMs(backendBudget: unknown): number {
   return (validBudget ? backendBudget : 30000) + 5000;
 }
 
+// The controller retains six capabilities, but retrieved imitation results
+// select only active movements. Passive attention remains navigation behavior.
+export function isActiveImitation(primitive: unknown): primitive is 'ground_pick' | 'short_walk' | 'head_nod' | 'sit_cycle' {
+  return typeof primitive === 'string' && ['ground_pick', 'short_walk', 'head_nod', 'sit_cycle'].includes(primitive);
+}
 export function isEligible(candidate: Candidate | null | undefined): candidate is Candidate & { action: NonNullable<Candidate['action']> } {
   if (!candidate?.action || typeof candidate.action.evidence_id !== 'string' || !candidate.action.evidence_id.trim()) return false;
-  if (!['ground_pick', 'short_walk', 'stand_hold', 'head_scan', 'head_nod', 'sit_cycle'].includes(candidate.action.primitive)) return false;
+  if (!isActiveImitation(candidate.action.primitive)) return false;
   if (!Number.isFinite(candidate.action.max_duration_ms) || candidate.action.max_duration_ms <= 0) return false;
   return (candidate.action_basis === 'video_caption' && ['caption_behavior_match', 'caption_interaction_match'].includes(candidate.eligibility_reason)) ||
     ((candidate.action_basis === 'reviewed' || candidate.action_basis == null) && candidate.review_status === 'reviewed' && candidate.eligibility_reason === 'reviewed_match');
@@ -153,6 +158,7 @@ export function segmentTime(seconds: number | null | undefined): string {
 }
 export function eligibilityNote(candidate: Candidate): string {
   const reasons: Record<string, string> = {
+    passive_behavior_excluded: 'Head scans and standing holds are excluded from imitation results. No active supported motion was found in this clip.',
     not_reviewed: 'This result has no supported evidence-based action. It is skipped in the automatic loop.',
     species_pair_not_established: 'The caption does not establish two animals of the selected species. This rank is skipped.',
     directed_interaction_not_established: 'The caption does not describe a supported action for an animal in this pair. This rank is skipped.',

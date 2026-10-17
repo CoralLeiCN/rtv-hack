@@ -1,6 +1,7 @@
 import { ApiError, readResponse, type Primitive, type SearchScope } from './api';
 import type { CompanionBehavior } from './simulator/clearing';
 import type { DuckStatus } from './simulator/adapter';
+import { isActiveImitation } from './demo';
 
 export interface LoopCandidate {
   candidate_id: string; rank: number; caption: string;
@@ -47,6 +48,9 @@ export async function loopRequest<T>(path: string, body?: unknown, signal?: Abor
 export function checkActive(signal: AbortSignal) {
   if (signal.aborted) throw new DOMException('Loop stopped.', 'AbortError');
 }
+function requireActiveMotion(cycle: AgentCycle) {
+  if (!isActiveImitation(cycle.action?.primitive)) throw new ApiError('passive_behavior_excluded', 'No active supported motion was selected. Head scans and standing holds are excluded. Try another search.', true);
+}
 export function delay(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     checkActive(signal);
@@ -78,6 +82,7 @@ export async function runAgentLoop(options: {
       continue;
     }
     checkActive(options.signal);
+    requireActiveMotion(cycle);
     const outcome = await options.execute(cycle);
     checkActive(options.signal);
     await options.report(outcome);
@@ -104,6 +109,7 @@ export async function runRoleActions(plan: RolePlan, signal: AbortSignal,
 export async function playAndReact(video: HTMLVideoElement, cycle: AgentCycle, signal: AbortSignal,
   perform: () => Promise<void>, onBlocked: () => void) {
   checkActive(signal);
+  requireActiveMotion(cycle);
   let cleanup = () => {};
   let action: Promise<void> | null = null;
   const finished = new Promise<void>((resolve, reject) => {

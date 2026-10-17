@@ -117,11 +117,12 @@ def test_search_uses_each_ranked_caption_even_if_it_differs_from_encounter_hint(
         result = client.post("/demo-api/search", json={**PAYLOAD, "scenario_id": "cat-greeting"}).json()
     assert result["status"] == "ok" and result["match_type"] == "species_interaction"
     assert [item["rank"] for item in result["candidates"]] == [1, 2, 3]
-    assert [item["action"]["primitive"] if item["action"] else None for item in result["candidates"]] == ["stand_hold", "short_walk", None]
+    assert [item["action"]["primitive"] if item["action"] else None for item in result["candidates"]] == [None, "short_walk", None]
+    assert result["candidates"][0]["eligibility_reason"] == "passive_behavior_excluded"
     assert result["candidates"][2]["eligibility_reason"] == "unsupported_retreat"
     assert all(item["action_basis"] == "video_caption" and item["review_status"] == "unreviewed"
-               for item in result["candidates"][:2])
-    assert all(item["interaction_partner"] == "cat" for item in result["candidates"][:2])
+               for item in result["candidates"][1:2])
+    assert result["candidates"][1]["interaction_partner"] == "cat"
     assert result["warnings"]
     sent = json.loads(next(r.content for r in upstream.requests if r.url.path.endswith("/search")))
     assert sent["tags"] == ["meow-10k", "cat-behavior"] and "another cat" in sent["query"]
@@ -245,7 +246,7 @@ def test_all_retrieved_candidates_are_available_for_first_three_compatible_selec
     rows = [{**ROW, "source": f"s3://test-segments/rank-{rank}.mp4",
              "reasoning_content": "A deer jumps over a fence."} for rank in range(1, 16)]
     for rank, caption in [(4, "A deer grazes."), (7, "A deer walks."),
-                          (13, "A deer stands still."), (15, "A deer looks around.")]:
+                          (13, "A deer sits down."), (15, "A deer raises its head.")]:
         rows[rank - 1]["reasoning_content"] = caption
     client, _, _ = make_client(Upstream(rows))
     with client:

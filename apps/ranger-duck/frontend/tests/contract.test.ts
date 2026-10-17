@@ -29,13 +29,22 @@ describe('evidence authorization and asynchronous invalidation', () => {
     expect(visibleCandidates([{ ...reviewed('7'), rank: 7 }, { ...reviewed('2'), rank: 2 }]).map(item => item.sourceRank)).toEqual([2, 7]);
   });
   it('permits explicit caption-derived actions while rejecting unsupported or empty evidence', () => {
-    const inferred = candidate({ action_basis: 'video_caption', eligibility_reason: 'caption_interaction_match', inferred_behavior: 'looking around', action: { primitive: 'head_scan', evidence_id: 'caption:1', max_duration_ms: 2400 } });
+    const inferred = candidate({ action_basis: 'video_caption', eligibility_reason: 'caption_interaction_match', inferred_behavior: 'nodding', action: { primitive: 'head_nod', evidence_id: 'caption:1', max_duration_ms: 2400 } });
     expect(isEligible(inferred)).toBe(true);
     expect(isEligible({ ...inferred, interaction_partner: null, eligibility_reason: 'caption_behavior_match' })).toBe(true);
     expect(inferred.review_status).toBe('unreviewed');
     expect(isEligible({ ...inferred, eligibility_reason: 'species_mismatch' })).toBe(false);
     expect(isEligible({ ...inferred, action: { ...inferred.action!, evidence_id: '' } })).toBe(false);
     expect(isEligible({ ...inferred, action: null })).toBe(false);
+  });
+  it('excludes passive results before taking three active actions, including reviewed or replayed results', () => {
+    const candidates = (['head_scan', 'stand_hold', 'short_walk', 'head_scan', 'ground_pick', 'head_nod', 'sit_cycle'] as const).map((primitive, index) => ({
+      ...reviewed(`clip-${index + 1}`), rank: index + 1, action: { primitive, evidence_id: `evidence-${index + 1}`, max_duration_ms: 2400 },
+    }));
+    expect(visibleCandidates(candidates).map(item => [item.rank, item.sourceRank, item.candidate.action?.primitive])).toEqual([[1, 3, 'short_walk'], [2, 5, 'ground_pick'], [3, 6, 'head_nod']]);
+    expect(sequenceSlots(candidates.slice(0, 2))).toEqual([]);
+    expect(isEligible(candidates[0])).toBe(false);
+    expect(isEligible(candidates[1])).toBe(false);
   });
   it('rejects results after Reset, an overlapping retry, or a mismatched response ID', () => {
     expect(responseIsCurrent(result, 'encounter-002', 'encounter-002', 3, 3)).toBe(true);
@@ -69,7 +78,7 @@ describe('automatic top-three loop', () => {
     const approach = vi.fn().mockResolvedValue(undefined);
     const attend = vi.fn().mockResolvedValue(undefined);
     const task = runReferenceLoop({
-      candidates: [candidate({ rank: 1 }), { ...reviewed('two'), rank: 2, action: { primitive: 'stand_hold', evidence_id: 'two', max_duration_ms: 3000 } }, { ...reviewed('four'), rank: 4, action: { primitive: 'ground_pick', evidence_id: 'four', max_duration_ms: 8000 } }],
+      candidates: [candidate({ rank: 1 }), { ...reviewed('two'), rank: 2, action: { primitive: 'short_walk', evidence_id: 'two', max_duration_ms: 1800 } }, { ...reviewed('four'), rank: 4, action: { primitive: 'ground_pick', evidence_id: 'four', max_duration_ms: 8000 } }],
       signal: controller.signal,
       prepareCycle,
       approach,

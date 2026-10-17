@@ -44,6 +44,15 @@ Source details: [velocity and phase limits](../apps/ranger-duck/frontend/src/sim
 
 There is no verified jump, strafe, reliable retreat, grooming, bite, pounce, hiss or animal-contact skill. An upstream handler existing in source does not make it a supported Ranger Duck evidence action.
 
+## Retrieval selection
+
+The controller inventory above remains available internally. Both demo modes exclude
+`head_scan` and `stand_hold` from reference selection. The active reference actions
+are walking, beak dip, vertical head nod and sit/stand. Passive-only clips do not
+fill top-three slots; mixed captions can supply a separate supported active
+behavior. Neutral attention between clips remains navigation, not an evidence
+action.
+
 ## Continuous navigation and cancellation
 
 The duck faces and approaches a present animal immediately, including during query planning/search, then attends between clips and passes. Its interaction point is MuJoCo `(0.12, 0)`, leaving space for the policy's forward-turning radius after a walking imitation. Three consecutive walk-and-return cycles were checked without resetting physics. Arrival requires observed position, facing and balance. Navigation is labeled separately from the reference action. Its command getter also checks conservative margins inside the yellow box when render frames pause. `prepareCycle()` waits for balance and never recenters or resets the duck.

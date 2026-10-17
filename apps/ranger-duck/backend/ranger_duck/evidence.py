@@ -165,7 +165,8 @@ class Manifest:
             "primitive": motion[0], "evidence_id": reference["evidence_id"], "max_duration_ms": motion[1]},
             "_reference": reference}
 
-    def annotate_interaction(self, segment: Segment, animal: str, partner: str) -> dict:
+    def annotate_interaction(self, segment: Segment, animal: str, partner: str, *,
+                             allowed_primitives: frozenset[str] | None = None) -> dict:
         """A scenario selects retrieval scope, never the action for a returned clip."""
         annotation = self.annotate(segment, animal)
         result = {**annotation, "action": None, "action_basis": None,
@@ -178,6 +179,9 @@ class Manifest:
             return result
         reference = annotation.get("_reference")
         if reference and annotation["action"]:
+            if allowed_primitives is not None and annotation["action"]["primitive"] not in allowed_primitives:
+                return {**result, "eligibility_reason": "passive_behavior_excluded",
+                        "action_reason": "This exact review supports only a passive motion, which is excluded from retrieval-driven actions."}
             # The user permits solitary behavior evidence. An exact existing
             # pose review therefore remains valid without a partner assertion.
             explanations = {
@@ -188,7 +192,7 @@ class Manifest:
             return {**result, "action": annotation["action"], "action_basis": "reviewed",
                     "action_reason": explanations[reference["behavior"]],
                     "interaction_partner": safe_text(reference.get("interaction_partner"), 100) or None}
-        match, reason = classify_interaction(segment.caption, animal)
+        match, reason = classify_interaction(segment.caption, animal, allowed_primitives=allowed_primitives)
         if not match:
             return {**result, "eligibility_reason": reason}
         behavior, primitive, duration, explanation = match

@@ -54,9 +54,10 @@ cards or empty queue slots. Fewer than three compatible actions are shown as
 the actual count. The current video is selected automatically and attempts
 muted, looping playback.
 
-Within each caption, supported active behavior takes priority over stillness.
-The six evidence actions are walking/turning, beak dipping, head nodding, head
-scanning, sitting then standing, and a standing hold. The complete native
+Both modes exclude `head_scan` and `stand_hold` from reference selection.
+The four eligible evidence actions are walking/turning, beak dipping, head
+nodding and sitting then standing. Mixed captions retain their supported active
+motion. The six-motion controller inventory remains unchanged. The complete native
 controller inventory and tested limits are in
 [the motion reference](../../../docs/RANGER_DUCK_ANIMATION.md).
 

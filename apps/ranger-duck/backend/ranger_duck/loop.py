@@ -14,7 +14,7 @@ from .loop_evidence import annotate_response
 from .loop_agent import CodexAgent, QueryDecision, ActionDecision, Primitive, LIMITS, CYCLE_TIMEOUT, CompanionBehavior, COMPANION_BEHAVIORS, DUCK_ROLE_ACTIONS
 from .session import COOKIE_NAME
 from .encounter_agent import combined_behavior_query
-from .interaction import classify_interaction
+from .interaction import ACTIVE_PRIMITIVES, classify_interaction
 from .vss import animal_search_scope
 
 
@@ -151,15 +151,11 @@ class LoopService:
             plan = selection.role_plan.model_dump()
             primitive = selection.primitive
             if plan['grounding'] == 'insufficient_evidence':
-                # Sparse clips stay playable; do not manufacture a counterpart.
-                primitive = 'stand_hold'
-                plan.update(companion_behavior='standing', duck_behavior='unknown', timing='together',
-                            companion={'subject': 'Unassigned animal role', 'evidence': ''},
-                            duck={'subject': 'Unassigned counterpart role', 'evidence': ''})
+                raise DemoError('invalid_agent_action', 'The selected clip needs an active supported behavior; a passive fallback is not allowed.', 502)
             elif plan['grounding'] == 'single_behavior':
                 evidence = plan['duck']['evidence'].strip()
-                observed, _ = classify_interaction(chosen['caption'], loop.animal)
-                quoted, _ = classify_interaction(evidence, loop.animal)
+                observed, _ = classify_interaction(chosen['caption'], loop.animal, allowed_primitives=ACTIVE_PRIMITIVES)
+                quoted, _ = classify_interaction(evidence, loop.animal, allowed_primitives=ACTIVE_PRIMITIVES)
                 if (not plan['duck']['subject'].strip() or not evidence or evidence not in chosen['caption']
                         or DUCK_ROLE_ACTIONS.get(plan['duck_behavior']) != primitive
                         or not observed or not quoted or observed[1] != primitive or quoted[1] != primitive):
@@ -172,6 +168,10 @@ class LoopService:
                   or any(not plan[role]['subject'].strip() or not plan[role]['evidence'].strip() or plan[role]['evidence'] not in chosen['caption']
                          for role in ('companion', 'duck'))):
                 raise DemoError('invalid_agent_action', 'The two video roles need distinct subjects and evidence from the selected caption.', 502)
+            elif plan['grounding'] == 'caption_roles':
+                quoted, _ = classify_interaction(plan['duck']['evidence'], loop.animal, allowed_primitives=ACTIVE_PRIMITIVES)
+                if not quoted or quoted[1] != primitive:
+                    raise DemoError('invalid_agent_action', 'The duck role needs exact positive caption evidence for its active motion.', 502)
             for role in ('companion', 'duck'):
                 plan[role] = {key: self.public_text(value, 600) for key, value in plan[role].items()}
             plan['companion_duration_ms'] = 3000
@@ -186,8 +186,7 @@ class LoopService:
             cycle_id = secrets.token_urlsafe(24)
             action = {'primitive': primitive, 'max_duration_ms': LIMITS[primitive],
                       'evidence_id': annotation['evidence_id']}
-            reason = ('The caption does not establish two supported roles. Both characters hold a neutral pose; this is not an observed interaction.'
-                      if plan['grounding'] == 'insufficient_evidence' else self.public_text(selection.reason, 800))
+            reason = self.public_text(selection.reason, 800)
             record = {'query': actual_query, 'caption': chosen['caption'],
                       'observed_behavior': chosen['observed_behavior'], 'action': action, 'reason': reason, 'role_plan': plan}
             loop.pending = {'cycle_id': cycle_id, 'context': record, 'identity': identity}
@@ -203,7 +202,7 @@ class LoopService:
                              'observed_behavior': chosen['observed_behavior'],
                              'evidence_basis': chosen['evidence_basis'],
                              'start_sec': segment.start, 'end_sec': segment.end}}
-        raise DemoError('no_loop_match', 'No new executable clip was found in the top ten after two searches.', 409)
+        raise DemoError('no_loop_match', 'No new active supported motion was found in the top ten after two searches.', 409)
 
 
 def install_loop_routes(app, service):

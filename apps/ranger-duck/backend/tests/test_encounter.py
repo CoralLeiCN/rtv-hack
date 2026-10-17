@@ -89,16 +89,55 @@ def test_individual_query_branch_is_validated_before_any_archive_search(individu
     ('A deer walks across a clearing.', 'short_walk'),
     ('A deer feeds.', 'ground_pick'),
     ('A deer raises its head.', 'head_nod'),
-    ('A deer looks around.', 'head_scan'),
     ('A deer sits down.', 'sit_cycle'),
-    ('A deer stands still.', 'stand_hold'),
 ])
-def test_agent_can_create_each_of_the_six_bounded_solitary_actions(caption, primitive):
+def test_agent_can_create_each_of_the_four_active_solitary_actions(caption, primitive):
     client, _, _ = make_client(Upstream([{**ROW, 'reasoning_content': caption}]))
     with client:
         item = search(client)['candidates'][0]
     assert item['action']['primitive'] == primitive and item['action_planner'] == 'agent'
     assert item['action_basis'] == 'video_caption' and item['review_status'] == 'unreviewed'
+
+
+def test_passive_ranks_do_not_occupy_first_three_compatible_slots():
+    captions = ['A cat looks around.', 'A cat stands still.', 'A cat walks.',
+                'A cat watches a toy.', 'A cat feeds.', 'A cat sits down.', 'A cat raises its head.']
+    rows = [{**ROW, 'source': f's3://test-segments/active-{i}.mp4', 'reasoning_content': caption}
+            for i, caption in enumerate(captions)]
+    client, _, _ = make_client(Upstream(rows))
+    with client:
+        result = client.post('/demo-api/search', json={**PAYLOAD, 'scenario_id': 'cat-play'}).json()
+    compatible = [item for item in result['candidates'] if item['action']]
+    assert [item['rank'] for item in compatible[:3]] == [3, 5, 6]
+    assert all(result['candidates'][rank-1]['eligibility_reason'] == 'passive_behavior_excluded' for rank in [1, 2, 4])
+
+
+@pytest.mark.parametrize('caption', ['A cat looks around.', 'A cat stands still.', 'A cat hisses.'])
+def test_passive_only_encounter_has_no_substituted_action(caption):
+    client, _, _ = make_client(Upstream([{**ROW, 'reasoning_content': caption}]))
+    with client:
+        result = client.post('/demo-api/search', json={**PAYLOAD, 'scenario_id': 'cat-hissing'}).json()
+    assert result['status'] == 'no_supported_imitation'
+    assert result['candidates'][0]['action'] is None
+    assert result['candidates'][0]['eligibility_reason'] == 'passive_behavior_excluded'
+
+
+def test_encounter_uses_active_sitting_even_when_caption_also_describes_looking():
+    caption = 'A cat looks around and sits down.'
+    client, _, _ = make_client(Upstream([{**ROW, 'reasoning_content': caption}]))
+    with client:
+        result = client.post('/demo-api/search', json={**PAYLOAD, 'scenario_id': 'cat-play'}).json()
+    assert result['candidates'][0]['action']['primitive'] == 'sit_cycle'
+
+
+def test_exact_passive_review_cannot_be_replaced_by_caption_active_motion():
+    clip = {**ROW, 'reasoning_content': 'A deer stands still and then walks.'}
+    client, _, _ = make_client(Upstream([clip]), manifest=[reviewed(clip, behavior='standing')])
+    with client:
+        result = search(client)
+    item = result['candidates'][0]
+    assert item['review_status'] == 'reviewed'
+    assert item['action'] is None and item['eligibility_reason'] == 'passive_behavior_excluded'
 
 
 @pytest.mark.parametrize('mutation', ['wrong_motion', 'invented_quote', 'quote_negated', 'idle_downgrade', 'skip'])

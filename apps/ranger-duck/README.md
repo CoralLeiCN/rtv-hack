@@ -64,9 +64,10 @@ Queries cover selected-species interactions or similar individual behavior. The 
 Codex in archive order even when they show only one animal or are weak matches.
 Expand **Search results** to see those candidates and any execution limitations.
 The duck approximates the counterpart animal’s caption-described behavior.
-Single-animal clips can supply a supported motion with the companion standing
-as an unassigned scene animal. Sparse clips without supported behavior stay
-playable with a labeled neutral pause.
+Single-animal clips can supply an active supported motion with the companion
+standing as an unassigned scene animal. Clips supporting only `head_scan` or
+`stand_hold` are excluded from selection. Loop mode performs a bounded new
+search or reports no compatible active motion; it never substitutes a hold.
 Caption interpretation remains labeled as inferred. No-match recovery is bounded,
 failed movement pauses the loop, and no cached clip silently replaces a search.
 
@@ -79,7 +80,7 @@ failed movement pauses the loop, and no cached clip silently replaces a search.
 
 The agent derives actions from the returned clips' existing video-model captions; the backend validates them and labels them as inferred. Each needs the selected species, a supported caption behavior and complete provenance. Both interaction clips and similar single-animal behaviors are usable. Incompatible clips are filtered out before selecting the top three actions, and original source ranks remain visible. If no action qualifies, the duck remains attentive without inventing an imitation.
 
-The six supported motions are bounded walking/turning, beak dip, head scan, vertical head nod, sit-and-stand, and standing hold. Within each clip, the classifier prefers supported active behavior in the order walk → pick → nod → scan → sit → hold; it preserves retrieval rank and exact current reviews. Sitting requires explicit sitting evidence, and a nod requires vertical head-motion evidence. Stop cancels the sequence while allowing a seated duck to stand safely. See the [complete motion inventory](../../docs/RANGER_DUCK_ANIMATION.md).
+The controller retains six motions, but reference selection in both modes allows only bounded walking/turning, beak dip, vertical head nod and sit-and-stand. Head scan and standing hold are excluded. Within each clip, eligible behavior is preferred in the order walk → pick → nod → sit; retrieval rank and exact current reviews remain authoritative. Sitting requires explicit sitting evidence, and a nod requires vertical head-motion evidence. Stop cancels the sequence while allowing a seated duck to stand safely. See the [complete motion inventory](../../docs/RANGER_DUCK_ANIMATION.md).
 
 The animal motor improves patrol, gait and interaction settling while retaining the original articulated procedural cat/deer. The requested animal-model replacement was canceled; no generated model or external animal asset setup is required.
 

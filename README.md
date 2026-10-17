@@ -58,9 +58,10 @@ sequenceDiagram
 The agent searches for interactions between the selected species **or similar
 individual behavior**. A returned clip need not contain two animals. Actions
 must be supported by that clip's caption or an exact current human review;
-the requested encounter cannot supply missing evidence. More active supported
-motion is preferred within a caption. Archive ordering is preserved, and
-incompatible clips do not occupy the three action slots.
+the requested encounter cannot supply missing evidence. Eligible reference actions are walking, beak dip, vertical head nod and
+sit/stand. `head_scan` and `stand_hold` are excluded in both modes. An active
+behavior within a mixed caption can still qualify. Archive ordering is
+preserved, and excluded clips do not occupy the three action slots.
 
 The duck begins attending to the animal immediately, before search completes.
 The controls show actual turning, walking and imitation commands. Navigation is
