@@ -68,7 +68,10 @@ class VSSClient:
             async with asyncio.timeout(self.settings.search_timeout_sec):
                 token = await self._token_for()
                 for attempt in range(2):
-                    response = await self._request("POST", "/search", headers={"Authorization": f"Bearer {token}"}, json={
+                    response = await self._request("POST", "/search", headers={"Authorization": f"Bearer {token}"},
+                        # VSS waits for synthesis before responding. Let this read use
+                        # the search budget; the enclosing deadline also covers auth.
+                        timeout=httpx.Timeout(self.settings.request_timeout_sec, read=self.settings.search_timeout_sec), json={
                         "query": query, "tags": ["wildlife"], "top_k": 15,
                         "llm_top_n": 1, "min_similarity": 0.3,
                         "include_public": True,

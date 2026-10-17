@@ -115,10 +115,12 @@ Resting/sit and looking-around/head-scan remain future capabilities and are not 
 | --- | --- |
 | `RANGER_REFERENCE_MANIFEST` | Unset: empty reviews. Invalid file fails closed with a warning. |
 | `RANGER_STATIC_DIR` | Unset: API only. Existing frontend build directory if set. |
-| `RANGER_SEARCH_TIMEOUT_SEC` | 12 seconds for login/refresh/search combined; allowed 1–60. |
-| `RANGER_REQUEST_TIMEOUT_SEC` | 10 seconds per upstream network operation; allowed 1–30. |
+| `RANGER_SEARCH_TIMEOUT_SEC` | 30 seconds for login/refresh/search combined; allowed 1–60. Search response reads use this budget rather than the shorter generic read timeout. |
+| `RANGER_REQUEST_TIMEOUT_SEC` | 10 seconds for connection, write, pool, authentication, and video reads; allowed 1–30. |
 | `RANGER_CLIP_TTL_SEC` | 1800 seconds; allowed 30–7200. |
 | `RANGER_SECURE_COOKIE` | `false` for local forwarded HTTP; set `true` for HTTPS hosting. |
+
+Health returns `search_timeout_ms` so the browser waits for the configured backend budget plus five seconds of connection/proxy grace. This avoids the earlier 10-second upstream read and 13-second browser abort cutting off valid slower searches. The timer still displays actual elapsed time, and the overall backend deadline remains enforced.
 
 Up to 15 distinct segment results are returned, with one per parent placed before repeat-parent hits. Later candidates are preserved because they may contain a reviewed reference. UI cards can initially show three while allowing selection of later reviewed candidates.
 

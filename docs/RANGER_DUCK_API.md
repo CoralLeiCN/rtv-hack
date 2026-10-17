@@ -13,13 +13,16 @@ Use relative `/demo-api/` URLs. For separate frontend development, proxy that pr
   "status": "ok",
   "api_version": "1",
   "live_configured": false,
-  "reviewed_reference_count": 0
+  "reviewed_reference_count": 0,
+  "search_timeout_ms": 30000
 }
 ```
 
 This checks local service configuration, not current upstream availability. It never returns configured endpoints or credential values.
 
 Health also establishes the browser's HttpOnly demo session cookie. Await this request before starting searches, so overlapping initial encounters share one session. The encounter catalog can load in parallel.
+
+`search_timeout_ms` is the configured overall backend deadline, including authentication and search (default 30000; supported 1000–60000). The browser uses this budget plus 5000 ms of connection/proxy grace, falling back to 30000 + 5000 ms if an older backend omits it. A backend timeout remains a visible error, never an automatic replay.
 
 ## Encounters
 

@@ -98,7 +98,7 @@ def search(client):
 def test_no_configuration_is_runnable_and_reports_it():
     client, upstream, _ = make_client(settings=Settings())
     with client:
-        assert client.get("/demo-api/health").json() == {"status": "ok", "api_version": "1", "live_configured": False, "reviewed_reference_count": 0}
+        assert client.get("/demo-api/health").json() == {"status": "ok", "api_version": "1", "live_configured": False, "reviewed_reference_count": 0, "search_timeout_ms": 30000}
         scenarios = client.get("/demo-api/encounters").json()["encounters"]
         assert len(scenarios) == 3 and all("action" not in s for s in scenarios)
         response = client.post("/demo-api/search", json=PAYLOAD)
@@ -249,6 +249,20 @@ def test_normalization_deduplicates_and_groups_parents_without_losing_later_revi
         assert len(items) == 3
         assert items[0]["provenance"]["parent_id"] != items[1]["provenance"]["parent_id"]
         assert items[2]["action"]["evidence_id"] == "ref-01"
+
+
+def test_search_budget_reaches_browser_and_upstream_without_extending_other_reads():
+    settings = replace(SETTINGS, search_timeout_sec=25, request_timeout_sec=7)
+    client, upstream, _ = make_client(settings=settings)
+    with client:
+        budget = client.get("/demo-api/health").json()["search_timeout_ms"]
+        assert budget == 25000
+        result = search(client)
+        assert client.get(result["candidates"][0]["video_url"]).status_code == 200
+        for request in upstream.requests:
+            timeouts = request.extensions["timeout"]
+            assert timeouts["read"] == (budget / 1000 if request.url.path.endswith("/search") else 7)
+            assert timeouts["connect"] == timeouts["write"] == timeouts["pool"] == 7
 
 
 def test_auth_is_verified_cached_and_retried_once():

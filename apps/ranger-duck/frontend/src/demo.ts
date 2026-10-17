@@ -4,6 +4,13 @@ export type Stage = 'idle' | 'encounter' | 'searching' | 'ready' | 'imitating' |
 export const STAGES = ['Encounter', 'Searching', 'Reference ready', 'Imitating', 'Complete'];
 export const STAGE_INDEX: Record<Stage, number> = { idle: -1, encounter: 0, searching: 1, ready: 2, imitating: 3, complete: 4, nomatch: 1, failed: 1 };
 
+export function searchDeadlineMs(backendBudget: unknown): number {
+  const validBudget = typeof backendBudget === 'number' && Number.isFinite(backendBudget) && backendBudget >= 1000 && backendBudget <= 60000;
+  // Leave time for the backend's bounded search to return its structured error.
+  // Older backends omit the field; malformed values must not cause early aborts.
+  return (validBudget ? backendBudget : 30000) + 5000;
+}
+
 export function isEligible(candidate: Candidate | null | undefined): candidate is Candidate & { action: NonNullable<Candidate['action']> } {
   return !!candidate && candidate.review_status === 'reviewed' && candidate.eligibility_reason === 'reviewed_match' && !!candidate.action;
 }

@@ -9,7 +9,7 @@ class Settings:
     ingress_url: str = field(default="", repr=False)
     username: str = field(default="", repr=False)
     password: str = field(default="", repr=False)
-    search_timeout_sec: float = 12.0
+    search_timeout_sec: float = 30.0
     request_timeout_sec: float = 10.0
     clip_ttl_sec: int = 1800
     max_sessions: int = 256
@@ -41,7 +41,7 @@ class Settings:
             ingress_url=os.environ.get("INGRESS_URL", "").rstrip("/"),
             username=os.environ.get("USERNAME", ""),
             password=os.environ.get("PASSWORD", ""),
-            search_timeout_sec=bounded("RANGER_SEARCH_TIMEOUT_SEC", 12, 1, 60),
+            search_timeout_sec=bounded("RANGER_SEARCH_TIMEOUT_SEC", 30, 1, 60),
             request_timeout_sec=bounded("RANGER_REQUEST_TIMEOUT_SEC", 10, 1, 30),
             clip_ttl_sec=int(bounded("RANGER_CLIP_TTL_SEC", 1800, 30, 7200)),
             secure_cookie=os.environ.get("RANGER_SECURE_COOKIE", "false").lower() == "true",

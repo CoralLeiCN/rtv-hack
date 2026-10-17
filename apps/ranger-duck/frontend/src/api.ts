@@ -6,6 +6,7 @@ export interface Health {
   api_version: string;
   live_configured: boolean;
   reviewed_reference_count: number;
+  search_timeout_ms?: number;
 }
 export interface Encounter {
   id: string;

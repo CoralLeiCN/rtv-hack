@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, getEncounters, getHealth, searchArchive, type Encounter, type Health, type SearchMode, type SearchResult } from './api';
-import { isEligible, responseIsCurrent, STAGE_INDEX, STAGES, visibleCandidates, type Stage } from './demo';
+import { isEligible, responseIsCurrent, searchDeadlineMs, STAGE_INDEX, STAGES, visibleCandidates, type Stage } from './demo';
 import { ReferenceCard, ReferencePanel } from './components/ReferencePanel';
 import { MicroduckScene, type MicroduckSceneHandle } from './simulator/MicroduckScene';
 
@@ -100,8 +100,8 @@ export default function App() {
     const started = performance.now();
     const isCurrent = () => id === activeEncounter.current && generation === requestGeneration.current;
     const tick = setInterval(() => { if (isCurrent()) setElapsed(performance.now() - started); }, 80);
-    // The backend has a 12 s total deadline; allow 1 s to receive its structured error.
-    const timeout = setTimeout(() => controller.abort('deadline'), 13000);
+    // Follow the backend's advertised budget, with time to receive its result.
+    const timeout = setTimeout(() => controller.abort('deadline'), searchDeadlineMs(health.search_timeout_ms));
     try {
       const response = await searchArchive({ encounter_id: id, scenario_id: scenario.id, mode: requestedMode, broaden: broad }, controller.signal);
       if (!responseIsCurrent(response, id, activeEncounter.current, generation, requestGeneration.current)) return;

@@ -108,7 +108,8 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     @app.get("/demo-api/health")
     async def health(request: Request):
         response = JSONResponse({"status": "ok", "api_version": "1", "live_configured": settings.configured,
-                "reviewed_reference_count": len(manifest.entries)})
+                "reviewed_reference_count": len(manifest.entries),
+                "search_timeout_ms": round(settings.search_timeout_sec * 1000)})
         establish_cookie(response, registry.session(request.cookies.get(COOKIE_NAME)))
         return response
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, getEncounters, getHealth, searchArchive, type Candidate, type SearchResult } from '../src/api';
-import { isEligible, mmss, responseIsCurrent, segmentTime, visibleCandidates } from '../src/demo';
+import { isEligible, mmss, responseIsCurrent, searchDeadlineMs, segmentTime, visibleCandidates } from '../src/demo';
 
 const candidate = (overrides: Partial<Candidate> = {}): Candidate => ({
   clip_id: 'opaque-clip', video_url: '/demo-api/clips/opaque-clip/video', caption: 'An animal lowers its head.', caption_hash: 'sha256:test', similarity: 0.42,
@@ -47,6 +47,14 @@ describe('evidence authorization and asynchronous invalidation', () => {
 });
 
 describe('demo API boundary', () => {
+  it('lets a configured backend finish before the browser aborts', () => {
+    expect(searchDeadlineMs(1000)).toBe(6000);
+    expect(searchDeadlineMs(30000)).toBe(35000);
+    expect(searchDeadlineMs(60000)).toBe(65000);
+    for (const invalid of [undefined, null, '30000', true, 0, 999, 60001, NaN, Infinity]) {
+      expect(searchDeadlineMs(invalid)).toBe(35000);
+    }
+  });
   it('bootstraps the HttpOnly session with same-origin credentials and unwraps the catalog', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ status: 'ok', api_version: '1', live_configured: true, reviewed_reference_count: 0 }))).mockResolvedValueOnce(new Response(JSON.stringify({ encounters: [{ id: 'deer-feeding' }] })));
     vi.stubGlobal('fetch', fetchMock);

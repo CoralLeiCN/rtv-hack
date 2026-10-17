@@ -24,6 +24,11 @@ stay on the backend. The browser awaits the health response to establish its
 session before allowing a search. The encounter catalog supplies scenario
 labels and queries.
 
+The browser follows the backend health response's `search_timeout_ms` budget
+(1–60 seconds) and allows five additional seconds for its response. Missing or
+invalid budgets use a 30-second backend budget, giving a 35-second browser
+deadline. Reset still cancels immediately and invalidates late responses.
+
 ```bash
 npm test
 npm run build
