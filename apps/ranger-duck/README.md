@@ -25,15 +25,18 @@ The default backend target is `http://127.0.0.1:8000`. Open the Local URL printe
 
 ## Demo flow
 
-1. Wait for the simulator and backend catalog to load. Choose Feeding, Walking, or Standing.
-2. Press Start. The scripted deer enters the marked zone and triggers a live search.
-3. Select a reference. Play or seek its actual segment; the HUD shows segment-local and archive time.
-4. Copy becomes available only for a current reviewed reference with a supported action. Completion follows controller state, not a decorative animation timer.
-5. Reset clears the encounter and cancels outstanding requests and movements. Late responses cannot change the next encounter.
+1. Wait for the simulator and backend catalog. Choose Cat or Deer, then an interaction.
+2. Press Start. Two scripted animals enter the scene and trigger one live interaction search.
+3. The demo automatically visits original result ranks 1–3, plays each supported reference muted, and performs its video-induced movement. No Copy click is needed.
+4. The same sequence repeats. Stop pauses it, Resume starts a fresh cycle, and Reset clears the encounter. Changing species or interaction cancels the previous sequence.
 
-The shipped reference manifest is empty. To enable imitation, inspect real footage and use the [offline review workflow](backend/README.md#review-actual-evidence-before-enabling-copy). A complete feeding demo was verified against a private reviewed manifest on the workshop VM; see the [verification context](../../docs/RANGER_DUCK_CONTEXT.md#implementation-and-verification) for its temporary location. The three implemented movements are one ground-pick cycle, a short bounded walk, and a neutral stand. Unreviewed, stale, unsupported, and wrong-species results stay playable without authorizing a movement.
+The backend derives actions from the returned clips' existing video-model captions and labels them as inferred. Each needs the correct species pair, a supported interaction and complete provenance. Unsupported ranks are visibly skipped; lower-ranked clips are not substituted. If none of the top three qualifies, the duck remains still.
 
-Replay explicitly reuses a previous live result from the current browser session and search scope; it is labeled and never replaces an error automatically. Video still streams from the archive, so replay is not an offline recording. Search broader category widens retrieval while preserving the reviewed-species requirement. The No match and Timeout rehearsal controls show labeled UI states without making a request or generating evidence.
+Cat encounters cover hissing boundaries, greetings and social play; deer encounters cover co-foraging, following and group alert. A scripted hissing pose does not claim the retrieved clip contains a hiss. The movement explanation shows what the returned caption actually supports. See the [behavior research and limitations](../../docs/RANGER_DUCK_INTERACTIONS.md).
+
+The committed visual-review manifest remains empty; real source identities stay private. A manifest is optional for caption-derived interaction actions. The old private solitary-feeding review does not by itself authorize a deer–deer interaction. The [review workflow](backend/README.md#interaction-evidence-and-optional-human-review) remains available for exact reviewed evidence.
+
+Replay explicitly reuses a previous live result for the current session and search scope. Video still streams from VSS. Other interactions broadens the behavior query while retaining the species pair. No match and Timeout rehearsal controls remain labeled demonstrations without fabricated evidence.
 
 ## Build and serve one page
 

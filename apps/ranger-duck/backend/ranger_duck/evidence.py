@@ -1,4 +1,4 @@
-"""Normalize exact search segments and bind actions to reviewed evidence."""
+"""Preserve retrieval rank and bind bounded actions to exact video evidence."""
 from dataclasses import dataclass
 import hashlib
 import json
@@ -6,6 +6,8 @@ import math
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
+
+from .interaction import classify_interaction
 
 MOTIONS = {
     "feeding": ("ground_pick", 8000),
@@ -55,6 +57,7 @@ class Segment:
     end: float | None
     similarity: float | None
     dataset: str | None
+    rank: int = 1
 
     @property
     def complete(self) -> bool:
@@ -62,7 +65,7 @@ class Segment:
                     and self.end is not None and self.start >= 0 and self.end > self.start)
 
     @classmethod
-    def parse(cls, raw: object) -> "Segment | None":
+    def parse(cls, raw: object, rank: int = 1) -> "Segment | None":
         if not isinstance(raw, dict) or not valid_source(raw.get("source")):
             return None
         metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
@@ -81,6 +84,7 @@ class Segment:
             start=number(raw.get("segment_start_sec")), end=number(raw.get("segment_end_sec")),
             similarity=number(raw.get("similarity_score")),
             dataset=safe_text(dataset, 100) or None,
+            rank=rank,
         )
 
     def review_draft(self) -> dict:
@@ -88,6 +92,7 @@ class Segment:
                 "original_video": self.parent, "segment_start_sec": self.start,
                 "segment_end_sec": self.end, "caption": self.caption,
                 "caption_sha256": caption_hash(self.caption), "animal": "", "behavior": "",
+                "interaction_partner": "", "interaction_evidence": "",
                 "dataset": self.dataset, "source_label": "", "review_note": ""}
 
 
@@ -100,11 +105,15 @@ class Manifest:
                 continue
             segment = Segment.parse({**item, "reasoning_content": item.get("caption")})
             if not segment or not segment.complete:
+                self.warning = "The reference manifest contains invalid reviewed evidence; imitation is disabled."
                 continue
             if (not SAFE_ID.fullmatch(str(item.get("evidence_id", "")))
                     or item.get("caption_sha256") != caption_hash(segment.caption)
                     or not isinstance(item.get("animal"), str) or not item["animal"].strip()
-                    or not isinstance(item.get("behavior"), str) or not item["behavior"].strip()):
+                    or not isinstance(item.get("behavior"), str) or not item["behavior"].strip()
+                    or not isinstance(item.get("interaction_partner", ""), str)
+                    or not isinstance(item.get("interaction_evidence", ""), str)):
+                self.warning = "The reference manifest contains invalid reviewed evidence; imitation is disabled."
                 continue
             self.entries.append(item)
         ids = [item["evidence_id"] for item in self.entries]
@@ -153,18 +162,54 @@ class Manifest:
             "primitive": motion[0], "evidence_id": reference["evidence_id"], "max_duration_ms": motion[1]},
             "_reference": reference}
 
+    def annotate_interaction(self, segment: Segment, animal: str, partner: str) -> dict:
+        """A scenario selects retrieval scope, never the action for a returned clip."""
+        annotation = self.annotate(segment, animal)
+        result = {**annotation, "action": None, "action_basis": None,
+                  "inferred_behavior": None, "action_reason": None, "interaction_partner": None}
+        if self.warning:
+            return {**result, "eligibility_reason": "invalid_review_manifest"}
+        if annotation["eligibility_reason"] in {
+            "incomplete_metadata", "reference_changed", "species_mismatch", "unsupported_behavior"
+        }:
+            return result
+        if partner != animal:
+            return {**result, "eligibility_reason": "unsupported_species_pair"}
+        reference = annotation.get("_reference")
+        if reference and reference.get("interaction_partner"):
+            if reference["interaction_partner"].strip().casefold() != partner:
+                return {**result, "eligibility_reason": "interaction_partner_mismatch"}
+            # A review must explicitly attest to this interaction, not only a pose.
+            evidence = reference.get("interaction_evidence")
+            if isinstance(evidence, str) and evidence.strip():
+                match, reason = classify_interaction(evidence, animal)
+                if not match:
+                    return {**result, "eligibility_reason": reason}
+                behavior, primitive, duration, explanation = match
+                return {**result, "eligibility_reason": "reviewed_match", "action_basis": "reviewed",
+                        "inferred_behavior": behavior, "action_reason": explanation,
+                        "interaction_partner": partner, "action": {"primitive": primitive,
+                        "evidence_id": reference["evidence_id"], "max_duration_ms": duration}}
+        match, reason = classify_interaction(segment.caption, animal)
+        if not match:
+            return {**result, "eligibility_reason": reason}
+        behavior, primitive, duration, explanation = match
+        binding = json.dumps([segment.source, segment.parent, segment.start, segment.end,
+                              caption_hash(segment.caption)], separators=(",", ":"))
+        evidence_id = "caption-" + hashlib.sha256(binding.encode()).hexdigest()[:32]
+        # A previous pose review does not become an interaction review implicitly.
+        return {**result, "review_status": "unreviewed", "eligibility_reason": "caption_interaction_match",
+                "action_basis": "video_caption", "inferred_behavior": behavior,
+                "action_reason": explanation, "interaction_partner": partner,
+                "action": {"primitive": primitive, "evidence_id": evidence_id, "max_duration_ms": duration}}
+
 
 def normalize_segments(raw_results: list) -> list[Segment]:
-    """Deduplicate sources, then put one hit per parent before repeat parents."""
+    """Deduplicate sources without reranking or promoting invalid/duplicate hits."""
     segments, seen_sources = [], set()
-    for raw in raw_results[:100]:
-        segment = Segment.parse(raw)
+    for rank, raw in enumerate(raw_results[:100], start=1):
+        segment = Segment.parse(raw, rank)
         if segment and segment.source not in seen_sources:
             seen_sources.add(segment.source)
             segments.append(segment)
-    first, repeat, seen_parents = [], [], set()
-    for segment in segments:
-        parent = segment.parent or segment.source
-        (repeat if parent in seen_parents else first).append(segment)
-        seen_parents.add(parent)
-    return (first + repeat)[:15]
+    return segments[:15]

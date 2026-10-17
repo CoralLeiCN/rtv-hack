@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, getEncounters, getHealth, searchArchive, type Encounter, type Health, type SearchMode, type SearchResult } from './api';
-import { isEligible, responseIsCurrent, searchDeadlineMs, STAGE_INDEX, STAGES, visibleCandidates, type Stage } from './demo';
+import { responseIsCurrent, searchDeadlineMs, runReferenceLoop, sequenceSlots, STAGE_INDEX, STAGES, visibleCandidates, type LoopProgress, type Stage } from './demo';
 import { ReferenceCard, ReferencePanel } from './components/ReferencePanel';
 import { MicroduckScene, type MicroduckSceneHandle } from './simulator/MicroduckScene';
 
@@ -26,6 +26,10 @@ export default function App() {
   const [elapsed, setElapsed] = useState(0);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [loopRunning, setLoopRunning] = useState(false);
+  const [loopProgress, setLoopProgress] = useState<LoopProgress | null>(null);
+  const [loopNote, setLoopNote] = useState<string | null>(null);
+  const [rankStates, setRankStates] = useState<Record<number, string>>({});
   const [rehearsal, setRehearsal] = useState<Rehearsal>(null);
   const [replayKeys, setReplayKeys] = useState<Set<string>>(new Set());
   const [clock, setClock] = useState(new Date());
@@ -34,10 +38,12 @@ export default function App() {
   const requestGeneration = useRef(0);
   const actionGeneration = useRef(0);
   const pending = useRef<AbortController | null>(null);
-  const rehearsalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loopController = useRef<AbortController | null>(null);
   const currentStage = useRef<Stage>('idle');
   const scenario = scenarios.find(item => item.id === scenarioId) ?? null;
   const selected = result?.candidates.find(item => item.clip_id === selectedId) ?? null;
+  const species = [...new Set(scenarios.map(item => item.animal))].sort();
+  const speciesScenarios = scenarios.filter(item => item.animal === scenario?.animal);
   const replayAvailable = replayKeys.has(`${scenarioId}:${broadened}`);
   const setCurrentStage = useCallback((value: Stage) => { currentStage.current = value; setStage(value); }, []);
 
@@ -57,16 +63,38 @@ export default function App() {
     return () => controller.abort();
   }, [bootAttempt]);
   useEffect(() => { const timer = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(timer); }, []);
-  useEffect(() => () => { pending.current?.abort(); if (rehearsalTimer.current) clearTimeout(rehearsalTimer.current); }, []);
+  useEffect(() => () => { pending.current?.abort(); loopController.current?.abort(); duck.current?.stop(); }, []);
+
+  const stopMotion = useCallback(() => {
+    loopController.current?.abort();
+    loopController.current = null;
+    actionGeneration.current += 1;
+    duck.current?.stop();
+    setLoopRunning(false);
+  }, []);
+
+  const pauseLoop = useCallback((message = 'Stopped. Resume starts a fresh cycle from rank 1.') => {
+    pending.current?.abort();
+    pending.current = null;
+    requestGeneration.current += 1;
+    stopMotion();
+    setLoopNote(message);
+    if (currentStage.current !== 'idle') setCurrentStage('paused');
+  }, [stopMotion, setCurrentStage]);
+
+  useEffect(() => {
+    const hidden = () => {
+      if (document.hidden && currentStage.current !== 'idle') pauseLoop('Paused because this tab was hidden. Resume when you are ready.');
+    };
+    document.addEventListener('visibilitychange', hidden);
+    return () => document.removeEventListener('visibilitychange', hidden);
+  }, [pauseLoop]);
 
   const invalidate = useCallback(() => {
     pending.current?.abort();
     pending.current = null;
     requestGeneration.current += 1;
-    actionGeneration.current += 1;
-    if (rehearsalTimer.current) clearTimeout(rehearsalTimer.current);
-    rehearsalTimer.current = null;
-    duck.current?.stop();
+    stopMotion();
     const id = idLabel(++sequence.current);
     activeEncounter.current = id;
     setEncounterId(id);
@@ -75,8 +103,58 @@ export default function App() {
     setElapsed(0);
     setSearchError(null);
     setActionError(null);
+    setLoopProgress(null);
+    setLoopNote(null);
+    setRankStates({});
     return id;
-  }, []);
+  }, [stopMotion]);
+
+  const startLoop = useCallback((response: SearchResult, firstCycle = 1) => {
+    if (response.encounter_id !== activeEncounter.current || !duck.current) return;
+    stopMotion();
+    setSelectedId(visibleCandidates(response.candidates)[0]?.candidate.clip_id ?? null);
+    if (!sequenceSlots(response.candidates).some(slot => slot.supported)) {
+      setLoopNote('All three ranks are skipped: no supported video actions were returned.');
+      setCurrentStage(visibleCandidates(response.candidates).length ? 'ready' : 'nomatch');
+      return;
+    }
+    if (document.hidden) {
+      setLoopNote('Paused because this tab is hidden. Resume when you are ready.');
+      setCurrentStage('paused');
+      return;
+    }
+    const controller = new AbortController();
+    loopController.current = controller;
+    const generation = ++actionGeneration.current;
+    const isCurrent = () => !controller.signal.aborted && generation === actionGeneration.current && response.encounter_id === activeEncounter.current;
+    setLoopRunning(true);
+    setActionError(null);
+    setLoopNote(null);
+    void runReferenceLoop({
+      candidates: response.candidates,
+      signal: controller.signal,
+      firstCycle,
+      prepareCycle: () => duck.current!.prepareCycle(),
+      status: () => duck.current?.status() ?? 'failed',
+      perform: action => duck.current!.perform({ primitive: action.primitive, evidenceId: action.evidence_id, maxDurationMs: action.max_duration_ms }),
+      onProgress: progress => {
+        if (!isCurrent()) return;
+        setLoopProgress(progress);
+        if (progress.rank != null) setSelectedId(progress.candidate?.clip_id ?? null);
+        if (progress.phase === 'preparing') setRankStates({});
+        if (progress.rank != null) setRankStates(previous => ({ ...previous, [progress.rank!]: progress.phase }));
+        setCurrentStage(progress.phase === 'cycle_complete' ? 'complete' : 'imitating');
+      },
+    }).catch(error => {
+      if (!isCurrent()) return;
+      stopMotion();
+      setActionError(error instanceof Error ? error.message : 'The controller could not continue. Reset before resuming.');
+      setLoopNote('The loop stopped before another action could begin.');
+      setCurrentStage('paused');
+    }).finally(() => {
+      if (loopController.current === controller) { loopController.current = null; setLoopRunning(false); }
+    });
+  }, [stopMotion, setCurrentStage]);
 
   const reset = useCallback(() => {
     invalidate();
@@ -90,8 +168,7 @@ export default function App() {
   const beginSearch = useCallback(async (id: string, broad = false, requestedMode: SearchMode = mode) => {
     if (!scenario || !health || id !== activeEncounter.current) return;
     pending.current?.abort();
-    duck.current?.stop();
-    actionGeneration.current += 1;
+    stopMotion();
     const controller = new AbortController();
     pending.current = controller;
     const generation = ++requestGeneration.current;
@@ -109,7 +186,8 @@ export default function App() {
       setElapsed(response.elapsed_ms);
       setMode(response.mode);
       if (response.mode === 'live') setReplayKeys(previous => new Set([...previous, `${scenario.id}:${broad}`]));
-      setCurrentStage(response.candidates.length ? 'ready' : 'nomatch');
+      setCurrentStage(visibleCandidates(response.candidates).length ? 'ready' : 'nomatch');
+      startLoop(response);
     } catch (error) {
       if (!isCurrent()) return;
       setElapsed(performance.now() - started);
@@ -117,24 +195,25 @@ export default function App() {
       if (error instanceof ApiError && error.code === 'replay_unavailable') setReplayKeys(previous => { const next = new Set(previous); next.delete(`${scenario.id}:${broad}`); return next; });
       setCurrentStage('failed');
     } finally { clearInterval(tick); clearTimeout(timeout); }
-  }, [scenario, health, mode, setCurrentStage]);
+  }, [scenario, health, mode, setCurrentStage, startLoop, stopMotion]);
 
   const onEncounterReady = useCallback((id: string) => {
     if (id !== activeEncounter.current || currentStage.current !== 'encounter') return;
     void beginSearch(id, broadened, mode);
   }, [beginSearch, mode, broadened]);
   const onSimulatorReady = useCallback(() => { setSimulatorReady(true); setSimulatorError(null); }, []);
-  const onSimulatorError = useCallback((message: string) => { setSimulatorReady(false); setSimulatorError(message); setDuckStatus('failed'); }, []);
+  const onSimulatorError = useCallback((message: string) => { pauseLoop('Simulator unavailable.'); setSimulatorReady(false); setSimulatorError(message); setDuckStatus('failed'); }, [pauseLoop]);
   const onSimulatorStatus = useCallback((status: string) => { setDuckStatus(status); }, []);
 
   const start = () => {
-    if (!scenario || !health || !simulatorReady || stage !== 'idle') return;
+    if (!scenario || !health || !simulatorReady || !(stage === 'idle' || (stage === 'paused' && !result))) return;
     const id = invalidate();
     setRehearsal(null);
     setCurrentStage('encounter');
-    duck.current?.startEncounter({ id, behavior_hint: scenario.behavior_hint });
+    duck.current?.startEncounter({ id, animal: scenario.animal === 'cat' ? 'cat' : 'deer', interaction_partner: scenario.interaction_partner ?? scenario.animal, behavior_hint: scenario.behavior_hint });
   };
   const chooseScenario = (id: string) => { if (id !== scenarioId) { reset(); setScenarioId(id); setMode('live'); } };
+  const chooseSpecies = (animal: string) => { const first = scenarios.find(item => item.animal === animal); if (first) chooseScenario(first.id); };
   const chooseMode = (value: SearchMode) => {
     if (value !== mode || rehearsal) {
       const retainedScope = broadened;
@@ -144,24 +223,14 @@ export default function App() {
     }
   };
   const select = (id: string) => {
-    if (!result?.candidates.some(candidate => candidate.clip_id === id) || selectedId === id) return;
-    actionGeneration.current += 1;
-    duck.current?.stop();
-    setSelectedId(id); setActionError(null); setCurrentStage('ready');
+    if (!result || !visibleCandidates(result.candidates).some(item => item.candidate.clip_id === id)) return;
+    pauseLoop('Paused for reference inspection. Resume restarts the top-three loop.');
+    setSelectedId(id);
+    setActionError(null);
   };
-  const copy = async () => {
-    if (!isEligible(selected) || !result || result.encounter_id !== activeEncounter.current || stage !== 'ready' || !simulatorReady || !duck.current || rehearsal) return;
-    const id = activeEncounter.current;
-    const generation = ++actionGeneration.current;
-    setActionError(null); setCurrentStage('imitating');
-    try {
-      await duck.current.perform({ primitive: selected.action.primitive, evidenceId: selected.action.evidence_id, maxDurationMs: selected.action.max_duration_ms });
-      if (id === activeEncounter.current && generation === actionGeneration.current) setCurrentStage('complete');
-    } catch (error) {
-      if (id !== activeEncounter.current || generation !== actionGeneration.current) return;
-      setActionError(error instanceof Error ? error.message : 'The controller could not complete this action. Reset before trying again.');
-      setCurrentStage('ready');
-    }
+  const resume = () => {
+    if (!result || rehearsal || !simulatorReady) return;
+    startLoop(result, (loopProgress?.cycle ?? 0) + 1);
   };
   const rehearse = (kind: Exclude<Rehearsal, null>) => {
     invalidate(); duck.current?.reset(); setRehearsal(kind); setBroadened(false);
@@ -177,14 +246,19 @@ export default function App() {
   const results = visibleCandidates(result?.candidates ?? []);
   const statusText = rehearsal ? 'UI rehearsal · no request' : stage === 'idle' ? 'idle' : stage === 'encounter' ? 'waiting for encounter zone' : stage === 'searching' ? mode === 'replay' ? 'replaying saved run' : 'live request in flight' : stage === 'nomatch' ? 'no supported match' : stage === 'failed' ? 'search did not finish' : `${result?.mode ?? mode} · ${result?.candidates.length ?? 0} candidates`;
   const timeLabel = stage === 'idle' || stage === 'encounter' || rehearsal ? '— s' : `${(elapsed / 1000).toFixed(2)} s`;
-  const canStart = stage === 'idle' && !!health && !!scenario && simulatorReady;
-  const eventJson = scenario && stage !== 'idle' ? JSON.stringify({ encounter_id: encounterId, scenario_id: scenario.id, input_mode: 'scripted_scene', animal: scenario.animal, behavior_hint: scenario.behavior_hint }, null, 2) : '{ awaiting Start }';
+  const canStart = (stage === 'idle' || (stage === 'paused' && !result)) && !!health && !!scenario && simulatorReady;
+  const slots = sequenceSlots(result?.candidates ?? []);
+  const canResume = !!result && result.encounter_id === activeEncounter.current && slots.some(slot => slot.supported) && simulatorReady;
+  const canStop = loopRunning || stage === 'encounter' || stage === 'searching';
+  const loopLabel = loopRunning && loopProgress ? `Cycle ${loopProgress.cycle} · ${loopProgress.rank ? `rank ${loopProgress.rank}/3 · ` : ''}${loopProgress.phase.replace('_', ' ')}${loopProgress.candidate?.action && loopProgress.phase !== 'skipped' ? ` · ${loopProgress.candidate.action.primitive}` : ''}` : loopNote ?? 'Top-three actions run automatically after search.';
+  const eventJson = scenario && stage !== 'idle' ? JSON.stringify({ encounter_id: encounterId, scenario_id: scenario.id, input_mode: 'scripted_scene', animal: scenario.animal, interaction_partner: scenario.interaction_partner ?? scenario.animal, interaction: scenario.interaction ?? scenario.behavior_hint }, null, 2) : '{ awaiting Start }';
 
   return <div className="app-shell">
     <header className="app-header">
       <div className="brand"><div className="logo" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="12" cy="16" r="8" fill="#101018" /><circle cx="17" cy="9" r="5" fill="#101018" /><path d="M21 9 L27 11 L21 13 Z" fill="#FF7A2F" /><circle cx="18.5" cy="8" r="1.2" fill="#FFD23F" /></svg></div><div><h1 className="display">Ranger Duck</h1><div className="label brand-subtitle">Field unit AV-1 · retrieval-guided imitation</div></div></div>
-      <div className="encounter-tabs"><span className="label">Encounter</span><div className="tabs" role="group" aria-label="Encounter scenario">{scenarios.map(item => <button key={item.id} className={`tab ${scenarioId === item.id ? 'on' : ''}`} aria-pressed={scenarioId === item.id} onClick={() => chooseScenario(item.id)}>{item.label}</button>)}{!scenarios.length && <span className="mono secondary small">Connecting…</span>}</div></div>
-      <div className="header-actions"><div className="mono encounter-id">{encounterId}</div><button className="btn primary" disabled={!canStart} onClick={start}>Start</button><button className="btn" onClick={reset}>Reset</button></div>
+      <div className="species-tabs"><span className="label">Species</span><div className="tabs" role="group" aria-label="Animal species">{species.map(animal => <button key={animal} className={`tab ${scenario?.animal === animal ? 'on' : ''}`} aria-pressed={scenario?.animal === animal} onClick={() => chooseSpecies(animal)}>{animal}</button>)}</div></div>
+      <div className="encounter-tabs"><span className="label">Interaction</span><div className="tabs" role="group" aria-label="Encounter scenario">{speciesScenarios.map(item => <button key={item.id} className={`tab ${scenarioId === item.id ? 'on' : ''}`} aria-pressed={scenarioId === item.id} onClick={() => chooseScenario(item.id)}>{item.label}</button>)}{!scenarios.length && <span className="mono secondary small">Connecting…</span>}</div></div>
+      <div className="header-actions"><div className="mono encounter-id">{encounterId}</div><button className="btn primary" disabled={!canStart} onClick={start}>Start</button><button className="btn loop-control" disabled={!canStop && !canResume} onClick={() => canStop ? pauseLoop() : resume()}>{canStop || !canResume ? 'Stop' : 'Resume'}</button><button className="btn" onClick={reset}>Reset</button></div>
     </header>
     <main className="main">
       <section aria-label="Shared simulation scene" className="scene-column">
@@ -197,20 +271,21 @@ export default function App() {
           <div className="sticker mono duck-status"><span className="label">duck.status()</span><span>{duckStatus}</span></div>
           {simulatorError && <div className="sim-error alert" role="alert"><strong className="display">Simulator unavailable</strong><span>{simulatorError}</span><span className="small">Load the pinned simulator assets and reload this page.</span></div>}
         </div>
-        <div className="encounter-details"><div className="encounter-description"><div className="label">Encounter event · supplied by the simulation</div><div className="scene-caption">{stage === 'idle' ? scenario ? `Press Start. The ${scenario.animal} enters the clearing, and the search begins when it reaches the marked zone.` : 'Connecting to the encounter catalog.' : scenario?.description}</div><div className="body-note">Scripted animal · existing Microduck movements · no new training</div></div><pre className="mono encounter-json">{eventJson}</pre></div>
+        <div className="encounter-details"><div className="encounter-description"><div className="label">Encounter event · supplied by the simulation</div><div className="scene-caption">{stage === 'idle' ? scenario ? `Press Start. Two ${scenario.animal === 'cat' ? 'cats' : 'deer'} meet in the clearing. The top three video actions then loop automatically.` : 'Connecting to the encounter catalog.' : scenario?.description}</div><div className="body-note">Scripted animal pair · pretrained Microduck movements · video-guided loop</div></div><pre className="mono encounter-json">{eventJson}</pre></div>
         {bootstrapError && <div className="alert compact" role="alert"><span>{bootstrapError}</span><button className="seg" onClick={() => setBootAttempt(value => value + 1)}>Reconnect backend</button></div>}
         {health && !health.live_configured && <div className="setup-note mono">Live archive credentials are not configured on this backend. The simulator can load; live searches will report setup required.</div>}
-        {health && health.reviewed_reference_count === 0 && <div className="setup-note mono">No reviewed references yet. Search and playback are available; Copy unlocks after actual footage is reviewed.</div>}
+        {health && health.reviewed_reference_count === 0 && <div className="setup-note mono">Caption-inferred actions are labeled separately from visually reviewed evidence.</div>}
       </section>
       <aside aria-label="Live archive search" className={`archive-column ${selected ? 'has-selection' : ''}`}>
         <div className="archive-heading"><h2 className="display">{stage === 'searching' && <span className="dot live" aria-hidden="true" />}Archive search</h2><div role="group" aria-label="Search mode" className="mode-group"><button className={`seg ${mode === 'live' ? 'on' : ''}`} aria-pressed={mode === 'live'} onClick={() => chooseMode('live')}>Live</button><button className={`seg ${mode === 'replay' ? 'on' : ''}`} aria-pressed={mode === 'replay'} disabled={!replayAvailable && mode !== 'replay'} title={replayAvailable ? 'Replay the previous live search for this encounter' : 'Run this encounter live to save a replay first'} onClick={() => chooseMode('replay')}>Replay</button></div></div>
-        <div className="box"><div className="query-heading"><span className="label">Query</span><span className={`label request-status ${stage}`} role="status">{statusText}</span></div><div className="mono query-text">{result?.query ?? (stage === 'idle' ? '—' : rehearsal ? 'UI state rehearsal — no query sent' : (broadened ? scenario?.broader_query : scenario?.query) ?? 'Awaiting query from archive search…')}</div><div className="query-footer"><span className="mono request-route">{mode === 'replay' ? 'Saved live run · current browser session' : 'Live archive · wildlife · server-ranked segments'}</span><span className="mono elapsed">{timeLabel}</span></div>{broadened && <div className="mono broadened-note">Match type: broader category · species eligibility still checked</div>}{result?.mode === 'replay' && <div className="mono replay-note">Replaying a saved result{result.recorded_at ? ` from ${new Date(result.recorded_at).toLocaleTimeString('en-GB')}` : ''}{result.original_elapsed_ms != null ? ` · original live search ${(result.original_elapsed_ms / 1000).toFixed(2)} s` : ''}.</div>}</div>
-        <div className="results-section"><div className="results-heading"><span className="label">Reference candidates · {results.length ? `${results.length} shown` : 'none yet'}</span><span className="label secondary">ranked references</span></div><div className="results-list">
-          {results.length > 0 ? results.map(({ candidate, rank }) => <ReferenceCard key={candidate.clip_id} candidate={candidate} rank={rank} selected={selectedId === candidate.clip_id} onSelect={() => select(candidate.clip_id)} />) : stage === 'nomatch' ? <div className="alert"><div className="display alert-title">No supported imitation found</div><div className="body-note">{rehearsal ? 'Rehearsal only. No archive request was made. Microduck holds its pose.' : 'No usable reference segments were returned. Microduck holds its pose.'}</div><button className="btn small-button" disabled={!health || broadened} onClick={() => retry('live', true)}>Search broader category</button></div> : stage === 'failed' ? <div className="alert"><div className="display alert-title">Search did not finish</div><div className="body-note">{searchError}</div><div className="alert-actions"><button className="btn small-button" disabled={!health} onClick={() => retry('live')}>Retry live</button><button className="btn small-button" disabled={!replayAvailable} onClick={() => retry('replay')}>Use replay</button></div></div> : <div className="empty">{stage === 'searching' ? mode === 'replay' ? 'Loading the saved archive results…' : 'Ranking archive segments…' : stage === 'encounter' ? 'Animal entering the encounter zone. Search starts on arrival.' : 'Choose an encounter and press Start.'}</div>}
-          {result?.status === 'no_supported_imitation' && <div className="unsupported-summary"><span className="label pink">No supported imitation found</span><span className="body-note">These clips can be watched. None has a current review that permits this encounter’s duck movement.</span>{!broadened && <button className="seg" onClick={() => retry('live', true)}>Search broader category</button>}</div>}
+        <div className="box"><div className="query-heading"><span className="label">Query</span><span className={`label request-status ${stage}`} role="status">{statusText}</span></div><div className="mono query-text">{result?.query ?? (stage === 'idle' ? '—' : rehearsal ? 'UI state rehearsal — no query sent' : (broadened ? scenario?.broader_query : scenario?.query) ?? 'Awaiting query from archive search…')}</div><div className="query-footer"><span className="mono request-route">{mode === 'replay' ? 'Saved live run · current browser session' : `Live archive · ${scenario?.animal === 'cat' ? 'cat–cat' : 'deer–deer'} interactions · server-ranked segments`}</span><span className="mono elapsed">{timeLabel}</span></div>{broadened && <div className="mono broadened-note">Other interactions · same species pair</div>}{result?.mode === 'replay' && <div className="mono replay-note">Replaying a saved result{result.recorded_at ? ` from ${new Date(result.recorded_at).toLocaleTimeString('en-GB')}` : ''}{result.original_elapsed_ms != null ? ` · original live search ${(result.original_elapsed_ms / 1000).toFixed(2)} s` : ''}.</div>}</div>
+        <div className="results-section"><div className="results-heading"><span className="label">Top three · {result ? `${results.length} video references` : 'awaiting search'}</span><span className="label secondary">ranked references</span></div><div className="results-list">
+          {result && result.candidates.length > 0 ? slots.map(slot => slot.candidate ? <ReferenceCard key={slot.rank} candidate={slot.candidate} rank={slot.rank} selected={selectedId === slot.candidate.clip_id} sequenceState={slot.supported ? rankStates[slot.rank] ?? 'queued' : 'skipped'} onSelect={() => select(slot.candidate!.clip_id)} /> : <div className="missing-reference mono" key={slot.rank}>Rank {slot.rank} · skipped · no usable segment returned</div>) : stage === 'nomatch' ? <div className="alert"><div className="display alert-title">No supported imitation found</div><div className="body-note">{rehearsal ? 'Rehearsal only. No archive request was made. Microduck holds its pose.' : 'No usable reference segments were returned. Microduck holds its pose.'}</div><button className="btn small-button" disabled={!health || broadened} onClick={() => retry('live', true)}>Other interactions</button></div> : stage === 'failed' ? <div className="alert"><div className="display alert-title">Search did not finish</div><div className="body-note">{searchError}</div><div className="alert-actions"><button className="btn small-button" disabled={!health} onClick={() => retry('live')}>Retry live</button><button className="btn small-button" disabled={!replayAvailable} onClick={() => retry('replay')}>Use replay</button></div></div> : <div className="empty">{stage === 'searching' ? mode === 'replay' ? 'Loading the saved archive results…' : 'Ranking archive segments…' : stage === 'encounter' ? 'Animal entering the encounter zone. Search starts on arrival.' : 'Choose an encounter and press Start.'}</div>}
+          {result?.status === 'no_supported_imitation' && <div className="unsupported-summary"><span className="label pink">No supported imitation found</span><span className="body-note">These clips can be watched. No supported action was returned for these interaction references.</span>{!broadened && <button className="seg" onClick={() => retry('live', true)}>Other interactions</button>}</div>}
         </div></div>
+        {result && <div className={`sequence-status mono ${loopRunning ? 'running' : ''}`} role="status">{loopLabel}</div>}
         {result?.warnings.length ? <div className="search-warnings mono">{result.warnings.map((warning, index) => <div key={index}>{warning}</div>)}</div> : null}
-        {selected ? <ReferencePanel key={`${result?.search_id}:${selected.clip_id}`} candidate={selected} stage={stage} simulatorReady={simulatorReady && duckStatus !== 'recovering' && duckStatus !== 'failed'} onCopy={() => void copy()} onRetry={() => retry('live')} actionError={actionError} /> : results.length ? <div className="empty">Select a reference card to play its segment and see whether it can move the duck.</div> : null}
+        {selected ? <ReferencePanel key={`${result?.search_id}:${selected.clip_id}`} candidate={selected} stage={stage} autoPlaying={loopRunning} sequenceLabel={loopLabel} onRetry={() => retry('live')} actionError={actionError} /> : results.length ? <div className="empty">{loopLabel}</div> : null}
       </aside>
     </main>
     <footer className="stage-footer"><ol className="stage-list" aria-label="Demo progress">{STAGES.map((label, index) => <li key={label} className={`step ${index === 1 && (stage === 'nomatch' || stage === 'failed') ? 'bad' : index < currentIndex ? 'done' : index === currentIndex ? 'cur' : ''}`} aria-current={index === currentIndex ? 'step' : undefined}><span className="mono step-number">{String(index + 1).padStart(2, '0')}</span>{label}</li>)}</ol><div className="rehearsal-controls"><span className="label secondary">Rehearse UI</span><button className="seg" onClick={() => rehearse('nomatch')}>No match</button><button className="seg" onClick={() => rehearse('timeout')}>Timeout</button><span className="mono end-tape">End of tape · be kind, rewind</span></div></footer>

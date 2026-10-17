@@ -1,5 +1,5 @@
 export type SearchMode = 'live' | 'replay';
-export type Primitive = 'ground_pick' | 'short_walk' | 'stand_hold' | 'sit' | 'head_scan';
+export type Primitive = 'ground_pick' | 'short_walk' | 'stand_hold' | 'head_scan';
 
 export interface Health {
   status: string;
@@ -12,6 +12,8 @@ export interface Encounter {
   id: string;
   label: string;
   animal: string;
+  interaction_partner?: string;
+  interaction?: string;
   behavior_hint: string;
   description: string;
   input_mode: 'scripted_scene';
@@ -19,6 +21,7 @@ export interface Encounter {
   broader_query?: string;
 }
 export interface Candidate {
+  rank?: number;
   clip_id: string;
   video_url: string;
   caption: string;
@@ -29,6 +32,10 @@ export interface Candidate {
   animal: string | null;
   reviewed_behavior: string | null;
   review_reason?: string | null;
+  action_basis?: 'reviewed' | 'video_caption' | null;
+  action_reason?: string | null;
+  inferred_behavior?: string | null;
+  interaction_partner?: string | null;
   provenance: {
     dataset: string | null;
     source_label: string;
@@ -44,7 +51,7 @@ export interface SearchResult {
   mode: SearchMode;
   status: 'ok' | 'no_supported_imitation' | 'no_results';
   query: string;
-  match_type?: 'species' | 'broader_category';
+  match_type?: 'species' | 'broader_category' | 'species_interaction' | 'broader_behavior';
   elapsed_ms: number;
   original_elapsed_ms?: number;
   recorded_at?: string;

@@ -100,7 +100,8 @@ def test_no_configuration_is_runnable_and_reports_it():
     with client:
         assert client.get("/demo-api/health").json() == {"status": "ok", "api_version": "1", "live_configured": False, "reviewed_reference_count": 0, "search_timeout_ms": 30000}
         scenarios = client.get("/demo-api/encounters").json()["encounters"]
-        assert len(scenarios) == 3 and all("action" not in s for s in scenarios)
+        assert len(scenarios) == 6 and all("action" not in s for s in scenarios)
+        assert all(s["animal"] == s["interaction_partner"] for s in scenarios)
         response = client.post("/demo-api/search", json=PAYLOAD)
         assert response.status_code == 503
         assert response.json()["error"]["code"] == "live_not_configured"
@@ -128,11 +129,14 @@ def test_unreviewed_live_result_is_playable_without_an_action_or_private_fields(
 
 
 def test_current_review_controls_action_instead_of_scenario():
-    client, _, _ = make_client(manifest=[reviewed(behavior="walking")])
+    row = {**ROW, "reasoning_content": "Two deer interact. One deer follows another deer."}
+    client, _, _ = make_client(Upstream([row]), manifest=[reviewed(row, behavior="walking",
+        interaction_partner="deer", interaction_evidence=row["reasoning_content"])])
     with client:
         result = search(client)
         assert result["status"] == "ok"
         assert result["candidates"][0]["action"] == {"primitive": "short_walk", "evidence_id": "ref-01", "max_duration_ms": 2000}
+        assert result["candidates"][0]["action_basis"] == "reviewed"
 
 
 def test_explicit_replay_uses_only_this_sessions_matching_live_search():
@@ -177,8 +181,8 @@ def test_broader_search_changes_query_without_relaxing_review_or_species_rules()
         response = client.post("/demo-api/search", json={**PAYLOAD, "broaden": True})
         result = response.json()
         sent = json.loads(next(r.content for r in upstream.requests if r.url.path.endswith("/search")))
-        assert sent["query"] == result["query"] == "hoofed animal feeding with its head lowered"
-        assert result["match_type"] == "broader_category"
+        assert sent["query"] == result["query"] == "Two deer interacting with each other"
+        assert result["match_type"] == "broader_behavior"
         assert result["candidates"][0]["action"] is None
         assert result["candidates"][0]["eligibility_reason"] == "species_mismatch"
 
@@ -240,15 +244,17 @@ def test_review_cannot_add_absent_evidence_and_duplicates_are_ambiguous():
         assert search(client)["candidates"][0]["action"] is None
 
 
-def test_normalization_deduplicates_and_groups_parents_without_losing_later_review():
+def test_normalization_deduplicates_without_changing_upstream_rank_or_parent_order():
     second = {**ROW, "source": "s3://test-segments/clip2.mp4", "segment_start_sec": 5, "segment_end_sec": 10}
     other = {**ROW, "source": "s3://test-segments/other.mp4", "original_video": "s3://test-parents/other.mp4"}
     client, _, _ = make_client(Upstream([ROW, ROW, second, other, {"source": "https://arbitrary.invalid"}]), [reviewed(second)])
     with client:
         items = search(client)["candidates"]
         assert len(items) == 3
-        assert items[0]["provenance"]["parent_id"] != items[1]["provenance"]["parent_id"]
-        assert items[2]["action"]["evidence_id"] == "ref-01"
+        assert items[0]["provenance"]["parent_id"] == items[1]["provenance"]["parent_id"]
+        assert items[1]["provenance"]["parent_id"] != items[2]["provenance"]["parent_id"]
+        assert [item["rank"] for item in items] == [1, 3, 4]
+        assert all(item["action"] is None for item in items)
 
 
 def test_search_budget_reaches_browser_and_upstream_without_extending_other_reads():

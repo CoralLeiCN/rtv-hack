@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, getEncounters, getHealth, searchArchive, type Candidate, type SearchResult } from '../src/api';
-import { isEligible, mmss, responseIsCurrent, searchDeadlineMs, segmentTime, visibleCandidates } from '../src/demo';
+import { isEligible, mmss, responseIsCurrent, runReferenceLoop, searchDeadlineMs, segmentTime, sequenceSlots, visibleCandidates, waitFor, type LoopProgress } from '../src/demo';
 
 const candidate = (overrides: Partial<Candidate> = {}): Candidate => ({
   clip_id: 'opaque-clip', video_url: '/demo-api/clips/opaque-clip/video', caption: 'An animal lowers its head.', caption_hash: 'sha256:test', similarity: 0.42,
@@ -11,7 +11,7 @@ const candidate = (overrides: Partial<Candidate> = {}): Candidate => ({
 const reviewed = (id = 'reviewed'): Candidate => candidate({ clip_id: id, review_status: 'reviewed', eligibility_reason: 'reviewed_match', animal: 'deer', reviewed_behavior: 'feeding', action: { primitive: 'ground_pick', evidence_id: 'reference-1', max_duration_ms: 8000 } });
 const result: SearchResult = { encounter_id: 'encounter-002', search_id: 'search-1', mode: 'live', status: 'ok', query: 'deer feeding', elapsed_ms: 4000, candidates: [reviewed()], warnings: [] };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('evidence authorization and asynchronous invalidation', () => {
   it('never enables copying from a caption or review badge alone', () => {
@@ -21,9 +21,20 @@ describe('evidence authorization and asynchronous invalidation', () => {
     expect(isEligible({ ...reviewed(), review_status: 'stale' })).toBe(false);
     expect(isEligible(reviewed())).toBe(true);
   });
-  it('keeps a later eligible reference reachable without changing its original rank', () => {
+  it('keeps the exact top three and never promotes a later eligible reference', () => {
     const candidates = [candidate({ clip_id: '1' }), candidate({ clip_id: '2' }), candidate({ clip_id: '3' }), reviewed('4')];
-    expect(visibleCandidates(candidates).map(item => [item.candidate.clip_id, item.rank])).toEqual([['1', 1], ['2', 2], ['4', 4]]);
+    expect(visibleCandidates(candidates).map(item => [item.candidate.clip_id, item.rank])).toEqual([['1', 1], ['2', 2], ['3', 3]]);
+    expect(sequenceSlots(candidates).every(slot => !slot.supported)).toBe(true);
+    const gaps = [{ ...reviewed('3'), rank: 3 }, { ...reviewed('4'), rank: 4 }];
+    expect(sequenceSlots(gaps).map(slot => [slot.rank, slot.candidate?.clip_id ?? null])).toEqual([[1, null], [2, null], [3, '3']]);
+  });
+  it('permits explicit caption-derived actions while rejecting unsupported or empty evidence', () => {
+    const inferred = candidate({ action_basis: 'video_caption', eligibility_reason: 'caption_interaction_match', inferred_behavior: 'looking around', action: { primitive: 'head_scan', evidence_id: 'caption:1', max_duration_ms: 2400 } });
+    expect(isEligible(inferred)).toBe(true);
+    expect(inferred.review_status).toBe('unreviewed');
+    expect(isEligible({ ...inferred, eligibility_reason: 'species_mismatch' })).toBe(false);
+    expect(isEligible({ ...inferred, action: { ...inferred.action!, evidence_id: '' } })).toBe(false);
+    expect(isEligible({ ...inferred, action: null })).toBe(false);
   });
   it('rejects results after Reset, an overlapping retry, or a mismatched response ID', () => {
     expect(responseIsCurrent(result, 'encounter-002', 'encounter-002', 3, 3)).toBe(true);
@@ -43,6 +54,70 @@ describe('evidence authorization and asynchronous invalidation', () => {
     expect(`${segmentTime(0)}–${segmentTime(0.54)}`).toBe('00:00–00:00.54');
     expect(segmentTime(59.9999)).toBe('01:00');
     expect(segmentTime(null)).toBe('—');
+  });
+});
+
+describe('automatic top-three loop', () => {
+  it('executes ranks in order, visibly skips gaps, recenters each cycle, and never overlaps actions', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const order: string[] = [];
+    const progress: LoopProgress[] = [];
+    let active = 0;
+    const prepareCycle = vi.fn().mockResolvedValue(undefined);
+    const task = runReferenceLoop({
+      candidates: [{ ...reviewed('one'), rank: 1, action: { primitive: 'stand_hold', evidence_id: 'one', max_duration_ms: 3000 } }, { ...reviewed('three'), rank: 3, action: { primitive: 'ground_pick', evidence_id: 'three', max_duration_ms: 8000 } }, { ...reviewed('four'), rank: 4 }],
+      signal: controller.signal,
+      prepareCycle,
+      status: () => 'ready',
+      transitionMs: 1,
+      perform: async action => {
+        expect(active).toBe(0);
+        active += 1;
+        order.push(action.evidence_id);
+        await waitFor(10, controller.signal);
+        active -= 1;
+      },
+      onProgress: event => {
+        progress.push(event);
+        if (event.phase === 'cycle_complete' && event.cycle === 2) controller.abort();
+      },
+    }).catch(error => error);
+    await vi.advanceTimersByTimeAsync(100);
+    expect((await task).name).toBe('AbortError');
+    expect(order).toEqual(['one', 'three', 'one', 'three']);
+    expect(prepareCycle).toHaveBeenCalledTimes(2);
+    expect(progress.filter(event => event.phase === 'skipped').map(event => event.rank)).toEqual([2, 2]);
+  });
+  it('stopping during an action prevents the next rank even if the old action resolves late', async () => {
+    let finishAction!: () => void;
+    const action = new Promise<void>(resolve => { finishAction = resolve; });
+    const controller = new AbortController();
+    const perform = vi.fn().mockReturnValue(action);
+    const task = runReferenceLoop({ candidates: [reviewed('1'), reviewed('2')], signal: controller.signal, prepareCycle: async () => {}, status: () => 'ready', perform, onProgress: () => {} }).catch(error => error);
+    await vi.waitFor(() => expect(perform).toHaveBeenCalledTimes(1));
+    controller.abort();
+    expect((await task).name).toBe('AbortError');
+    finishAction();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(perform).toHaveBeenCalledTimes(1);
+  });
+  it('waits for observed simulator readiness and times out instead of overlapping recovery', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const perform = vi.fn();
+    const task = runReferenceLoop({ candidates: [reviewed()], signal: controller.signal, prepareCycle: async () => {}, status: () => 'recovering', readinessTimeoutMs: 200, perform, onProgress: () => {} }).catch(error => error);
+    await vi.advanceTimersByTimeAsync(300);
+    expect((await task).message).toContain('did not become ready');
+    expect(perform).not.toHaveBeenCalled();
+  });
+  it('does not start a cycle when all original top-three ranks are unsupported', async () => {
+    const prepareCycle = vi.fn();
+    const perform = vi.fn();
+    await runReferenceLoop({ candidates: [candidate(), { ...reviewed(), rank: 4 }], signal: new AbortController().signal, prepareCycle, status: () => 'ready', perform, onProgress: () => {} });
+    expect(prepareCycle).not.toHaveBeenCalled();
+    expect(perform).not.toHaveBeenCalled();
   });
 });
 

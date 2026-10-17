@@ -2,7 +2,7 @@
 
 React, TypeScript, and Vite implementation of the interface in `../design/`.
 The shared scene uses the pinned upstream Microduck MuJoCo and ONNX runtime;
-the deer is a scripted Three.js actor. No new policy is trained.
+the cats or deer are scripted Three.js actors. No new policy is trained.
 
 Use Node 22.12 or newer. From this directory:
 
@@ -39,11 +39,19 @@ directory. Run the asset command before building: generated runtime binaries
 under `public/simulator/` are verified against pinned SHA256 values and are not
 committed. See the simulator setup and attribution beside the asset script.
 
-Start brings the deer into the marked zone, then requests archive references.
-Select a card to watch its segment. Copy remains disabled until the backend
-returns an eligible reviewed action and the physics controller is ready.
-Reset and changed references cancel pending actions; stale search responses
-cannot replace a newer encounter.
+Choose Cat or Deer and an interaction, then press Start. Two animals of the
+selected species meet in the marked zone and trigger one archive search. The
+duck automatically performs the supported actions from original ranks 1, 2,
+and 3 in order, then repeats that sequence until Stop or Reset. Missing or
+unsupported ranks remain visibly skipped; rank 4 never replaces them. The
+current video is selected automatically and attempts muted, looping playback.
+
+The duck recenters at each cycle boundary without resetting the animal scene
+or issuing another search. Every action waits for the physics controller's
+observed readiness and completion. Stop, Reset, scenario changes, tab hiding,
+or selecting a reference for inspection cancel the loop. Resume starts a fresh
+cycle at rank 1 using the same search evidence. A stopped encounter/search can
+be started again. Stale responses cannot restart a newer encounter.
 
 Replay is explicit and uses a successful live result from the current backend
 session for the same scenario and search scope. Its footage still streams from
@@ -57,6 +65,9 @@ changing the selected reference.
 The separate Ranger Duck session and evidence API remains authoritative for
 playback and imitation.
 
-The default backend reference manifest is empty. A full imitation demo requires
-reviewing actual footage and configuring that manifest. The frontend never
-turns a caption or encounter hint directly into a robot action.
+Actions are authorized by the backend from the returned video evidence. A
+human-reviewed action is labeled Reviewed; an allowed caption-derived action
+is labeled Caption-inferred and retains its source caption and inference
+reason. These are approximations using pretrained duck movements, not learned
+animal responses. The frontend never converts an encounter hint directly into
+an action or pretends a caption-derived label was visually reviewed.

@@ -1,5 +1,5 @@
 export type DuckStatus = 'loading' | 'ready' | 'busy' | 'recovering' | 'complete' | 'failed';
-export type Primitive = 'ground_pick' | 'short_walk' | 'stand_hold';
+export type Primitive = 'ground_pick' | 'short_walk' | 'stand_hold' | 'head_scan';
 export type DuckAction = { primitive: string; evidenceId: string; maxDurationMs?: number };
 
 export interface Runtime {
@@ -10,6 +10,7 @@ export interface Runtime {
   inputLocked: boolean;
   data: { qpos: ArrayLike<number>; qvel: ArrayLike<number>; time: number };
   headTarget: Float32Array;
+  headYaw: number;
   controller: { addSource(source: object): void };
   resetSim(): void;
 }
@@ -17,13 +18,19 @@ export interface Runtime {
 type Pending = {
   primitive: Primitive; start: number; simStart: number; x: number; y: number;
   duration: number; entered: boolean; maxPhase: number; stableSince: number | null;
+  minHeadYaw: number; maxHeadYaw: number; heading: number;
   resolve(): void; reject(error: Error): void; deadline: ReturnType<typeof setTimeout>;
+};
+type Preparation = {
+  stableSince: number | null; resolve(): void; reject(error: Error): void;
+  deadline: ReturnType<typeof setTimeout>;
 };
 
 /** A narrow interface over upstream's controller. It never selects evidence. */
 export class DuckAdapter {
   private state: DuckStatus = 'ready';
   private pending: Pending | null = null;
+  private preparation: Preparation | null = null;
   private vector = new Float32Array(3);
   private commandUntil = 0;
   private disposed = false;
@@ -35,10 +42,15 @@ export class DuckAdapter {
   constructor(private runtime: Runtime, private changed: (status: DuckStatus) => void, private clock = () => performance.now()) {
     const self = this;
     this.source = {
-      id: 'ranger-duck-reviewed-action', connected: true, axes: {},
+      id: 'ranger-duck-evidence-action', connected: true, axes: {},
       // Read by the physics loop even when browser animation frames pause.
       get command() {
         const q = self.runtime.data.qpos;
+        const action = self.pending;
+        if (action?.primitive === 'head_scan') {
+          const elapsed = self.clock() - action.start;
+          self.runtime.headTarget[2] = elapsed < action.duration ? Math.sin(elapsed / action.duration * Math.PI * 2) * 0.3 : 0;
+        }
         if (self.clock() >= self.commandUntil || Math.abs(q[0]) >= 1.15 || Math.abs(q[1]) >= 1.15 || self.runtime.recovery) self.vector.fill(0);
         return self.vector;
       },
@@ -67,11 +79,11 @@ export class DuckAdapter {
 
   perform(action: DuckAction): Promise<void> {
     if (this.disposed) return Promise.reject(new Error('Simulator is unavailable.'));
-    if (!action.evidenceId?.trim()) return Promise.reject(new Error('A reviewed reference is required.'));
-    if (!['ground_pick', 'short_walk', 'stand_hold'].includes(action.primitive)) return Promise.reject(new Error('This movement is not supported.'));
-    if (this.pending || this.runtime.inputLocked || this.runtime.respawnActive || this.runtime.recovery || this.runtime.mode !== 'walk') return Promise.reject(new Error('Wait for the duck to return to its ready pose.'));
+    if (!action.evidenceId?.trim()) return Promise.reject(new Error('An evidence reference is required.'));
+    if (!['ground_pick', 'short_walk', 'stand_hold', 'head_scan'].includes(action.primitive)) return Promise.reject(new Error('This movement is not supported.'));
+    if (this.pending || this.preparation || this.runtime.inputLocked || this.runtime.respawnActive || this.runtime.recovery || this.runtime.mode !== 'walk') return Promise.reject(new Error('Wait for the duck to return to its ready pose.'));
     const primitive = action.primitive as Primitive;
-    const bound = primitive === 'short_walk' ? 2000 : primitive === 'stand_hold' ? 3000 : 8000;
+    const bound = { short_walk: 2000, stand_hold: 3000, ground_pick: 8000, head_scan: 2400 }[primitive];
     const duration = Math.min(bound, Math.max(1, action.maxDurationMs ?? bound));
     if (primitive === 'ground_pick' && duration < 3000) return Promise.reject(new Error('The reference does not allow enough time for a complete beak dip.'));
     this.clearCommand();
@@ -81,6 +93,8 @@ export class DuckAdapter {
       this.pending = {
         primitive, start: this.clock(), simStart: this.runtime.data.time, x: q[0], y: q[1], duration,
         entered: false, maxPhase: 0, stableSince: null, resolve, reject,
+        minHeadYaw: this.runtime.headYaw, maxHeadYaw: this.runtime.headYaw,
+        heading: Math.atan2(2 * (q[3] * q[6] + q[4] * q[5]), 1 - 2 * (q[5] ** 2 + q[6] ** 2)),
         deadline: setTimeout(() => this.fail('The movement did not complete within its time limit.'), primitive === 'ground_pick' ? duration : duration + 4000),
       };
       if (primitive === 'ground_pick') this.source.onAction?.('groundPick');
@@ -97,6 +111,19 @@ export class DuckAdapter {
   tick(searching = false) {
     if (this.disposed) return;
     const runtime = this.runtime;
+    if (this.preparation) {
+      const preparation = this.preparation;
+      const stable = !runtime.recovery && !runtime.inputLocked && !runtime.respawnActive && runtime.mode === 'walk' && runtime.data.time > 0.2 && this.upright() && Math.hypot(runtime.data.qvel[0], runtime.data.qvel[1]) < 0.1;
+      if (stable) preparation.stableSince ??= this.clock();
+      else preparation.stableSince = null;
+      if (preparation.stableSince !== null && this.clock() - preparation.stableSince >= 200) {
+        this.preparation = null;
+        clearTimeout(preparation.deadline);
+        this.setStatus('ready');
+        preparation.resolve();
+      } else this.setStatus('recovering');
+      return;
+    }
     if (runtime.recovery) {
       if (this.pending) this.fail('The duck lost balance and is recovering.', true);
       else this.setStatus('recovering');
@@ -128,9 +155,18 @@ export class DuckAdapter {
       finished = action.entered && action.maxPhase >= 0.6 && runtime.mode === 'walk';
       if (!action.entered && elapsed > 1200) { this.fail('The controller did not accept the beak dip.'); return; }
     } else if (action.primitive === 'short_walk') {
-      action.entered ||= Math.hypot(q[0] - action.x, q[1] - action.y) > 0.015;
+      const distance = (q[0] - action.x) * Math.cos(action.heading) + (q[1] - action.y) * Math.sin(action.heading);
+      action.entered ||= distance > 0.015;
       if (elapsed >= action.duration) this.clearCommand();
       finished = action.entered && elapsed >= action.duration && simElapsed > 100 && runtime.mode === 'walk';
+    } else if (action.primitive === 'head_scan') {
+      // Head motion is supplied through the existing walking-policy command.
+      // Observe actual MuJoCo head yaw, not just the requested target.
+      runtime.headTarget[2] = elapsed < action.duration ? Math.sin(elapsed / action.duration * Math.PI * 2) * 0.3 : 0;
+      action.minHeadYaw = Math.min(action.minHeadYaw, runtime.headYaw);
+      action.maxHeadYaw = Math.max(action.maxHeadYaw, runtime.headYaw);
+      action.entered ||= action.maxHeadYaw - action.minHeadYaw > 0.18;
+      finished = action.entered && elapsed >= action.duration && Math.abs(runtime.headYaw) < 0.1 && runtime.mode === 'walk';
     } else {
       action.entered ||= simElapsed >= 100 && runtime.mode === 'walk' && this.upright();
       finished = action.entered && simElapsed >= action.duration && runtime.mode === 'walk';
@@ -148,6 +184,9 @@ export class DuckAdapter {
   }
 
   stop() {
+    const preparation = this.preparation;
+    this.preparation = null;
+    if (preparation) { clearTimeout(preparation.deadline); preparation.reject(new Error('Cycle preparation cancelled.')); }
     const pending = this.pending;
     this.pending = null;
     this.clearCommand();
@@ -157,5 +196,21 @@ export class DuckAdapter {
     this.setStatus(this.runtime.recovery || this.runtime.inputLocked || this.runtime.mode !== 'walk' ? 'recovering' : 'ready');
   }
   reset() { this.stop(); this.runtime.resetSim(); this.setStatus('recovering'); }
+  /** Recenter between loops without changing scene actors or firing a search. */
+  prepareCycle(): Promise<void> {
+    if (this.disposed) return Promise.reject(new Error('Simulator is unavailable.'));
+    this.reset();
+    return new Promise((resolve, reject) => {
+      this.preparation = {
+        stableSince: null, resolve, reject,
+        deadline: setTimeout(() => {
+          this.preparation = null;
+          this.clearCommand();
+          this.setStatus('failed');
+          reject(new Error('The duck did not return to a ready pose.'));
+        }, 10000),
+      };
+    });
+  }
   dispose() { this.stop(); this.disposed = true; }
 }

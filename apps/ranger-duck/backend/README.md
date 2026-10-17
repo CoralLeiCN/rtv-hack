@@ -2,7 +2,7 @@
 
 A read-only FastAPI service for the single-page wildlife encounter demo. The frontend and Microduck simulator are built separately; this directory contains no frontend code. The shared [API contract](../../../docs/RANGER_DUCK_API.md) is the integration reference.
 
-The service turns an encounter into a live VSS search, returns redacted video references, and proxies selected segment playback. A local reviewed manifest is the only authority for imitation actions. It never trains, uploads, re-ingests, deploys, or changes the shared pipeline.
+The service turns a same-species encounter into a live VSS search, returns redacted video references, and proxies segment playback. Bounded imitation actions come from each returned video's existing model caption or an exact human interaction review. A deterministic classifier requires an explicit cat–cat or deer–deer pair and supported interaction; the requested scenario never supplies a missing action. It never trains, uploads, re-ingests, deploys, or changes the shared pipeline.
 
 ## Run locally without VSS configuration
 
@@ -36,7 +36,7 @@ const result = await response.json();
 // Check response.ok; only successful responses contain candidates.
 ```
 
-Await the health bootstrap before enabling Start, so overlapping searches share one session cookie even if responses finish out of order. Keep the encounter ID when starting a request and ignore responses after Reset changes it. Copy is enabled only for a selected non-null `candidate.action`. Pass the returned primitive to the frontend's simulator adapter. The backend never starts robot movements. Display a cut video's time from zero; add `provenance.segment_start_sec` only for the archive timestamp.
+Await the health bootstrap before enabling Start, so overlapping searches share one session cookie even if responses finish out of order. Keep the encounter ID when starting a request and ignore responses after Reset changes it. The frontend automatically loops eligible actions from original `candidate.rank` 1, 2, and 3; it skips unsupported slots without promoting rank 4. Pass each returned primitive to the simulator adapter and await its actual completion. The backend never starts robot movements. Display a cut video's time from zero; add `provenance.segment_start_sec` only for the archive timestamp.
 
 For one production page, set `RANGER_STATIC_DIR` to the frontend's existing build directory. The backend serves its `index.html` and assets at `/`; no frontend build or modification is performed here.
 
@@ -68,13 +68,17 @@ set +a
 
 Forward the VM port through the team's existing SSH connection. If frontend development runs on your laptop, point its proxy at that forwarded backend port. Never put VSS credentials or tokens into frontend settings, browser URLs, tracked `.env` files, or logs.
 
-Search uses the authenticated user's existing VSS ACL scope and the observed `wildlife` tag. It does not guess metadata filters. The deployed VSS schema rejects `llm_top_n: 0`; this backend explicitly requests `llm_top_n: 1` and discards synthesis. Call it **Live search**, not synthesis-free search. Its actual duration is returned as `elapsed_ms`; any timeout is an error, never an automatic replay.
+Search uses the authenticated user's existing VSS ACL scope. Deer scenarios retain the observed `wildlife` tag; cat scenarios use `tags: []` to include domestic cats in the authorized archive. It does not guess metadata filters. The deployed VSS schema rejects `llm_top_n: 0`; this backend explicitly requests `llm_top_n: 1` and discards synthesis. Caption interpretation adds no model calls. Call it **Live search**, not synthesis-free search. Its actual duration is returned as `elapsed_ms`; any timeout is an error, never an automatic replay.
 
-The design's explicit Replay control sends `mode: "replay"` to the same route. It returns the last successful live result for that session, scenario, and `broaden` setting, with a visible replay mode, original timing, and recording timestamp. Missing/expired snapshots return 409. Search snapshots are memory-only and expire with the configured TTL; replayed video still streams from VSS. `broaden: true` searches for a hoofed animal instead of deer while preserving the same reviewed-species requirement for imitation.
+The design's explicit Replay control sends `mode: "replay"` to the same route. It returns the last successful live result for that session, scenario, and `broaden` setting, with a visible replay mode, original timing, and recording timestamp. Missing/expired snapshots return 409. Search snapshots are memory-only and expire with the configured TTL; replayed video still streams from VSS. `broaden: true` relaxes the requested behavior but keeps the same species pair: two cats interacting or two deer interacting.
 
-## Review actual evidence before enabling Copy
+## Interaction evidence and optional human review
 
-The shipped `references.empty.json` contains zero reviewed references. Live clips remain playable, but every action is null until somebody watches actual footage and records a review. No downloaded/private footage or real source identities belong in Git.
+The shipped `references.empty.json` contains zero human reviews. Live captions can enable bounded actions with `action_basis: "video_caption"`, `review_status: "unreviewed"`, and `eligibility_reason: "caption_interaction_match"`. `inferred_behavior`, `interaction_partner`, and `action_reason` explain what is copied and where the motion is approximate. Hissing maps to a still boundary pause; the duck does not synthesize a hiss. A caption action's opaque evidence ID binds its exact source, parent, interval, and original caption hash. It does not expose source identities.
+
+The classifier rejects incomplete provenance, absent species pairs, unrelated targets, unsupported behavior, and local negation or uncertainty. It recognizes directed head orientation, hissing, following, approach/greeting, explicitly playful movement, observing a companion, co-feeding, and shared alert pauses. It is deliberately conservative: captions without supported wording remain playable but have no action. Returned behavior can differ from the selected encounter; the UI must display the actual inference. These are caption-derived approximations, not learned imitation or a claim of visual review.
+
+An optional human review must include `interaction_partner` and explicit `interaction_evidence` to authorize a reviewed interaction. An old solitary pose review does not automatically become an interaction review. A stale or contradictory review blocks action instead of silently falling back to inference. No downloaded/private footage or real source identities belong in Git.
 
 Store a raw VSS search JSON response in a private file **outside the repo**, then prepare a draft:
 
@@ -90,6 +94,8 @@ Watch the corresponding actual segment through the authorized VSS UI or demo pla
 .venv/bin/python -m ranger_duck.review approve \
   --manifest /tmp/ranger-references.json --index 0 \
   --evidence-id reference-01 --animal deer --behavior feeding \
+  --interaction-partner deer \
+  --interaction-evidence 'Two deer graze together side by side.' \
   --source-label 'Reviewed feeding example' --confirm-viewed
 .venv/bin/python -m ranger_duck.review validate --manifest /tmp/ranger-references.json
 export RANGER_REFERENCE_MANIFEST=/tmp/ranger-references.json
@@ -97,9 +103,9 @@ export RANGER_REFERENCE_MANIFEST=/tmp/ranger-references.json
 
 Restart the service to load the manifest. The CLI does not watch clips or infer labels. `--confirm-viewed` records the operator's explicit confirmation; it is not machine verification.
 
-Each review binds the **exact** segment source, parent identity, start/end, and SHA-256 of the original caption. A replaced source, changed caption, incomplete timing, duplicate match, unsupported behavior, or species mismatch disables imitation. A review cannot add a result absent from the current live search. Reviewed behavior selects the action independently of the scenario's behavior hint.
+Each review binds the **exact** segment source, parent identity, start/end, and SHA-256 of the original caption. A replaced source, changed caption, incomplete timing, duplicate match, unsupported behavior, or species mismatch disables imitation. A review cannot add a result absent from the current live search. The explicit review evidence is interpreted independently of the scenario's behavior hint. Write the review description only after verifying the actual footage; the sample text above is a format example.
 
-Supported behavior mappings:
+The review CLI retains these pose labels:
 
 | Reviewed behavior | Primitive | Cancellation ceiling |
 | --- | --- | --- |
@@ -107,7 +113,7 @@ Supported behavior mappings:
 | `walking` | `short_walk` | 2000 ms |
 | `standing` | `stand_hold` | 3000 ms |
 
-Resting/sit and looking-around/head-scan remain future capabilities and are not authorized by this release. A ceiling is not evidence of completion. The frontend observes the controller's actual completion and recovery.
+Interaction interpretation adds `head_scan` (2400 ms) for orientation toward a partner. `short_walk` remains 2000 ms, `stand_hold` 3000 ms, and `ground_pick` 8000 ms. The tested policy cannot reliably walk backward, so explicit retreat remains ineligible with reason `unsupported_retreat`; it is not silently replaced with a still pause. Unsupported jumping, fighting, biting, and contact do not become motions. A ceiling is not evidence of completion. The frontend observes the controller's actual completion and recovery.
 
 ## Configuration and limits
 
@@ -122,7 +128,7 @@ Resting/sit and looking-around/head-scan remain future capabilities and are not 
 
 Health returns `search_timeout_ms` so the browser waits for the configured backend budget plus five seconds of connection/proxy grace. This avoids the earlier 10-second upstream read and 13-second browser abort cutting off valid slower searches. The timer still displays actual elapsed time, and the overall backend deadline remains enforced.
 
-Up to 15 distinct segment results are returned, with one per parent placed before repeat-parent hits. Later candidates are preserved because they may contain a reviewed reference. UI cards can initially show three while allowing selection of later reviewed candidates.
+Up to 15 distinct segment results are returned in original upstream order. `rank` preserves the original 1-based index even when a duplicate or invalid source is omitted. There is no parent diversity reranking. Later candidates remain inspectable, but only eligible original ranks 1–3 contribute to response `status: "ok"` and the automatic loop.
 
 At most 256 browser sessions and 60 clip capabilities per session are held. Cookies are HttpOnly/SameSite and IDs are opaque. A different session, expiration, restart, or capacity eviction yields the same `404 clip_not_found`. Search again to refresh access.
 
@@ -134,6 +140,6 @@ Video requests accept one standard byte range. The proxy forwards `Range`/`If-Ra
 .venv/bin/python -m pytest -q
 ```
 
-Tests use fabricated upstream responses. They cover authentication caching/refresh, bounded timeouts, error redaction, live-only results, exact review binding and staleness, normalization, session isolation/expiry, ranges, HEAD, redirect rejection, and no-config startup. They do not establish that current wildlife footage supports the demo. Live playback and human reference review remain necessary on the configured VM.
+Tests use fabricated upstream responses. They cover authentication caching/refresh, bounded timeouts, error redaction, live-only results, exact review binding and staleness, rank preservation, species and interaction grounding, negation, session isolation/expiry, ranges, HEAD, redirect rejection, and no-config startup. They do not establish the accuracy of a live video-model caption. Live playback remains the way to inspect the actual evidence.
 
-On 17 October 2026, all 41 backend tests passed. Live smoke tests on the configured VM established a session, returned 15 search candidates, replayed the same recorded result, and streamed 32 video bytes with status 206 and `video/mp4`. HEAD returned 200 with no body; an invalid range returned 416; another session could not access the clip (404). Observed live search times ranged from about 4.5 to 10.1 seconds. The empty manifest correctly kept every action null. These checks do not replace visual footage review.
+On 17 October 2026, all 96 backend tests passed after the interaction update. Earlier live smoke tests established a session, returned 15 search candidates, replayed the same recorded result, and streamed 32 video bytes with status 206 and `video/mp4`. HEAD returned 200 with no body; an invalid range returned 416; another session could not access the clip (404). These checks do not replace visual footage review.

@@ -21,6 +21,9 @@ def main() -> int:
     approve.add_argument("--behavior", choices=list(MOTIONS), required=True)
     approve.add_argument("--source-label", required=True)
     approve.add_argument("--note", default="")
+    approve.add_argument("--interaction-partner", choices=["cat", "deer"])
+    approve.add_argument("--interaction-evidence", default="",
+                         help="After viewing, describe the explicit same-species pair and directed behavior")
     approve.add_argument("--confirm-viewed", action="store_true", required=True)
     validate = commands.add_parser("validate")
     validate.add_argument("--manifest", type=Path, required=True)
@@ -43,6 +46,11 @@ def main() -> int:
             reference = data["references"][args.index]
             reference.update(reviewed=True, evidence_id=args.evidence_id, animal=args.animal.strip().lower(),
                              behavior=args.behavior, source_label=args.source_label, review_note=args.note)
+            if args.interaction_partner:
+                if args.interaction_partner != args.animal.strip().lower() or not args.interaction_evidence.strip():
+                    raise ValueError
+                reference.update(interaction_partner=args.interaction_partner,
+                                 interaction_evidence=args.interaction_evidence.strip())
             checked = Manifest([reference])
             if len(checked.entries) != 1:
                 raise ValueError

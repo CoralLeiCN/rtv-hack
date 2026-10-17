@@ -2,16 +2,18 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DuckAdapter, type DuckAction, type DuckStatus, type Runtime } from './adapter';
-import { createClearing } from './clearing';
+import { createClearing, type SceneEncounter } from './clearing';
 import { bootGame, disposeGame } from './upstream/game/game.js';
 import { gameApi, useGame } from './upstream/store.js';
 
 export type { DuckStatus } from './adapter';
+export type { SceneEncounter } from './clearing';
 export interface MicroduckSceneHandle {
   perform(action: DuckAction): Promise<void>;
   stop(): void;
   reset(): void;
-  startEncounter(encounter: { id: string; behavior_hint: string }): void;
+  prepareCycle(): Promise<void>;
+  startEncounter(encounter: SceneEncounter): void;
   status(): DuckStatus;
 }
 type Props = {
@@ -33,12 +35,13 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
   const adapter = useRef<DuckAdapter | null>(null);
   const clearing = useRef<ReturnType<typeof createClearing> | null>(null);
   const status = useRef<DuckStatus>('loading');
-  const pendingEncounter = useRef<{ id: string; behavior_hint: string } | null>(null);
+  const pendingEncounter = useRef<SceneEncounter | null>(null);
 
   useImperativeHandle(ref, () => ({
     perform: action => adapter.current?.perform(action) ?? Promise.reject(new Error('Simulator is still loading.')),
     stop: () => adapter.current?.stop(),
     reset: () => { pendingEncounter.current = null; clearing.current?.reset(); adapter.current?.reset(); },
+    prepareCycle: () => adapter.current?.prepareCycle() ?? Promise.reject(new Error('Simulator is still loading.')),
     startEncounter: encounter => {
       pendingEncounter.current = encounter;
       clearing.current?.reset();
@@ -69,14 +72,14 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
     renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none';
-    renderer.domElement.setAttribute('aria-label', 'Microduck physics simulation and scripted deer in a shared clearing');
+    renderer.domElement.setAttribute('aria-label', 'Microduck physics simulation and scripted animal interaction in a shared clearing');
     element.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#101b17');
     scene.fog = new THREE.Fog('#101b17', 3.5, 8);
     const camera = new THREE.PerspectiveCamera(39, 1, 0.02, 30);
-    camera.position.set(1.25, 0.78, 1.6);
-    camera.lookAt(0, 0.2, -0.1);
+    camera.position.set(1.45, 0.82, 1.7);
+    camera.lookAt(0.2, 0.2, -0.15);
     const ambient = new THREE.HemisphereLight('#f2ecdd', '#324328', 1.8);
     scene.add(ambient);
     const sun = new THREE.DirectionalLight('#fff2d1', 2.5);
@@ -93,6 +96,7 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
     room.dispose();
     pmrem.dispose();
     clearing.current = createClearing(scene);
+    if (import.meta.env.DEV) (window as unknown as { __rangerScene?: ReturnType<typeof createClearing> }).__rangerScene = clearing.current;
     const resize = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
       if (!width || !height) return;
@@ -113,8 +117,8 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       booted = true;
       const rl = runtime();
       rl.chaseCam = false;
-      rl.controls.target.set(0, 0.18, -0.08);
-      camera.position.set(1.25, 0.78, 1.6);
+      rl.controls.target.set(0.2, 0.18, -0.15);
+      camera.position.set(1.45, 0.82, 1.7);
       rl.controls.update();
       adapter.current = new DuckAdapter(rl, changed);
       // Development-only smoke-test hook; omitted from production bundles.
@@ -139,7 +143,7 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
           if (pendingEncounter.current) {
             const encounter = pendingEncounter.current;
             pendingEncounter.current = null;
-            clearing.current?.start(encounter.id, encounter.behavior_hint, now);
+            clearing.current?.start(encounter, now);
           }
         }
       }
@@ -159,6 +163,7 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       adapter.current?.dispose();
       adapter.current = null;
       if (import.meta.env.DEV) delete (window as unknown as { __rangerDuck?: DuckAdapter }).__rangerDuck;
+      if (import.meta.env.DEV) delete (window as unknown as { __rangerScene?: ReturnType<typeof createClearing> }).__rangerScene;
       clearing.current?.dispose();
       clearing.current = null;
       if (booted) disposeGame();

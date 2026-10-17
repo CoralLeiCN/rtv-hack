@@ -8,29 +8,30 @@ function PlayIcon({ playing = false }: { playing?: boolean }) {
     : <polygon points="3,2 14,8 3,14" fill="currentColor" />}</svg>;
 }
 
-export function ReferenceCard({ candidate, rank, selected, onSelect }: { candidate: Candidate; rank: number; selected: boolean; onSelect: () => void }) {
+export function ReferenceCard({ candidate, rank, selected, sequenceState, onSelect }: { candidate: Candidate; rank: number; selected: boolean; sequenceState?: string; onSelect: () => void }) {
   const p = candidate.provenance;
-  return <button className={`card ${selected ? 'sel' : ''}`} onClick={onSelect} aria-pressed={selected}>
+  const inferred = candidate.action_basis === 'video_caption';
+  return <button className={`card ${selected ? 'sel' : ''}`} onClick={onSelect} aria-pressed={selected} title="Pause the loop and inspect this reference">
     <div className="ir reference-thumb" aria-hidden="true">
       <span className="mono thumb-cam">REF</span>
       <span className="mono thumb-time">{segmentTime(p.segment_start_sec)}</span>
       <span className="display thumb-rank">{String(rank).padStart(2, '0')}</span>
     </div>
     <div className="reference-copy">
-      <div className="badge-row"><span className={`badge ${candidate.review_status === 'reviewed' ? 'rev' : 'unrev'}`}>
-        {candidate.review_status === 'reviewed' ? `Reviewed · ${candidate.reviewed_behavior ?? 'behavior'}` : candidate.review_status === 'stale' ? 'Review outdated' : 'Unreviewed'}
-      </span><span className="mono similarity">sim {candidate.similarity == null ? '—' : candidate.similarity.toFixed(2)}</span></div>
+      <div className="badge-row"><span className={`badge ${inferred ? 'inferred' : candidate.review_status === 'reviewed' ? 'rev' : 'unrev'}`}>
+        {inferred ? 'Caption-inferred' : candidate.review_status === 'reviewed' ? `Reviewed · ${candidate.reviewed_behavior ?? 'behavior'}` : candidate.review_status === 'stale' ? 'Review outdated' : 'No supported action'}
+      </span><span className="mono similarity">sim {candidate.similarity == null ? '—' : candidate.similarity.toFixed(2)}</span>{sequenceState && <span className={`mono rank-state ${sequenceState}`}>{sequenceState}</span>}</div>
       <div className="clamp2 caption">{candidate.caption || 'No model caption available.'}</div>
       <div className="mono source-summary">{p.source_label} · {segmentTime(p.segment_start_sec)}–{segmentTime(p.segment_end_sec)}</div>
     </div>
   </button>;
 }
 
-export function ReferencePanel({ candidate, stage, simulatorReady, onCopy, onRetry, actionError }: {
+export function ReferencePanel({ candidate, stage, autoPlaying, sequenceLabel, onRetry, actionError }: {
   candidate: Candidate;
   stage: Stage;
-  simulatorReady: boolean;
-  onCopy: () => void;
+  autoPlaying: boolean;
+  sequenceLabel: string;
   onRetry: () => void;
   actionError: string | null;
 }) {
@@ -40,6 +41,7 @@ export function ReferencePanel({ candidate, stage, simulatorReady, onCopy, onRet
   const [duration, setDuration] = useState(0);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   // Preserve the existing search app's clearResults behavior when evidence
   // selection changes: release the old stream instead of leaving it buffering.
   useEffect(() => {
@@ -51,7 +53,23 @@ export function ReferencePanel({ candidate, stage, simulatorReady, onCopy, onRet
       element.load();
     };
   }, []);
+  useEffect(() => {
+    const element = video.current;
+    if (!element) return;
+    let cancelled = false;
+    if (autoPlaying) {
+      element.muted = true;
+      if (element.readyState >= 1) element.currentTime = 0;
+      void element.play().then(() => { if (!cancelled) setAutoplayBlocked(false); }).catch(error => {
+        if (!cancelled && error?.name !== 'AbortError') setAutoplayBlocked(true);
+      });
+    } else element.pause();
+    return () => { cancelled = true; };
+  }, [autoPlaying]);
   const eligible = isEligible(candidate);
+  const inferred = candidate.action_basis === 'video_caption';
+  const behavior = candidate.inferred_behavior ?? candidate.reviewed_behavior;
+  const actionReason = candidate.action_reason ?? candidate.review_reason;
   const p = candidate.provenance;
   const archiveTime = p.segment_start_sec == null ? null : p.segment_start_sec + position;
   const seek = (value: number) => { if (video.current && Number.isFinite(value)) video.current.currentTime = value; };
@@ -60,8 +78,13 @@ export function ReferencePanel({ candidate, stage, simulatorReady, onCopy, onRet
     if (!video.current.paused) video.current.pause();
     else {
       if (video.current.ended) video.current.currentTime = 0;
-      try { await video.current.play(); setVideoError(null); }
-      catch { setVideoError('The segment could not play. Retry playback or run the search again if this reference has expired.'); }
+      try { await video.current.play(); setVideoError(null); setAutoplayBlocked(false); }
+      catch (error) {
+        // Pause, Stop, Rewind, and changing the source intentionally interrupt
+        // a pending play request; they are not failures of the archive clip.
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setVideoError('The segment could not play. Retry playback or run the search again if this reference has expired.');
+      }
     }
   };
   const retryVideo = async () => {
@@ -70,17 +93,15 @@ export function ReferencePanel({ candidate, stage, simulatorReady, onCopy, onRet
     video.current.load();
     await togglePlay();
   };
-  const copyLabel = stage === 'imitating' ? `Imitating · ${candidate.action?.primitive}` : stage === 'complete' ? 'Imitation complete' : eligible ? 'Copy this behavior' : 'Copy unavailable';
-  let copyNote = 'Copy runs one bounded primitive through the existing controller. Completion is observed, not timed.';
-  if (!eligible) copyNote = 'Copy unavailable: only a reviewed reference returned by this search can move the duck.';
-  else if (!simulatorReady) copyNote = 'Waiting for the Microduck physics controller to become ready.';
-  else if (stage === 'imitating') copyNote = `Waiting for the controller to complete ${candidate.action!.primitive} and return to its normal mode.`;
-  else if (stage === 'complete') copyNote = 'Controller completion observed. Choose another reviewed reference or Reset.';
+  const primitiveLabel = candidate.action?.primitive === 'head_scan' ? 'Bounded head movement' : candidate.action?.primitive === 'ground_pick' ? 'One complete beak-dip cycle' : candidate.action?.primitive === 'short_walk' ? 'Short forward movement' : 'Neutral standing hold';
+  const evidenceNote = inferred
+    ? 'Caption-inferred approximation using a pretrained duck movement. This label has not been visually reviewed.'
+    : 'Visually reviewed evidence mapped to a pretrained duck movement.';
 
   return <div className="selection-panel">
-    <div className="selection-heading"><span className="label">Selected reference</span><span className="mono secondary small">{p.dataset ?? 'Archive segment'}</span></div>
+    <div className="selection-heading"><span className="label">Current reference</span><span className="mono secondary small">{p.dataset ?? 'Archive segment'}</span></div>
     <div className="ir video-frame">
-      <video ref={video} src={candidate.video_url} preload="metadata" playsInline
+      <video ref={video} src={candidate.video_url} preload="metadata" playsInline muted autoPlay={autoPlaying} loop={autoPlaying}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)}
         onTimeUpdate={() => setPosition(video.current?.currentTime ?? 0)}
         onLoadedMetadata={() => setDuration(Number.isFinite(video.current?.duration) ? video.current!.duration : 0)}
@@ -98,21 +119,26 @@ export function ReferencePanel({ candidate, stage, simulatorReady, onCopy, onRet
       <input className="video-seek" aria-label="Segment position" aria-valuetext={`${mmss(position)} of ${mmss(duration)}`} type="range" min="0" max={duration || 1} value={Math.min(position, duration || 1)} step="0.05" disabled={!duration} onChange={event => seek(Number(event.target.value))} />
       <span className="mono segment-time">{segmentTime(p.segment_start_sec)}–{segmentTime(p.segment_end_sec)}</span>
     </div>
+    {autoplayBlocked && !videoError && <div className="body-note">Automatic playback was blocked. Press Play to watch this segment.</div>}
     {videoError && <div className="alert compact" role="alert"><span>{videoError}</span><div className="alert-actions"><button className="seg" onClick={() => void retryVideo()}>Retry video</button><button className="seg" onClick={onRetry}>Search again</button></div></div>}
     <div className="behavior-panel">
-      <div className="badge-row spread"><span className="label">Reviewed behavior → duck move</span><span className={`badge ${eligible ? 'rev' : 'hot'}`}>{eligible ? 'Reviewed · eligible' : 'Copy unavailable'}</span></div>
+      <div className="badge-row spread"><span className="label">Video behavior → duck move</span><span className={`badge ${eligible ? inferred ? 'inferred' : 'rev' : 'hot'}`}>{eligible ? inferred ? 'Caption-inferred' : 'Reviewed' : 'Skipped'}</span></div>
       {eligible ? <div className="behavior-mapping">
-        <div><span className="label secondary">Observed in footage</span><span className="behavior-name">{candidate.reviewed_behavior}</span><span className="body-note">{candidate.review_reason ?? 'Recorded in the reviewed reference manifest.'}</span></div>
-        <div className="allowed-primitive"><span className="label secondary">Allowed primitive</span><span className="mono primitive">{candidate.action!.primitive}</span><span className="body-note">{candidate.action!.primitive === 'ground_pick' ? 'One complete beak-dip cycle' : candidate.action!.primitive === 'short_walk' ? 'Slow movement · 2 seconds maximum' : candidate.action!.primitive === 'stand_hold' ? 'Neutral standing · 3 seconds maximum' : 'One bounded controller action'} · {(candidate.action!.max_duration_ms / 1000).toFixed(0)} s cancellation limit</span></div>
+        <div><span className="label secondary">{inferred ? 'Inferred from caption' : 'Reviewed in footage'}</span><span className="behavior-name">{behavior ?? 'Supported interaction'}</span><span className="body-note">{actionReason ?? 'Mapped from the returned video evidence.'}</span></div>
+        <div className="allowed-primitive"><span className="label secondary">Duck approximation</span><span className="mono primitive">{candidate.action!.primitive}</span><span className="body-note">{primitiveLabel} · {(candidate.action!.max_duration_ms / 1000).toFixed(1).replace(/\.0$/, '')} s motion window</span></div>
       </div> : <div className="ineligible-note">{eligibilityNote(candidate)}</div>}
-      <button className="btn primary copy-button" onClick={onCopy} disabled={!eligible || stage !== 'ready' || !simulatorReady}>{copyLabel}</button>
-      {stage === 'imitating' && <div className="action-running mono" role="status"><span className="dot live" aria-hidden="true" /> Controller action in progress</div>}
+      <div className={`automatic-action display ${autoPlaying ? 'active' : ''}`}>{autoPlaying ? 'Automatic loop running' : stage === 'paused' ? 'Loop stopped' : 'No supported action'}</div>
       {actionError && <div className="action-error" role="alert">{actionError}</div>}
-      <div className="mono copy-note">{copyNote}</div>
+      <div className="mono copy-note">{eligible ? evidenceNote : 'This rank stays in place and is skipped. Lower-ranked results are not promoted.'} {autoPlaying ? 'Use Stop to pause.' : sequenceLabel}</div>
       <button className="seg details-toggle" onClick={() => setDetailsOpen(value => !value)} aria-expanded={detailsOpen}>{detailsOpen ? 'Hide evidence details' : 'Evidence details'}</button>
       {detailsOpen && <dl className="kv mono">
         <dt>model caption</dt><dd>{candidate.caption || 'none available'}</dd>
         <dt>caption hash</dt><dd>{candidate.caption_hash ?? 'not supplied by this backend'}</dd>
+        <dt>action basis</dt><dd>{candidate.action_basis ?? 'none'}</dd>
+        <dt>inferred label</dt><dd>{candidate.inferred_behavior ?? 'none'}</dd>
+        <dt>interaction pair</dt><dd>{candidate.animal ?? 'unresolved'} · {candidate.interaction_partner ?? 'unresolved'}</dd>
+        <dt>action reason</dt><dd>{candidate.action_reason ?? 'none recorded'}</dd>
+        <dt>evidence id</dt><dd>{candidate.action?.evidence_id ?? 'none'}</dd>
         <dt>reviewed label</dt><dd className="teal">{candidate.animal && candidate.reviewed_behavior ? `${candidate.animal} · ${candidate.reviewed_behavior}` : 'none recorded'}</dd>
         <dt>review reason</dt><dd>{candidate.review_reason ?? 'none recorded'}</dd>
         <dt>eligibility</dt><dd>{candidate.eligibility_reason}</dd>

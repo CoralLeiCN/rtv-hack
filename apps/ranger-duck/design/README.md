@@ -16,6 +16,10 @@ The mockup is the reference for layout, tokens, copy, and behavior. Reuse its
 CSS and markup structure directly; replace the SVG scene with the Three.js /
 MuJoCo canvas, and replace the mock data with the `/demo-api` routes.
 
+## Current interaction update
+
+The user subsequently requested Cat/Deer choices, same-species encounters, and automatic looping through original search ranks 1–3. The implementation retains this export's visual design but supersedes its manual Copy flow and reviewed-only gating. It shows inferred versus reviewed action basis, automatically advances supported references, and provides Stop/Resume and Reset. See the current plan and API contract linked above; the original HTML mockups remain historical design references.
+
 ## Design language
 
 Borrowed from the Microduck product page (pollen-robotics.com/microduck) with a

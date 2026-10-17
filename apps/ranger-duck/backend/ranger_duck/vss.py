@@ -62,7 +62,7 @@ class VSSClient:
             self._token = token
             return token
 
-    async def search(self, query: str) -> dict:
+    async def search(self, query: str, tags: list[str] | None = None) -> dict:
         self._require_config()
         try:
             async with asyncio.timeout(self.settings.search_timeout_sec):
@@ -72,7 +72,7 @@ class VSSClient:
                         # VSS waits for synthesis before responding. Let this read use
                         # the search budget; the enclosing deadline also covers auth.
                         timeout=httpx.Timeout(self.settings.request_timeout_sec, read=self.settings.search_timeout_sec), json={
-                        "query": query, "tags": ["wildlife"], "top_k": 15,
+                        "query": query, "tags": ["wildlife"] if tags is None else tags, "top_k": 15,
                         "llm_top_n": 1, "min_similarity": 0.3,
                         "include_public": True,
                     })

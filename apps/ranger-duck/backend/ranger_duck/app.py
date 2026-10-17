@@ -24,16 +24,28 @@ from .stream import close_stream
 from .vss import VSSClient
 
 SCENARIOS = {
-    "deer-feeding": {"id": "deer-feeding", "label": "Feeding", "animal": "deer", "behavior_hint": "feeding",
-        "description": "A deer lowers its head to feed in a clearing.", "input_mode": "scripted_scene",
-        "query": "deer feeding with its head lowered"},
-    "deer-walking": {"id": "deer-walking", "label": "Walking", "animal": "deer", "behavior_hint": "walking",
-        "description": "A deer walks across a clearing.", "input_mode": "scripted_scene",
-        "query": "deer walking across a clearing"},
-    "deer-standing": {"id": "deer-standing", "label": "Standing", "animal": "deer", "behavior_hint": "standing",
-        "description": "A deer stands still in a clearing.", "input_mode": "scripted_scene",
-        "query": "deer standing still in a clearing"},
+    "deer-feeding": {"id": "deer-feeding", "label": "Forage together", "animal": "deer", "behavior_hint": "feeding",
+        "interaction": "co-feeding", "description": "Two deer forage together; the duck imitates the focal animal beside its companion.",
+        "query": "Two deer interacting while grazing together side by side, one deer lowering its head to feed beside the other deer"},
+    "deer-walking": {"id": "deer-walking", "label": "Follow companion", "animal": "deer", "behavior_hint": "following",
+        "interaction": "following a companion", "description": "One deer follows another deer; the duck imitates the following animal.",
+        "query": "Two deer interacting, one deer walking behind and following another deer"},
+    "deer-standing": {"id": "deer-standing", "label": "Herd alert", "animal": "deer", "behavior_hint": "alert",
+        "interaction": "shared alert pause", "description": "Two deer pause alert together; the duck imitates the focal animal's still response.",
+        "query": "Two deer interacting, both deer stop together and stand still alert beside each other"},
+    "cat-hissing": {"id": "cat-hissing", "label": "Hissing", "animal": "cat", "behavior_hint": "hissing",
+        "interaction": "directed hiss and boundary response", "description": "One cat hisses at another cat; the duck imitates a supported focal animal response.",
+        "query": "Two domestic cats interacting, one cat hissing at another cat and the other cat backing away"},
+    "cat-greeting": {"id": "cat-greeting", "label": "Greeting", "animal": "cat", "behavior_hint": "greeting",
+        "interaction": "social approach and greeting", "description": "One cat approaches and greets another cat; the duck imitates the focal animal's approach.",
+        "query": "Two domestic cats interacting, one cat approaching another cat and sniffing the other cat in a greeting"},
+    "cat-play": {"id": "cat-play", "label": "Social play", "animal": "cat", "behavior_hint": "play",
+        "interaction": "play with a companion", "description": "Two cats play together; the duck imitates supported movement from the focal animal.",
+        "query": "Two domestic cats interacting and playing with each other, one cat playfully following or chasing the other cat"},
 }
+for scenario in SCENARIOS.values():
+    scenario.update(interaction_partner=scenario["animal"], role="focal_animal", input_mode="scripted_scene",
+                    broader_query=f"Two {('cats' if scenario['animal'] == 'cat' else 'deer')} interacting with each other")
 
 
 class SearchRequest(BaseModel):
@@ -115,8 +127,7 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
 
     @app.get("/demo-api/encounters")
     async def encounters():
-        return {"encounters": [{**scenario, "broader_query": scenario["query"].replace("deer", "hoofed animal", 1)}
-                for scenario in SCENARIOS.values()]}
+        return {"encounters": list(SCENARIOS.values())}
 
     @app.post("/demo-api/search")
     async def search(payload: SearchRequest, request: Request):
@@ -125,11 +136,11 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
             raise DemoError("unknown_scenario", "Choose an encounter from the scenario catalog.", 404)
         started = time.monotonic()
         key = (payload.scenario_id, payload.broaden)
-        query = scenario["query"].replace("deer", "hoofed animal", 1) if payload.broaden else scenario["query"]
+        query = scenario["broader_query"] if payload.broaden else scenario["query"]
         if payload.mode == "replay":
             snapshot = registry.replay(request.cookies.get(COOKIE_NAME), key)
         else:
-            result = await client.search(query)
+            result = await client.search(query, tags=[] if scenario["animal"] == "cat" else ["wildlife"])
             snapshot = SearchSnapshot(query=query, segments=tuple(normalize_segments(result["results"])),
                 elapsed_ms=round((time.monotonic() - started) * 1000),
                 recorded_at=datetime.now(timezone.utc).isoformat(), started=started,
@@ -138,13 +149,13 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
         if payload.mode == "live":
             registry.remember(session_id, key, snapshot)
         candidates = []
-        for index, segment in enumerate(snapshot.segments, start=1):
-            annotation = manifest.annotate(segment, scenario["animal"])
+        for segment in snapshot.segments:
+            annotation = manifest.annotate_interaction(segment, scenario["animal"], scenario["interaction_partner"])
             reference = annotation.pop("_reference", None)
             clip_id = registry.add(session_id, segment.source)
-            source_label = (reference or {}).get("source_label") or f"Reference clip {index:02d}"
+            source_label = (reference or {}).get("source_label") or f"Reference clip {segment.rank:02d}"
             dataset = (reference or {}).get("dataset") or segment.dataset
-            candidates.append({"clip_id": clip_id, "video_url": f"/demo-api/clips/{clip_id}/video",
+            candidates.append({"clip_id": clip_id, "rank": segment.rank, "video_url": f"/demo-api/clips/{clip_id}/video",
                 "caption": public_text(segment.caption), "similarity": segment.similarity,
                 "caption_hash": "sha256:" + caption_hash(segment.caption),
                 "review_reason": public_text((reference or {}).get("review_note"), 1000) or None,
@@ -154,12 +165,14 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
                     "segment_start_sec": segment.start, "segment_end_sec": segment.end}})
         response = JSONResponse({"encounter_id": payload.encounter_id,
             "search_id": secrets.token_urlsafe(24), "mode": payload.mode,
-            "match_type": "broader_category" if payload.broaden else "species",
-            "status": "ok" if any(c["action"] for c in candidates) else "no_supported_imitation" if candidates else "no_results",
+            "match_type": "broader_behavior" if payload.broaden else "species_interaction",
+            "status": "ok" if any(c["action"] and c["rank"] <= 3 for c in candidates) else "no_supported_imitation" if candidates else "no_results",
             "query": snapshot.query, "elapsed_ms": round((time.monotonic() - started) * 1000),
             "original_elapsed_ms": snapshot.elapsed_ms, "recorded_at": snapshot.recorded_at,
             "candidates": candidates,
             "warnings": ([manifest.warning] if manifest.warning else []) +
+                (["Actions marked video_caption are derived from the existing video-model caption, not a visual review. Returned interactions may differ from the requested encounter; only the caption determines each action."]
+                 if any(c["action_basis"] == "video_caption" for c in candidates) else []) +
                 (["Replaying a previous live search. Video playback still requires VSS access."] if payload.mode == "replay" else [])})
         establish_cookie(response, session_id)
         return response

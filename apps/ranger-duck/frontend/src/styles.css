@@ -177,3 +177,30 @@ dl.kv dt{color:var(--muted-2)}dl.kv dd{margin:0}
   .archive-column{gap:8px}
   .stage-footer{padding-top:10px;padding-bottom:12px}
 }
+
+/* Species and automatic imitation share the original field-unit controls. */
+.species-tabs{display:flex;align-items:center;gap:10px}.species-tabs .tabs{gap:6px}
+.badge.inferred{border-color:var(--yellow);color:var(--yellow);background:transparent}
+.rank-state{font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-2);margin-left:auto}
+.rank-state.running,.rank-state.completed{color:var(--teal)}.rank-state.skipped{color:var(--pink)}
+.sequence-status{border-left:3px solid var(--muted-3);padding:7px 10px;font-size:11px;line-height:1.4;color:var(--muted)}
+.sequence-status.running{border-color:var(--teal);color:var(--teal)}
+.missing-reference{border:2px dashed var(--rule);padding:11px 12px;color:var(--muted-2);font-size:11px}
+.automatic-action{border:2px dashed var(--muted-3);padding:10px 12px;font-size:18px;color:var(--muted)}
+.automatic-action.active{border:2px solid var(--orange);color:var(--orange)}
+.loop-control:not(:disabled){border-color:var(--teal);box-shadow:6px 6px 0 var(--teal)}
+.loop-control:not(:disabled):active{box-shadow:2px 2px 0 var(--teal)}
+@media(min-width:981px){
+  .app-header{gap:14px 18px}
+  .brand h1{font-size:30px}.brand-subtitle{font-size:9px;letter-spacing:.1em}
+  .encounter-tabs,.species-tabs{gap:8px}.encounter-tabs .label,.species-tabs .label{font-size:9px;letter-spacing:.1em}
+  .encounter-tabs .tabs{gap:6px}.app-header .tab{font-size:14px;padding:10px 12px 9px}
+  .header-actions{gap:12px}.header-actions .btn{font-size:16px;padding:12px 15px 10px}
+  .has-selection .automatic-action{font-size:16px;padding:8px 10px}
+  .has-selection .sequence-status{font-size:10px;padding:5px 9px}
+  .has-selection .rank-state{font-size:8px}
+}
+@media(min-width:981px) and (max-width:1600px){.header-actions .encounter-id{display:none}}
+@media(min-width:981px) and (max-width:1250px){.app-header{gap:12px 15px}.brand{flex-basis:260px}.encounter-tabs{order:3;flex-basis:100%;margin-left:0}.header-actions{margin-left:auto}.species-tabs{margin-left:auto}}
+@media(max-width:980px){.species-tabs{margin-left:auto}.app-header .encounter-tabs{width:100%}.app-header .header-actions{margin-left:0}.app-header .encounter-id{margin-right:auto}.header-actions{width:100%;justify-content:flex-start}}
+@media(max-width:580px){.species-tabs{margin-left:0}.species-tabs .tab{font-size:14px}.encounter-tabs .tab{font-size:13px;padding-inline:10px}.header-actions .btn{font-size:16px;padding:11px 13px}.header-actions .encounter-id{font-size:10px}.rank-state{font-size:8px}}

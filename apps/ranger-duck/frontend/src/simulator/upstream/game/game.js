@@ -525,7 +525,7 @@ async function boot({ scene, camera, renderer }) {
     getManualOverride: () => padSource.isActive() || touchSource.isActive() || kbSource.isActive(),
   });
   // Keyboard, pad and touch preempt by priority; waypoint is the fallback.
-  const controller = new Controller({ sources: [] }); // Only the reviewed-action adapter drives movement.
+  const controller = new Controller({ sources: [] }); // Only the evidence-action adapter drives movement.
   // Right-stick camera state, read by the telemetry before the camera-orbit
   // section below has evaluated.
   let padOrbitLive = false;
@@ -2171,6 +2171,7 @@ async function boot({ scene, camera, renderer }) {
     },
     get headMode() { return headMode; },
     toggleHeadMode, headTarget, headSmooth,
+    get headYaw() { return data.qpos[qposAdr[7]]; }, // Ranger Duck observes actual head-joint motion.
     get ballActive() { return ballActive; },
     get ballQposAdr() { return ballQposAdr; },
     get chaseCam() { return chaseCam; },

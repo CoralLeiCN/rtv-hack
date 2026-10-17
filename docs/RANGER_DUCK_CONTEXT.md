@@ -2,16 +2,18 @@
 
 This context supports the [approved plan](RANGER_DUCK_PLAN.md) and [frontend integration contract](RANGER_DUCK_API.md). The user subsequently supplied `apps/ranger-duck/design/` and requested frontend implementation by a subagent, with backend integration, commit, and push. The supplied design is the UX reference; the API contract records its runtime adaptation.
 
-## Product decisions
+## Current product decisions
 
-- Present the complete demonstration on one page: a shared animal and Microduck scene, live search results, a reference video, and the Copy this behavior control.
-- Use a scripted scene to supply animal and behavior labels. Camera recognition is not part of this version.
-- Query VSS when an encounter begins. Select a returned reference and use its reviewed behavior to choose an existing duck movement.
-- Core movements are feeding to `ground_pick`, walking to `short_walk`, and standing to `stand_hold`. Resting to `sit` and looking around to `head_scan` are optional.
-- New training, real animal interaction, physical robot deployment, voice input, and safari playlists are outside the approved build.
-- Keep live retrieval and cached replay visibly distinct. Never enable an action solely from the scenario or search query.
-- The implemented replay stores only previous successful live results in the browser's backend session. It is explicit, expires, and still requires VSS for video. Broader retrieval changes the query to a hoofed animal while preserving the deer review requirement.
-- The first simulator adapter implements `ground_pick`, `short_walk`, and `stand_hold`. Optional sitting and head scanning are not authorized as imitation actions until implemented and verified.
+- One page contains a scripted pair of animals, the MuJoCo duck, live search results, reference playback, and automatic movement status.
+- The user selected cat–cat and deer–deer interactions. Cat scenarios are Hissing, Greeting, and Social play; deer scenarios are Forage together, Follow companion, and Herd alert.
+- An encounter supplies a species-pair query. A returned segment's existing video-model caption supplies a possible movement; the query itself never authorizes movement.
+- Use original upstream ranks 1–3, skip unsupported or missing slots visibly, and repeat supported actions automatically without another search. No per-action Copy click is required. Stop/Resume, Reset, changed scenarios, and hidden-tab cancellation remain available.
+- Supported movements are `ground_pick`, `short_walk`, `stand_hold`, and the physics-verified `head_scan`. Backward-walk attempts did not produce meaningful displacement; retreat-only evidence is unsupported.
+- Caption-inferred actions remain visibly unreviewed. They require complete provenance, the correct pair, and a supported interaction. An optional exact visual review can also authorize a matching interaction; stale or solitary-animal reviews cannot.
+- Replay is explicit, session-scoped, expires, and still needs VSS connectivity for video. Broader search relaxes behavior while keeping the same species pair.
+- The animal actors are scripted and non-colliding. New training, physical robot deployment, camera recognition, and actual animal interaction are outside scope.
+
+The [current plan](RANGER_DUCK_PLAN.md), [API contract](RANGER_DUCK_API.md), and [research note](RANGER_DUCK_INTERACTIONS.md) supersede the earlier manual-selection flow described in the historical verification below.
 
 ## VSS access
 
@@ -39,7 +41,7 @@ Local experiment files available in the workspace contain snapshot results from 
 - The small prompt-comparison diagnostic improved the expected source's top-three retrieval count from 3/8 to 4/8. It is not a representative benchmark.
 - Caption review found deer described as horses or sheep, unsupported elephant claims, and missed or incorrect behaviors. A pipeline success flag does not establish correct recognition.
 
-These observations motivate a reviewed reference manifest. Start with an empty manifest rather than manufacturing reviewed examples. Review actual playable segments, record animal and behavior labels, bind them to source identity and caption hash, and only allow a returned matching reference to enable a movement. Unreviewed and changed results remain playable with no action.
+These observations originally motivated a reviewed-only reference manifest. The current automatic flow also allows conservative caption inference, explicitly labeled as unreviewed. Complete provenance and pair-specific behavior are required; ambiguous, unsupported, or changed evidence remains playable without an action. Never manufacture reviewed examples.
 
 Relevant local files for subsequent authorized inspection are `experiments/wildlife/results/wildlife-snapshot.json`, `wildlife-queries.json`, and `prompt-comparison-evaluation.json`, plus `experiments/wildlife/vss_client.py` as an authentication-pattern reference. Do not import that experiment client directly into the new backend: its long request timeouts and ingest-oriented retry behavior do not match this demo.
 
@@ -57,11 +59,11 @@ The backend deliverable includes the HTTP service, dependency metadata, unit/int
 
 Tests should cover upstream authentication and timeouts, evidence eligibility, response normalization, scoped opaque video IDs, and range playback. Live access and human review of clips remain separate verification steps when the configured VM is available. Do not deploy, upload, re-ingest, or modify the shared pipeline as part of backend implementation.
 
-## Implementation and verification
+## Earlier implementation and verification (manual flow)
 
 The implementation preserves the supplied design's colors, typography, scenario controls, evidence cards, video HUD, behavior mapping, and stage strip. On desktop the scene stays visible while evidence details scroll. The simulator vendors the official Apache-licensed source at revision `ad9d41a763f30dc770817c33d92dcfec0205db1e`; a setup script verifies all 53 downloaded assets by SHA-256. Runtime binaries and private reference manifests are not committed.
 
-The simple video search app arrived in subsequent commits. Ranger Duck adapts its fractional timestamp formatting, playback retry and disposal, generic video MIME handling, sanitized stream cleanup, and JWT-only upstream request handling. Its free-query API and raw-source playback URLs are not used because Ranger Duck needs scenario requests, session-scoped clip IDs, and reviewed movement authorization.
+The simple video search app arrived in subsequent commits. Ranger Duck adapts its fractional timestamp formatting, playback retry and disposal, generic video MIME handling, sanitized stream cleanup, and JWT-only upstream request handling. Its free-query API and raw-source playback URLs are not used because Ranger Duck needs scenario requests, session-scoped clip IDs, and evidence-bound movement authorization.
 
 Verification on 17 October: 41 backend tests and 15 frontend/adapter tests pass, and the production frontend builds. Live checks returned archive results, played and sought a real segment, kept Copy disabled for unreviewed results, and distinguished explicit replay from live search. Three real browser controller checks completed without recovery: ground pick about 3.13 seconds, short walk about 2.46 seconds including settling (0.16 m translation, with commands bounded to two seconds), and stand about 3.33 seconds including settling. These controller checks used a development-only test hook, omitted from the production build; they do not establish reviewed wildlife evidence.
 
@@ -70,3 +72,13 @@ The full feeding flow also passed through the ordinary browser UI: Start trigger
 The committed default manifest remains empty because real source identities are private. Fresh environments need their own footage review, and walking/standing references have not yet been reviewed. No shared service deployment, upload, or re-ingest was performed for this implementation.
 
 The first user run exposed intermittent Feeding search failures around 10.3 seconds. The generic upstream read timeout was only 10 seconds, with a 12-second overall backend deadline and 13-second browser abort, leaving too little room for the observed VSS response times. Search now uses a 30-second overall default and gives the search response read that full budget; connection/authentication/video timeouts stay at 10 seconds. Health advertises the configured budget and the browser adds five seconds of grace, so the two deadlines stay aligned. The updated 42 backend and 16 frontend tests and production build pass. After restarting the running demo with the fix, a live Feeding encounter completed in 10.57 seconds and returned 15 candidates including the reviewed feeding reference.
+
+## Same-species automatic sequence update
+
+The new catalog and automatic sequence replace the earlier Copy control. Original retrieval ranks are preserved, including gaps after invalid or duplicate sources. Cat queries search the authenticated archive without the wildlife tag; deer queries retain it. Exact caption text, source, parent and interval bind each inferred action. Two animal actors illustrate each interaction while the duck uses the existing physics controller.
+
+Initial live cat queries found paired observation and directed head-turn captions, but no explicit hiss in the first hissing top three. The deer co-foraging top three described solitary deer and must be skipped. These are archive observations, not guarantees about future results. The research note records the behavior sources and the current API describes the action-basis fields.
+
+Integrated browser verification: a live Cat/Hissing encounter returned 15 candidates in 9.88 seconds. Original rank 1 drove a caption-inferred observing pause, rank 2 a directed head scan, and unsupported rank 3 was skipped. The page completed two automatic cycles without per-action clicks; Stop returned the duck to ready, and Resume began a fresh cycle without a new search. Actual reference video played through the session-scoped proxy. The initial results did not describe a hiss, and the UI displayed their actual inferred behaviors.
+
+Final interaction verification: 96 backend tests and 26 frontend/adapter tests pass; the production build succeeds. Real browser physics checks completed head scan, short walk, ground pick, standing, and another walk across resets with zero recoveries. The head yaw covered 0.509 radians and returned to neutral. Development QA hooks are omitted from production. Deer/Forage returned 15 references in 10.43 seconds, with all top-three solitary results visibly skipped.

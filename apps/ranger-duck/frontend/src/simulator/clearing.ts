@@ -1,4 +1,19 @@
 import * as THREE from 'three';
+import { createCat, createDeer, type AnimalActor, type AnimalSpecies } from './animals';
+
+export type SceneEncounter = {
+  id: string; behavior_hint: string; animal?: AnimalSpecies;
+  interaction_partner?: string;
+};
+type Interaction = 'feeding' | 'following' | 'greeting' | 'boundary' | 'alert' | 'play';
+export function interactionFor(hint: string): Interaction {
+  if (/hiss|defens|standoff|boundary/.test(hint)) return 'boundary';
+  if (/greet|nose|friendly/.test(hint)) return 'greeting';
+  if (/play|bat|chase/.test(hint)) return 'play';
+  if (/feed|graze|eat/.test(hint)) return 'feeding';
+  if (/walk|follow/.test(hint)) return 'following';
+  return 'alert';
+}
 
 /** Visual scene actors only. The duck and flat floor remain MuJoCo bodies. */
 export function createClearing(scene: THREE.Scene) {
@@ -39,88 +54,116 @@ export function createClearing(scene: THREE.Scene) {
     group.add(tree);
   }
 
-  const deer = new THREE.Group();
-  const fur = new THREE.MeshStandardMaterial({ color: '#92704b', roughness: 1 });
-  const dark = new THREE.MeshStandardMaterial({ color: '#3d3025', roughness: 1 });
-  const pale = new THREE.MeshStandardMaterial({ color: '#c4a57b', roughness: 1 });
-  function ellipsoid(parent: THREE.Group, size: [number, number, number], position: [number, number, number], material = fur) {
-    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), material);
-    mesh.scale.set(...size);
-    mesh.position.set(...position);
-    parent.add(mesh);
-    return mesh;
+  const actors = {
+    cat: [createCat(false), createCat(true)],
+    deer: [createDeer(false), createDeer(true)],
+  };
+  for (const pair of Object.values(actors)) for (const actor of pair) {
+    actor.root.scale.multiplyScalar(0.8);
+    actor.root.visible = false;
+    group.add(actor.root);
   }
-  ellipsoid(deer, [0.3, 0.17, 0.12], [0, 0.45, 0]);
-  ellipsoid(deer, [0.07, 0.055, 0.06], [0.29, 0.51, 0], pale);
-  const legs: THREE.Group[] = [];
-  for (const x of [-0.19, 0.19]) for (const z of [-0.07, 0.07]) {
-    const leg = new THREE.Group();
-    leg.position.set(x, 0.42, z);
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.015, 0.4, 5), fur);
-    shaft.position.y = -0.2;
-    leg.add(shaft);
-    ellipsoid(leg, [0.035, 0.025, 0.028], [-0.007, -0.4, 0], dark);
-    deer.add(leg);
-    legs.push(leg);
-  }
-  const neck = new THREE.Group();
-  neck.position.set(-0.22, 0.5, 0);
-  deer.add(neck);
-  ellipsoid(neck, [0.08, 0.2, 0.07], [-0.05, 0.13, 0]);
-  ellipsoid(neck, [0.115, 0.07, 0.065], [-0.1, 0.31, 0]);
-  ellipsoid(neck, [0.06, 0.045, 0.05], [-0.19, 0.28, 0], pale);
-  ellipsoid(neck, [0.022, 0.025, 0.04], [-0.235, 0.28, 0], dark);
-  for (const z of [-0.07, 0.07]) {
-    const ear = ellipsoid(neck, [0.025, 0.085, 0.035], [-0.06, 0.38, z], pale);
-    ear.rotation.x = Math.sign(z) * 0.5;
-    ellipsoid(neck, [0.012, 0.012, 0.008], [-0.13, 0.33, z * 0.85], dark);
-    const antler = new THREE.Group();
-    antler.position.set(-0.04, 0.36, z * 0.7);
-    antler.rotation.x = Math.sign(z) * 0.32;
-    const bone = new THREE.MeshStandardMaterial({ color: '#d4be94', roughness: 1 });
-    for (const [x, y, length, angle] of [[0.02, 0.09, 0.22, -0.22], [-0.025, 0.07, 0.1, 0.9], [-0.01, 0.14, 0.09, 0.75]] as const) {
-      const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.009, length, 5), bone);
-      branch.position.set(x, y, 0);
-      branch.rotation.z = angle;
-      antler.add(branch);
-    }
-    neck.add(antler);
-  }
-  deer.scale.setScalar(0.72);
-  deer.position.set(2.8, 0, -0.15);
-  deer.visible = false;
-  group.add(deer);
 
-  let encounter: { id: string; behavior: string; start: number; reached: boolean } | null = null;
+  let encounter: (SceneEncounter & { behavior: Interaction; start: number; reached: boolean }) | null = null;
+  let primary: AnimalActor = actors.deer[0];
+  let partner: AnimalActor | null = actors.deer[1];
+  const hideActors = () => { for (const pair of Object.values(actors)) for (const actor of pair) actor.root.visible = false; };
   return {
-    start(id: string, behavior: string, now: number) {
-      encounter = { id, behavior, start: now, reached: false };
-      deer.visible = true;
-      deer.position.set(2.8, 0, -0.15);
-      neck.rotation.z = 0;
+    start(input: SceneEncounter, now: number) {
+      hideActors();
+      const species = input.animal === 'cat' ? 'cat' : 'deer';
+      const other = input.interaction_partner === 'duck' ? null : input.interaction_partner === 'cat' ? 'cat' : input.interaction_partner === 'deer' ? 'deer' : species;
+      primary = actors[species][0];
+      partner = other ? actors[other][1] : null;
+      primary.root.visible = true;
+      if (partner) partner.root.visible = true;
+      encounter = { ...input, behavior: interactionFor(input.behavior_hint), start: now, reached: false };
+      primary.root.rotation.set(0, partner ? Math.PI : 0, 0);
+      primary.root.position.set(2.8, 0, -0.15);
+      if (partner) { partner.root.rotation.set(0, 0, 0); partner.root.position.set(0.95, 0, -0.5); partner.pose('standing', 0); }
+      primary.pose('walking', 0);
     },
-    reset() { encounter = null; deer.visible = false; },
+    reset() { encounter = null; hideActors(); },
     frame(now: number): string | null {
       if (!encounter) return null;
-      const t = (now - encounter.start) / 1000;
-      const entrance = Math.min(1, t / 1.8);
-      deer.position.x = THREE.MathUtils.lerp(2.8, 0.65, entrance * entrance * (3 - 2 * entrance));
-      const walking = entrance < 1 || encounter.behavior === 'walking';
-      legs.forEach((leg, i) => { leg.rotation.z = walking ? Math.sin(t * 7 + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.22 : 0; });
-      if (entrance >= 1) {
-        if (encounter.behavior === 'feeding') neck.rotation.z = 2.1 + Math.sin(t * 1.8) * 0.055;
-        else neck.rotation.z = Math.sin(t * 0.8) * 0.025;
-        if (encounter.behavior === 'walking') deer.position.x += Math.sin((t - 1.8) * 1.3) * 0.12;
-        if (!encounter.reached) { encounter.reached = true; return encounter.id; }
+      const time = (now - encounter.start) / 1000;
+      const entrance = Math.min(1, time / 1.8);
+      const ease = entrance * entrance * (3 - 2 * entrance);
+      primary.root.position.set(THREE.MathUtils.lerp(2.8, 0.42, ease), 0, -0.15);
+      if (entrance < 1) {
+        // Enter facing the direction of travel, then turn toward the partner.
+        primary.root.rotation.y = 0;
+        primary.pose('walking', time);
+        partner?.pose('alert', time);
+        return null;
       }
+      const t = time - 1.8;
+      const cycle = t % 5.5;
+      primary.root.rotation.y = partner ? Math.PI : 0;
+      if (partner) {
+        partner.root.position.set(0.95, 0, -0.5);
+        partner.root.rotation.y = 0;
+      }
+      if (encounter.behavior === 'boundary') {
+        // The visitor approaches; the focal animal warns, and the visitor
+        // visibly yields space. This is a scripted interaction, not an agent.
+        const warning = cycle > 1.2 && cycle < 3.8;
+        primary.root.position.x = 0.35;
+        primary.pose(warning && encounter.animal === 'cat' ? 'hissing' : 'alert', t);
+        if (partner) {
+          const approach = cycle < 1.2 ? cycle / 1.2 : cycle < 2 ? 1 : cycle < 3.8 ? Math.max(0, 1 - (cycle - 2) / 1.8) : 0;
+          partner.root.position.x = 1.15 - approach * 0.15;
+          partner.root.position.z = -0.15;
+          partner.pose(cycle < 1.2 || (cycle >= 2 && cycle < 3.8) ? 'walking' : 'alert', t);
+        }
+      } else if (encounter.behavior === 'greeting') {
+        const approach = (1 - Math.cos(Math.min(cycle, 2) / 2 * Math.PI)) / 2;
+        primary.root.position.x = 0.38 + approach * 0.05;
+        primary.root.position.z = -0.23;
+        primary.pose(cycle < 2 ? 'walking' : 'greeting', t);
+        if (partner) {
+          partner.root.position.x = 1.02 - approach * 0.1;
+          partner.root.position.z = -0.23;
+          partner.pose(cycle < 2 ? 'walking' : 'greeting', t + 0.4);
+        }
+      } else if (encounter.behavior === 'play') {
+        const focalTurn = cycle < 2.75;
+        primary.root.position.x = 0.35 + Math.sin(cycle / 5.5 * Math.PI * 2) * 0.05;
+        primary.root.position.z = -0.25;
+        primary.pose(focalTurn ? 'play' : 'alert', t);
+        if (partner) {
+          partner.root.position.set(1.0 - Math.sin(cycle / 5.5 * Math.PI * 2) * 0.05, 0, -0.25);
+          partner.pose(focalTurn ? 'alert' : 'play', t + 0.4);
+        }
+      } else if (encounter.behavior === 'feeding') {
+        primary.root.rotation.y = 0.12;
+        primary.pose('feeding', t);
+        if (partner) { partner.root.position.set(0.95, 0, -0.65); partner.root.rotation.y = 0.12; partner.pose('feeding', t + 0.9); }
+      } else if (encounter.behavior === 'following') {
+        const travel = Math.sin(t * 0.65) * 0.1;
+        primary.root.rotation.y = Math.PI;
+        primary.root.position.set(0.3 + travel, 0, -0.38);
+        primary.pose('walking', t);
+        if (partner) { partner.root.position.set(0.94 + travel, 0, -0.38); partner.root.rotation.y = Math.PI; partner.pose('walking', t + 0.35); }
+      } else {
+        primary.pose('alert', t);
+        partner?.pose('alert', t + 0.6);
+      }
+      if (!encounter.reached) { encounter.reached = true; return encounter.id; }
       return null;
     },
     dispose() {
+      const disposedGeometries = new Set<THREE.BufferGeometry>();
+      const disposedMaterials = new Set<THREE.Material>();
       group.traverse(object => {
         const mesh = object as THREE.Mesh;
-        mesh.geometry?.dispose();
-        if (Array.isArray(mesh.material)) mesh.material.forEach(material => material.dispose());
-        else mesh.material?.dispose();
+        if (mesh.geometry && !disposedGeometries.has(mesh.geometry)) { disposedGeometries.add(mesh.geometry); mesh.geometry.dispose(); }
+        const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
+        for (const material of materials) if (!disposedMaterials.has(material)) {
+          disposedMaterials.add(material);
+          (material as THREE.SpriteMaterial).map?.dispose();
+          material.dispose();
+        }
       });
       scene.remove(group);
     },

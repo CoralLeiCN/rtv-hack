@@ -1,6 +1,6 @@
 # Ranger Duck frontend and backend contract
 
-Contract version 1, agreed implementation target on 17 October 2026. The user owns the frontend; the backend implements these routes. Any changes needed during implementation must be reflected here before handoff.
+Contract version 1, updated 17 October 2026 for same-species interactions and an automatic sequence. The frontend and backend implement these routes.
 
 Use relative `/demo-api/` URLs. For separate frontend development, proxy that prefix to the backend on `127.0.0.1:8000` through the frontend dev server. Forward cookies and Range headers. This preserves same-origin behavior and avoids exposing VSS credentials. Production may serve the built frontend through the same backend when a static directory is configured.
 
@@ -33,19 +33,22 @@ Health also establishes the browser's HttpOnly demo session cookie. Await this r
   "encounters": [
     {
       "id": "deer-feeding",
-      "label": "Feeding",
+      "label": "Forage together",
       "animal": "deer",
       "behavior_hint": "feeding",
-      "description": "A deer lowers its head to feed in a clearing.",
+      "interaction_partner": "deer",
+      "interaction": "co-feeding",
+      "role": "focal_animal",
+      "description": "Two deer forage together; the duck imitates the focal animal beside its companion.",
       "input_mode": "scripted_scene",
-      "query": "deer feeding with its head lowered",
-      "broader_query": "hoofed animal feeding with its head lowered"
+      "query": "Two deer interacting while grazing together side by side, one deer lowering its head to feed beside the other deer",
+      "broader_query": "Two deer interacting with each other"
     }
   ]
 }
 ```
 
-Initial IDs are `deer-feeding`, `deer-walking`, and `deer-standing`. These describe staged scenarios, not verified footage availability. The server's scenario catalog may be adjusted after review; render its returned entries rather than hardcoding labels. `query` and `broader_query` are display previews while a request is in flight; the server still selects the actual query. No scenario includes a robot action.
+IDs are `deer-feeding`, `deer-walking`, `deer-standing`, `cat-hissing`, `cat-greeting`, and `cat-play`. Species and interaction selectors are derived from this catalog. These describe staged scenarios, not verified footage availability. The server's scenario catalog may be adjusted after review; render its returned entries rather than hardcoding labels. `query` and `broader_query` are display previews while a request is in flight; the server still selects the actual query. No scenario includes a robot action.
 
 ## Search
 
@@ -60,45 +63,50 @@ Initial IDs are `deer-feeding`, `deer-walking`, and `deer-standing`. These descr
 }
 ```
 
-The frontend creates a new encounter ID for every Start or reset cycle. `mode` defaults to `live`; `broaden` defaults to false. Live mode validates the scenario, constructs its query, and requests VSS retrieval. It never falls back silently to replay. An explicit broader search changes "deer" to "hoofed animal" in the query and returns `match_type: "broader_category"`; the reviewed deer requirement for imitation still applies.
+The frontend creates a new encounter ID for every Start or reset cycle. `mode` defaults to `live`; `broaden` defaults to false. Live mode validates the scenario, constructs its query, and requests VSS retrieval. It never falls back silently to replay. An explicit broader search relaxes the interaction wording while retaining the selected species pair, and returns `match_type: "broader_behavior"`. Normal searches return `species_interaction`. Cat requests use the authenticated archive without a wildlife-only tag; deer requests retain the wildlife tag.
 
 Replay is an explicit request for the last successful live search in this browser session for the same scenario and broaden setting. It performs no new search, returns `mode: "replay"`, and issues fresh scoped clip IDs. A missing or expired snapshot returns 409 `replay_unavailable`. Snapshots expire after the clip TTL and disappear on restart; video playback still needs VSS connectivity. An older slow response cannot replace a newer snapshot. The UI must label replay and show the original recording time separately from the current request duration.
 
-Example response with a reviewed result:
+Illustrative response with a caption-inferred interaction:
 
 ```json
 {
   "encounter_id": "encounter-001",
   "search_id": "opaque-search-id",
   "mode": "live",
-  "match_type": "species",
+  "match_type": "species_interaction",
   "status": "ok",
-  "query": "deer feeding with its head lowered",
+  "query": "Two deer interacting while grazing together side by side, one deer lowering its head to feed beside the other deer",
   "elapsed_ms": 4200,
   "original_elapsed_ms": 4200,
   "recorded_at": "2026-10-17T12:00:00+00:00",
   "candidates": [
     {
       "clip_id": "opaque-clip-id",
+      "rank": 1,
       "video_url": "/demo-api/clips/opaque-clip-id/video",
-      "caption": "The animal lowers its head toward the grass.",
+      "caption": "Two deer graze together side by side, lowering their heads to the grass.",
       "caption_hash": "sha256:<64 lowercase hexadecimal characters>",
-      "review_reason": "The deer visibly lowers its head toward the ground.",
+      "review_reason": null,
       "similarity": 0.72,
-      "review_status": "reviewed",
-      "eligibility_reason": "reviewed_match",
+      "review_status": "unreviewed",
+      "eligibility_reason": "caption_interaction_match",
+      "action_basis": "video_caption",
+      "action_reason": "The caption describes two deer grazing together; one ground-pick cycle approximates feeding beside a companion.",
+      "inferred_behavior": "co_feeding",
+      "interaction_partner": "deer",
       "animal": "deer",
-      "reviewed_behavior": "feeding",
+      "reviewed_behavior": null,
       "provenance": {
         "dataset": "MammAlps",
-        "source_label": "Reference clip 03",
+        "source_label": "Reference clip 01",
         "parent_id": "opaque-parent-id",
         "segment_start_sec": 5.0,
         "segment_end_sec": 10.0
       },
       "action": {
         "primitive": "ground_pick",
-        "evidence_id": "reference-03",
+        "evidence_id": "opaque-caption-evidence-id",
         "max_duration_ms": 8000
       }
     }
@@ -107,22 +115,27 @@ Example response with a reviewed result:
 }
 ```
 
-This is an illustrative contract example, not a real reviewed reference or measured result. Opaque IDs have no meaningful format for the frontend.
+This is an illustrative contract example, not real archive evidence or a measured result. Opaque IDs have no meaningful format for the frontend.
 
-Response `status` is `ok` when at least one candidate supports imitation, `no_supported_imitation` when clips exist but none are eligible, or `no_results` when there are no usable segment candidates. All three are successful HTTP responses.
+Response `status` is `ok` when at least one candidate at original rank 1–3 supports imitation, `no_supported_imitation` when clips exist but none of those three is eligible, or `no_results` when there are no usable segment candidates. All three are successful HTTP responses.
 
 Candidate rules:
 
-- `review_status` is `reviewed`, `unreviewed`, or `stale`. `action` is non-null only for a reviewed, current, supported match.
-- `animal` and `reviewed_behavior` are null without a valid review. `similarity` may be null and is a retrieval score, not a probability.
-- `dataset` and segment times may be null if upstream data is incomplete. Missing timing or identity prevents imitation but may still permit playback.
-- `caption_hash` hashes the exact upstream caption before display redaction. `review_reason` contains the reviewer's note for a current reviewed reference, or null. Do not invent a reason when none was recorded.
-- `eligibility_reason` is a machine-readable string such as `reviewed_match`, `not_reviewed`, `reference_changed`, `incomplete_metadata`, `unsupported_behavior`, or `species_mismatch`. Clients must tolerate additional reasons.
-- `primitive` is `ground_pick`, `short_walk`, or `stand_hold`. Planned optional movements `sit` and `head_scan` are not authorized by this implementation; those reviews return `unsupported_behavior` with no action until a verified simulator adapter supports them.
-- `max_duration_ms` is a cancellation ceiling, not a claim of successful completion. The simulator must observe completion. Short walk is bounded to 2000 ms and stand hold to 3000 ms.
-- `warnings` is a list of human-readable non-secret messages. No SQL, vectors, VSS tokens, or private storage URIs are returned.
+- `rank` is the original one-based upstream segment rank. Invalid or duplicate sources can leave gaps; no parent-diversity reranking or promotion occurs.
+- `review_status` is `reviewed`, `unreviewed`, or `stale`. A non-null `action` can have `action_basis: "reviewed"` or `"video_caption"`. Caption inference never changes the status to reviewed.
+- `action_reason` explains the observed role and approximation. `inferred_behavior` describes caption-derived behavior; `reviewed_behavior` is reserved for a valid visual review. `animal` and `interaction_partner` identify the supported pair when available.
+- A caption-inferred action requires the selected species pair, a supported directed or collective behavior, and complete source/parent/interval metadata. Solitary animals, wrong targets, negated or ambiguous statements, and unsupported actions do not authorize motion.
+- An exact reviewed entry must also confirm the interaction partner and evidence. A solitary-animal review is insufficient. Stale, invalid or contradictory reviews block caption fallback.
+- `similarity` is a retrieval score, not a probability. `dataset` and interval times may be null for incomplete upstream data; such a result may still be playable without authorizing movement.
+- `caption_hash` hashes the exact upstream caption before display redaction. `review_reason` is a reviewer's actual recorded note, or null. Do not invent a review.
+- `eligibility_reason` is a machine-readable explanation such as `caption_interaction_match`, `reviewed_match`, `reference_changed`, `incomplete_metadata`, or `interaction_not_supported`. Clients tolerate additional reasons.
+- Supported `primitive` values are `ground_pick` (8000 ms ceiling), `short_walk` (2000), `stand_hold` (3000), and `head_scan` (2400). Retreat-only evidence is unsupported because backward walking was not reliable in physics checks.
+- `max_duration_ms` bounds the controller command; success requires observed execution and settling. It is not a promised completion time.
+- `warnings` contains human-readable non-secret messages. No SQL, vectors, VSS tokens, or private storage URIs are returned.
 
-The frontend should show up to three candidates, enable Copy only for a selected non-null action, and ignore any response whose encounter ID is no longer current. Changing a result cancels the previous action. The backend may include more candidates to retain a reviewed reference beyond the first three ranks.
+The frontend uses exactly original ranks 1–3. Each eligible reference is selected and played muted automatically, then its action runs to observed completion before the next slot. Unsupported or missing slots remain visible with a skip reason. Rank 4 is never substituted. After the sequence, recenter the duck and repeat the same evidence without another search. If no slot is eligible, remain still and show why.
+
+Stop/Resume pauses or restarts this sequence; Reset, a new encounter, a replacement search, hidden-tab pause, and page teardown cancel current motion. Selecting a reference manually pauses automatic motion for inspection. Ignore responses whose encounter ID is no longer current.
 
 ## Video
 
@@ -156,7 +169,7 @@ Expected cases include 422 `invalid_request`, 404 `unknown_scenario`, 503 `live_
 2. Start the selected scene and create a new encounter ID.
 3. Send the search request when the scripted animal enters the encounter zone.
 4. Display results, measured time, and a selected reference video on the same page.
-5. On Copy, send the returned action to the frontend simulator adapter and show execution status.
+5. Automatically run supported original ranks 1–3 in order through the simulator adapter, displaying evidence basis, rank, cycle, and actual execution status. Recenter between cycles and repeat without searching again.
 6. On Reset, abort the pending fetch, invalidate the encounter ID, stop the motion, and clear the previous evidence selection.
 
 Frontend cancellation does not guarantee the upstream request stops, so the ID check is mandatory. The backend performs no simulator actions and creates no live model-training jobs.
