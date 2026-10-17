@@ -1,0 +1,2898 @@
+{
+  "schema_version": 1,
+  "videos": [
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "filename": "JC241_HDSCI_DIVE403_17.mp4",
+      "source_url": "https://dap.ceda.ac.uk/bodc/deposits01/soc250721/JC241_HDSCI_DIVE403_17.mp4?download=1",
+      "source_directory_url": "https://data.ceda.ac.uk/bodc/deposits01/soc250721/",
+      "source_metadata_url": "https://data.ceda.ac.uk/bodc/deposits01/soc250721/?json",
+      "catalogue_url": "https://catalogue.ceda.ac.uk/uuid/c701076b44c14a918f7cdb9641bf2d78/",
+      "dataset": {
+        "title": "Benthic images recorded by a Remotely Operated Vehicle video camera during cruise JC241 in the eastern Clarion-Clipperton Zone (Pacific Ocean, 2023)",
+        "doi": "10.5285/2de087c9-cee3-87f4-e063-7086abc0f9a9",
+        "description": "Video collected by the UK ISIS remotely operated vehicle during the 2023 JC241 cruise in the eastern Clarion-Clipperton Zone, including abyssal seafloor and disturbance associated with a 1979 mining trial.",
+        "description_scope": "dataset; individual video contents have not been reviewed",
+        "citation": "Fleming, B.; Van Audenhaege, L.; Simon-Lledo, E.; Jones, D. (2025): Benthic images recorded by a Remotely Operated Vehicle video camera during cruise JC241 in the eastern Clarion-Clipperton Zone (Pacific Ocean, 2023). NERC British Oceanographic Data Centre, 11 February 2025. doi:10.5285/2de087c9-cee3-87f4-e063-7086abc0f9a9."
+      },
+      "access": {
+        "public": true,
+        "account_required": false,
+        "licence": "Open Government Licence v3.0",
+        "licence_url": "http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
+      },
+      "expected_size_bytes": 3057037896,
+      "source_last_modified_http": "Tue, 11 Feb 2025 16:37:32 GMT",
+      "checksum": {
+        "algorithm": "md5",
+        "expected": "753472b05526e1f4009b805dcb7ff687",
+        "actual": "753472b05526e1f4009b805dcb7ff687",
+        "verified": true,
+        "verified_at_utc": "2026-10-17T10:36:59Z"
+      },
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/JC241_HDSCI_DIVE403_17.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "download": {
+        "status": "verified",
+        "recorded_at_utc": "2026-10-17T10:33:53Z",
+        "completed_at_utc": "2026-10-17T10:36:59Z",
+        "actual_size_bytes": 3057037896
+      },
+      "ingestion": {
+        "status": "not_ingested",
+        "object_key": null,
+        "indexed_at_utc": null,
+        "visibility": null
+      },
+      "derivatives": {
+        "clip_ids": [
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-001",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-002",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-003",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-004",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-005",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-006",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-007",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-008",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-009",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-010",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-011",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-012",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-013",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-014",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-015",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-016",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-017",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-018",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-019",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-020",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-021",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-022",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-023",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-024",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-025",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-026",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-027",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-028",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-029",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-030",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-031",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-032",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-033",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-034",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-035",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-036",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-037",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-038",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-039",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-040",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-041",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-042",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-043",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-044",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-045",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-046",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-047",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-048",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-049",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-050",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-051",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-052",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-053",
+          "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-054"
+        ],
+        "clip_count": 54,
+        "status": "prepared",
+        "source_packet_counts_by_stream": [
+          246435,
+          161001,
+          246435
+        ],
+        "derived_packet_counts_by_stream": [
+          246435,
+          161001,
+          246435
+        ],
+        "packet_conservation_verified": true
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-001",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_001.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 1,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_001.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 54435486,
+      "duration_seconds": 119.968141,
+      "source_time_range_seconds": {
+        "start": 0.0,
+        "end": 120.04,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "7068f7d9ccc92a433360743da4dfef78fbd1cf4d17e784b1958ef4790ece5607",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4591,
+          3000,
+          4591
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105333_3c6e3810.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:32.209793Z",
+        "uploaded_at_utc": "2026-10-17T10:53:33.445434Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-002",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_002.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 2,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_002.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 57099000,
+      "duration_seconds": 125.76,
+      "source_time_range_seconds": {
+        "start": 120.04,
+        "end": 245.8,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "dd6e71a975001d0de51888f4c68e78be5d8e703286d45dcec97a8cb1eece0622",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4814,
+          3144,
+          4814
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105335_d543f104.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:33.446776Z",
+        "uploaded_at_utc": "2026-10-17T10:53:35.687232Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-003",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_003.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 3,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_003.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 50088447,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 245.8,
+        "end": 365.8,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "8fec2faaffdf78beec25103b902bd842ff20504831f06d184858a91fd2c5f8b1",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105336_3a3cdf61.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:35.688566Z",
+        "uploaded_at_utc": "2026-10-17T10:53:36.938595Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-004",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_004.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 4,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_004.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 49947597,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 365.8,
+        "end": 485.8,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "463ea2cb3811ba7cd7ebf50f585c87595cdb7b408b9f8e1a2bf5a190f92420c5",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105338_a863508f.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:36.939957Z",
+        "uploaded_at_utc": "2026-10-17T10:53:38.244623Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-005",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_005.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 5,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_005.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 49404526,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 485.8,
+        "end": 605.8,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "894e1e44ad9d381718149ceabcb8aee45a8484c3d70cc23154f501558f66c67b",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105339_c271eaff.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:38.246005Z",
+        "uploaded_at_utc": "2026-10-17T10:53:39.359058Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-006",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_006.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 6,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_006.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 49177847,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 605.8,
+        "end": 725.8,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "610c0fa7b8d0ae9782f24d99af5a26866f1202cfc5193af930052bdae671b67d",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4593,
+          3000,
+          4593
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105340_09cccc64.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:39.360409Z",
+        "uploaded_at_utc": "2026-10-17T10:53:40.621825Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-007",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_007.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 7,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_007.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 54479177,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 725.8,
+        "end": 845.8,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "af12802065b7050622b130a6376d750f04430f06c4379a0042efb56e3b733b25",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105341_f0a54356.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:40.623109Z",
+        "uploaded_at_utc": "2026-10-17T10:53:41.947169Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-008",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_008.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 8,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_008.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 53138284,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 845.8,
+        "end": 965.8,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "9fd7bead7c42b5ce70e596edf53184258af6a798ca49026b15d9a2362aa192b4",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105342_4aa08cab.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:41.949764Z",
+        "uploaded_at_utc": "2026-10-17T10:53:43.147531Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-009",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_009.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 9,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_009.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 57665745,
+      "duration_seconds": 120.76,
+      "source_time_range_seconds": {
+        "start": 965.8,
+        "end": 1086.56,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "46c2122d3531e2e01fe88920294ef0185b19b48f288853c60d864334df7fca24",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4623,
+          3019,
+          4623
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105344_2588566a.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:43.148803Z",
+        "uploaded_at_utc": "2026-10-17T10:53:44.487215Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-010",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_010.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 10,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_010.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 52769661,
+      "duration_seconds": 117.96,
+      "source_time_range_seconds": {
+        "start": 1086.56,
+        "end": 1204.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "694ba16dac40af2b3780d8d4fcbc7967e10dc3395ee93004532aced4f06950bc",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4515,
+          2949,
+          4515
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105345_f9d3fa51.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:44.488482Z",
+        "uploaded_at_utc": "2026-10-17T10:53:45.693659Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-011",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_011.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 11,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_011.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 39640578,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 1204.52,
+        "end": 1324.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "bea05535fe35fe5552843072b1288380f1443db956f36ce8cd3f62ab990df58c",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105346_672c4dcb.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:45.694923Z",
+        "uploaded_at_utc": "2026-10-17T10:53:46.609417Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-012",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_012.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 12,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_012.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 44403264,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 1324.52,
+        "end": 1444.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "fe3a261e7cf308031a1921a18552013c53c35a4d5ec2bb8498500d109be9e7a5",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105347_b6a9a820.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:46.610683Z",
+        "uploaded_at_utc": "2026-10-17T10:53:47.756399Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-013",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_013.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 13,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_013.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 44507958,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 1444.52,
+        "end": 1564.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "e7da65c9433bd4e334ad2ae6956bd4f4c457b7d7685de53137f30eae92cc92c2",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105348_53cfca55.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:47.757762Z",
+        "uploaded_at_utc": "2026-10-17T10:53:48.979220Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-014",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_014.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 14,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_014.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 51353817,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 1564.52,
+        "end": 1684.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "e47539cb6c9e2bde47a12b8b1b9d256cac0b11d9e1e921830de9b1df6ba53f90",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4593,
+          3000,
+          4593
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105350_5167a46e.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:48.980665Z",
+        "uploaded_at_utc": "2026-10-17T10:53:50.226351Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-015",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_015.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 15,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_015.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 59235054,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 1684.52,
+        "end": 1804.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "78239cda2584c6010d2dcb55756951a2e3ff216e7e805c5bbf1682df838c4d4b",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105351_aa224a2d.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:50.227705Z",
+        "uploaded_at_utc": "2026-10-17T10:53:51.619480Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-016",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_016.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 16,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_016.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 56795922,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 1804.52,
+        "end": 1924.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "05b6055a675a0c6d37e55bd90569d2afde237d908c6487ae3313b21ffb5a042b",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105355_49fb44dd.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:51.620783Z",
+        "uploaded_at_utc": "2026-10-17T10:53:55.883080Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-017",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_017.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 17,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_017.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 67778639,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 1924.52,
+        "end": 2044.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "ca1c24fbc225dce5da222f85267885caa4457a05244517c7ad1610f7f4352ad1",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105357_a923a7f7.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:55.884463Z",
+        "uploaded_at_utc": "2026-10-17T10:53:57.617797Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-018",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_018.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 18,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_018.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 66546367,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 2044.52,
+        "end": 2164.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "1fd13d87c0fded730d0d8be45c5a3cee29014f3b913e884d54c0b946a950cfa2",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4593,
+          3000,
+          4593
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105358_ec1e9cd0.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:57.619067Z",
+        "uploaded_at_utc": "2026-10-17T10:53:59.225182Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-019",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_019.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 19,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_019.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 61185485,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 2164.52,
+        "end": 2284.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "a3257e74736202c9225a64ae8e8f2b5e6642204793f88f4480b56a77372b76bb",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105400_e4a370dc.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:53:59.226486Z",
+        "uploaded_at_utc": "2026-10-17T10:54:01.035244Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-020",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_020.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 20,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_020.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 57113635,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 2284.52,
+        "end": 2404.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "4fa316e47221cec9140eeb046ead55d770755985585038ea84ebd1f3ea1ff8a8",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105402_63f10015.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:01.036563Z",
+        "uploaded_at_utc": "2026-10-17T10:54:02.306601Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-021",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_021.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 21,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_021.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 60825595,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 2404.52,
+        "end": 2524.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "ba0ba7a14cc7ab35cf29d7167ed0f3b9fdf4e97ad4796c38c37f75b10e87ccec",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105403_c7ff2ce0.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:02.307991Z",
+        "uploaded_at_utc": "2026-10-17T10:54:03.664119Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-022",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_022.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 22,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_022.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 60760333,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 2524.52,
+        "end": 2644.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "9f7e7fffa2ac4049e24bf027151e9fada88aaaa3400d8bae8f3a4a3cf27c2fbf",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4593,
+          3000,
+          4593
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105404_3554c2b7.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:03.665418Z",
+        "uploaded_at_utc": "2026-10-17T10:54:05.118981Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-023",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_023.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 23,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_023.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 58360817,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 2644.52,
+        "end": 2764.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "752c85ba02f7da73e27bdfa97008cec1e8ba0a0d9afa21ce2f7687426ebfbe33",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105406_ee7ba764.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:05.120425Z",
+        "uploaded_at_utc": "2026-10-17T10:54:06.437602Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-024",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_024.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 24,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_024.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 59834411,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 2764.52,
+        "end": 2884.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "f4f93fcfef6d4d96edaf60c64b1d75d282a8ce67db8ed96eaa40353c920cc2b5",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105407_c5829ff7.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:06.438928Z",
+        "uploaded_at_utc": "2026-10-17T10:54:07.955307Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-025",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_025.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 25,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_025.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 61535303,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 2884.52,
+        "end": 3004.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "5e46bb223f34abe9093bf3b733ef36692e9c696c1afee7004cd060480257039f",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105409_b541039b.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:07.956739Z",
+        "uploaded_at_utc": "2026-10-17T10:54:09.351290Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-026",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_026.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 26,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_026.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 59890978,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 3004.52,
+        "end": 3124.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "5a1581a2527f51443f4e74cb6409ee20adb820385f37ecca3c82a0ef9d5c47ea",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4593,
+          3000,
+          4593
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105410_e7c5ba80.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:09.352659Z",
+        "uploaded_at_utc": "2026-10-17T10:54:10.731791Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-027",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_027.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 27,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_027.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 61577440,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 3124.52,
+        "end": 3244.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "64368e740129791ad62cd55ffc32ae80545d977079930188aaea6574f03c46d7",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105412_363981d4.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:10.733153Z",
+        "uploaded_at_utc": "2026-10-17T10:54:12.435930Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-028",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_028.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 28,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_028.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 58865900,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 3244.52,
+        "end": 3364.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "8c2208fd89cc693c0a31af4bc45769189085b4b0adbaf0e6a5f749e484245d46",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105413_0936be1e.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:12.437309Z",
+        "uploaded_at_utc": "2026-10-17T10:54:13.886940Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-029",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_029.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 29,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_029.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 58394446,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 3364.52,
+        "end": 3484.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "c31629a39274a5011c13e3f2892bbd5ecc403866d0cbdcad6b3139be69748894",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105416_cbaae95b.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:13.888340Z",
+        "uploaded_at_utc": "2026-10-17T10:54:16.686743Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-030",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_030.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 30,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_030.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 65058003,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 3484.52,
+        "end": 3604.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "d4e57d198c663f29ca8816c2e7dfad8afe5572b8ea776cb63e47861e1987288f",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4593,
+          3000,
+          4593
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105419_953d3565.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:16.688096Z",
+        "uploaded_at_utc": "2026-10-17T10:54:19.246822Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-031",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_031.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 31,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_031.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 58536508,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 3604.52,
+        "end": 3724.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "b1ffb83c3082daf1d163e2867e7a5425ccf07b27c594400955a44171c09d1f53",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105420_de26804d.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:19.248149Z",
+        "uploaded_at_utc": "2026-10-17T10:54:20.911758Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-032",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_032.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 32,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_032.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 52943062,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 3724.52,
+        "end": 3844.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "071ae35dc038e65c8205357a29a327a4161755e179b7124f6bc9112396176612",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105423_2166b293.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:20.913077Z",
+        "uploaded_at_utc": "2026-10-17T10:54:23.846037Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-033",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_033.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 33,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_033.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 50220251,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 3844.52,
+        "end": 3964.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "ca322e468347bf6b1124587deca51bb35d9f71992f2712be46f91a147723ff61",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105424_5dbd05ff.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:23.847349Z",
+        "uploaded_at_utc": "2026-10-17T10:54:25.013180Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-034",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_034.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 34,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_034.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 53554257,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 3964.52,
+        "end": 4084.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "b1bc589eba82765077c133b038dcbdb15a1118ff16f7bfd66a110b216efad036",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4593,
+          3000,
+          4593
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105426_f4a98a91.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:25.014509Z",
+        "uploaded_at_utc": "2026-10-17T10:54:26.242839Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-035",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_035.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 35,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_035.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 53097719,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 4084.52,
+        "end": 4204.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "67ee0c4c5aef8a2c3a78c508246f5edcb5729eca5ecdb5be742a950dc59ac4d3",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105427_3cac630d.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:26.244115Z",
+        "uploaded_at_utc": "2026-10-17T10:54:27.454921Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-036",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_036.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 36,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_036.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 55615458,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 4204.52,
+        "end": 4324.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "14a45486703a54192cfcd4512bd717a466df46e4536dd6bd8ff4da0ece7be991",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105428_b4a1847b.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:27.456246Z",
+        "uploaded_at_utc": "2026-10-17T10:54:28.773657Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-037",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_037.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 37,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_037.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 53300983,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 4324.52,
+        "end": 4444.52,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "a6e264cb7df9b770dba73031eb2329b9de827a28be20136743803cd988735ad9",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105429_2fa0d25d.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:28.774990Z",
+        "uploaded_at_utc": "2026-10-17T10:54:30.038367Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-038",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_038.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 38,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_038.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 49887875,
+      "duration_seconds": 119.88,
+      "source_time_range_seconds": {
+        "start": 4444.52,
+        "end": 4564.4,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "214f233d36bad95a09d779ce82f68ed4052b0c7b6ff78aafa5c2f5288f43b598",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4589,
+          2997,
+          4589
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105431_83bf79e0.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:30.039668Z",
+        "uploaded_at_utc": "2026-10-17T10:54:31.853281Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-039",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_039.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 39,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_039.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 51038022,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 4564.4,
+        "end": 4684.4,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "0d3e4143de47310dd00871ae4a4eb71e8f6abd76df63656daa67f4160e24e016",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4594,
+          3000,
+          4594
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105433_800a579d.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:31.854592Z",
+        "uploaded_at_utc": "2026-10-17T10:54:33.280044Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-040",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_040.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 40,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_040.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 50442307,
+      "duration_seconds": 120.0,
+      "source_time_range_seconds": {
+        "start": 4684.4,
+        "end": 4804.4,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "a8cf9c4cadcc332d3636b79e8396b636c7a6ff7ed18765e5d0817d76d2fd1e9e",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4593,
+          3000,
+          4593
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105434_61104b49.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:33.281477Z",
+        "uploaded_at_utc": "2026-10-17T10:54:34.865337Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-041",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_041.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 41,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_041.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 49868829,
+      "duration_seconds": 119.04,
+      "source_time_range_seconds": {
+        "start": 4804.4,
+        "end": 4923.44,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "299c4fd4377795014ceacb4e04483ebeca59f00d905a69f68fcdd8a9c38481eb",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4557,
+          2976,
+          4557
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105436_a8c8dc22.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:34.866806Z",
+        "uploaded_at_utc": "2026-10-17T10:54:36.292317Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-042",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_042.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 42,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_042.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 54642529,
+      "duration_seconds": 119.68,
+      "source_time_range_seconds": {
+        "start": 4923.44,
+        "end": 5043.12,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "86988f330109be8737f090000c751195617c556af65d060be681b04e329bc1b4",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4582,
+          2992,
+          4582
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105437_99e48c7c.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:36.293842Z",
+        "uploaded_at_utc": "2026-10-17T10:54:37.633722Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-043",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_043.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 43,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_043.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 55917241,
+      "duration_seconds": 118.88,
+      "source_time_range_seconds": {
+        "start": 5043.12,
+        "end": 5162.0,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "5b3b7cb0915a94dabc25ae566449a67cde4c9659aa3b699a22cfdd4c44f0a34e",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4551,
+          2972,
+          4551
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105438_71e2b914.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:37.635051Z",
+        "uploaded_at_utc": "2026-10-17T10:54:39.008837Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-044",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_044.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 44,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_044.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 53970064,
+      "duration_seconds": 125.24,
+      "source_time_range_seconds": {
+        "start": 5162.0,
+        "end": 5287.24,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "276f3cf08a84e3f6f68a9da93d323e0e2c9774b19376606c889cbc69c5174a2b",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4794,
+          3131,
+          4794
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105440_405fba29.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:39.010181Z",
+        "uploaded_at_utc": "2026-10-17T10:54:40.317481Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-045",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_045.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 45,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_045.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 52686786,
+      "duration_seconds": 118.92,
+      "source_time_range_seconds": {
+        "start": 5287.24,
+        "end": 5406.16,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "a9c8c217136bf4379479d7d8171a262cde93a7e193f4f5b5ea1040e159a5fe9f",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4552,
+          2973,
+          4552
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105441_4ff1448d.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:40.318795Z",
+        "uploaded_at_utc": "2026-10-17T10:54:41.517900Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-046",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_046.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 46,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_046.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 55965551,
+      "duration_seconds": 122.04,
+      "source_time_range_seconds": {
+        "start": 5406.16,
+        "end": 5528.2,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "1c663f2eaeac517bdca042608f494a7999ae3f5c446c09f963eb812de1abdc35",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4672,
+          3051,
+          4672
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105442_9efa6fd2.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:41.519274Z",
+        "uploaded_at_utc": "2026-10-17T10:54:42.773452Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-047",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_047.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 47,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_047.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 64693002,
+      "duration_seconds": 118.28,
+      "source_time_range_seconds": {
+        "start": 5528.2,
+        "end": 5646.48,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "cb1984b150702f284a7cf05f92a9897b675edda5ddd240e0b4affd78e24da977",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4528,
+          2957,
+          4528
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105443_83c96564.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:42.774787Z",
+        "uploaded_at_utc": "2026-10-17T10:54:44.233819Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-048",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_048.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 48,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_048.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 67035072,
+      "duration_seconds": 113.92,
+      "source_time_range_seconds": {
+        "start": 5646.48,
+        "end": 5760.4,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "351a1b973592fd4160842a0fcc9ed0cc1eaa8b550a7017d3918d65a3149d4238",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4361,
+          2848,
+          4361
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105446_61850981.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:44.235252Z",
+        "uploaded_at_utc": "2026-10-17T10:54:46.934982Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-049",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_049.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 49,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_049.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 81043759,
+      "duration_seconds": 124.24,
+      "source_time_range_seconds": {
+        "start": 5760.4,
+        "end": 5884.64,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "e85feda090d41a8c682b6ff1eb6469dbe06b41a91e829b160953d56a75ce6f04",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4756,
+          3106,
+          4756
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105448_a13fef51.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:46.936287Z",
+        "uploaded_at_utc": "2026-10-17T10:54:48.745434Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-050",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_050.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 50,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_050.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 77572765,
+      "duration_seconds": 118.76,
+      "source_time_range_seconds": {
+        "start": 5884.64,
+        "end": 6003.4,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "83b630d316991326cf126a572786a0a0ce6eafce98343e87569f61c18e66f43f",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4547,
+          2969,
+          4547
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105450_727981fb.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:48.746775Z",
+        "uploaded_at_utc": "2026-10-17T10:54:50.550451Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-051",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_051.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 51,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_051.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 60797340,
+      "duration_seconds": 120.92,
+      "source_time_range_seconds": {
+        "start": 6003.4,
+        "end": 6124.32,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "0530f4b3e84f9651786895fae20fb142c71ae16d989c77df75caed45e577b410",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4629,
+          3023,
+          4629
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105451_982a21bf.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:50.551778Z",
+        "uploaded_at_utc": "2026-10-17T10:54:52.018964Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-052",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_052.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 52,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_052.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 61110590,
+      "duration_seconds": 117.32,
+      "source_time_range_seconds": {
+        "start": 6124.32,
+        "end": 6241.64,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "511c5dd3ffcfe5b0d1984b7dd6ad92435e41c47d6783709d4077b28282f33e79",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4491,
+          2933,
+          4491
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105453_e9206afd.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:52.020330Z",
+        "uploaded_at_utc": "2026-10-17T10:54:53.465960Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-053",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_053.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 53,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_053.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 70501622,
+      "duration_seconds": 123.76,
+      "source_time_range_seconds": {
+        "start": 6241.64,
+        "end": 6365.4,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "828ccbac104da479481553eb6da2d19b240419dd90ce5882ff661659b7e0388b",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          4737,
+          3094,
+          4737
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105454_4cc24058.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:53.467310Z",
+        "uploaded_at_utc": "2026-10-17T10:54:55.155647Z"
+      }
+    },
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-054",
+      "filename": "JC241_HDSCI_DIVE403_17_clip_054.mp4",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "sequence": 54,
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/ceda/soc250721/clips/JC241_HDSCI_DIVE403_17/JC241_HDSCI_DIVE403_17_clip_054.mp4",
+        "index_path": "~/data/ceda/external-videos.json"
+      },
+      "size_bytes": 40825366,
+      "duration_seconds": 74.68,
+      "source_time_range_seconds": {
+        "start": 6365.4,
+        "end": 6440.08,
+        "basis": "FFmpeg segment muxer CSV; cuts follow video keyframes"
+      },
+      "derivation": {
+        "method": "ffmpeg_stream_copy",
+        "target_segment_seconds": 120,
+        "preserved_streams": 3,
+        "created_at_utc": "2026-10-17T10:50:06.556855Z"
+      },
+      "checksum": {
+        "algorithm": "sha256",
+        "actual": "4feafd3ea450a286c0204fcedc1324dc8bbeff23007aa4da3371e0d005dff974",
+        "origin": "locally computed for derived clip"
+      },
+      "validation": {
+        "size_below_100000000_bytes": true,
+        "starts_with_video_keyframe": true,
+        "packet_counts_by_stream": [
+          2764,
+          1867,
+          2764
+        ]
+      },
+      "ingestion": {
+        "status": "indexing",
+        "object_key": "team-29/20261017_105455_f9a5fa8e.mp4",
+        "indexed_at_utc": null,
+        "visibility": "private",
+        "batch_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+        "upload_started_at_utc": "2026-10-17T10:54:55.156994Z",
+        "uploaded_at_utc": "2026-10-17T10:54:56.080353Z"
+      }
+    }
+  ],
+  "updated_at_utc": "2026-10-17T11:10:37.611597Z",
+  "datasets": [
+    {
+      "id": "hf-smgjch-meow-10k",
+      "name": "Meow-10k",
+      "repository": "smgjch/meow-10k",
+      "source_url": "https://huggingface.co/datasets/smgjch/meow-10k",
+      "revision": "41e4014ef226bd822dec22be61cf5eee7f12088a",
+      "source_metadata_url": "https://huggingface.co/api/datasets/smgjch/meow-10k/tree/41e4014ef226bd822dec22be61cf5eee7f12088a?recursive=true&limit=1000",
+      "description": "A collection of feline video, audio, time-series arrays, and training annotations.",
+      "description_scope": "dataset; individual media contents have not been reviewed",
+      "access": {
+        "public": true,
+        "account_required": false,
+        "licence": "Apache-2.0",
+        "licence_scope": "declared by the dataset card",
+        "licence_source_url": "https://huggingface.co/datasets/smgjch/meow-10k/blob/41e4014ef226bd822dec22be61cf5eee7f12088a/README.md"
+      },
+      "storage": {
+        "location": "workshop_vm",
+        "path": "~/data/meow-10k",
+        "manifest_path": "~/data/meow-10k/manifest.json",
+        "index_path": "~/data/external-videos.json"
+      },
+      "download": {
+        "status": "in_progress",
+        "recorded_at_utc": "2026-10-17T10:49:27.646694+00:00",
+        "completed_at_utc": null,
+        "actual_size_bytes": null,
+        "expected_size_bytes": 3332526016,
+        "verified_size_bytes": 2666744432,
+        "total_files": 16870,
+        "file_counts_by_status": {
+          "pending": 7191,
+          "verified": 9679
+        },
+        "by_extension_and_status": [
+          {
+            "extension": ".json",
+            "status": "verified",
+            "files": 1,
+            "expected_size_bytes": 6324600,
+            "verified_size_bytes": 6324600
+          },
+          {
+            "extension": ".md",
+            "status": "verified",
+            "files": 1,
+            "expected_size_bytes": 3431,
+            "verified_size_bytes": 3431
+          },
+          {
+            "extension": ".mp4",
+            "status": "verified",
+            "files": 6735,
+            "expected_size_bytes": 2219080209,
+            "verified_size_bytes": 2219080209
+          },
+          {
+            "extension": ".npy",
+            "status": "pending",
+            "files": 3227,
+            "expected_size_bytes": 626188,
+            "verified_size_bytes": 0
+          },
+          {
+            "extension": ".npy",
+            "status": "verified",
+            "files": 1700,
+            "expected_size_bytes": 390340,
+            "verified_size_bytes": 390340
+          },
+          {
+            "extension": ".wav",
+            "status": "pending",
+            "files": 3964,
+            "expected_size_bytes": 665155396,
+            "verified_size_bytes": 0
+          },
+          {
+            "extension": ".wav",
+            "status": "verified",
+            "files": 1241,
+            "expected_size_bytes": 440943348,
+            "verified_size_bytes": 440943348
+          },
+          {
+            "extension": "[no extension]",
+            "status": "verified",
+            "files": 1,
+            "expected_size_bytes": 2504,
+            "verified_size_bytes": 2504
+          }
+        ],
+        "summary_updated_at_utc": "2026-10-17T11:02:52.091247+00:00"
+      },
+      "ingestion": {
+        "status": "in_progress",
+        "visibility": "private",
+        "settings_path": "~/data/meow-10k/meow-ingestion-v1.json",
+        "settings_version": "meow-cat-behavior-v1",
+        "indexed_at_utc": null,
+        "total_videos": 6735,
+        "video_counts_by_status": {
+          "indexed": 6,
+          "not_submitted": 6629,
+          "uploaded": 100
+        },
+        "journal_path": "~/data/meow-10k/ingestion.json",
+        "journal_sha256": "19d3b5c18ed1fed7d71432b93900e95e87f76915357e031d685d281e1aec3032",
+        "journal_updated_at_utc": "2026-10-17T11:02:51.949091+00:00",
+        "settings_sha256": "5f8eabcf339aa5ccd7de15d079f16a1c448e8a315ef9fb48370ada21212f0d12",
+        "worker_status": "batch_complete",
+        "pipeline_status_path": "~/data/meow-10k/pipeline-status.json"
+      },
+      "manifest": {
+        "relative_path": "meow-10k/manifest.json",
+        "relative_to": "data_directory",
+        "sha256": "9b335c87e06baf56b98bd63a5cf1b9cb06f5c3682f0fc3f661a649fbda292988",
+        "snapshot_at_utc": "2026-10-17T11:02:52.091247+00:00",
+        "manifest_updated_at_utc": "2026-10-17T11:02:50.975842+00:00"
+      }
+    }
+  ],
+  "ingest_batches": [
+    {
+      "id": "ceda-soc250721-JC241_HDSCI_DIVE403_17-clips-v1",
+      "source_video_id": "ceda-soc250721-JC241_HDSCI_DIVE403_17",
+      "clip_ids": [
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-001",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-002",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-003",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-004",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-005",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-006",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-007",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-008",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-009",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-010",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-011",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-012",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-013",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-014",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-015",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-016",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-017",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-018",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-019",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-020",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-021",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-022",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-023",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-024",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-025",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-026",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-027",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-028",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-029",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-030",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-031",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-032",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-033",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-034",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-035",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-036",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-037",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-038",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-039",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-040",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-041",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-042",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-043",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-044",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-045",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-046",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-047",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-048",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-049",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-050",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-051",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-052",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-053",
+        "ceda-soc250721-JC241_HDSCI_DIVE403_17-clip-054"
+      ],
+      "status": "indexing",
+      "created_at_utc": "2026-10-17T10:50:53.750562Z",
+      "confirmed_at_utc": "2026-10-17T10:53:32.208462Z",
+      "settings": {
+        "is_public": false,
+        "allowed_users": [],
+        "custom_prompt": "Describe visible seabed habitats, sediment, rocks, organisms, vehicle tracks, furrows and other visible disturbances. Read legible on-screen annotations. Separate observations from possible explanations; do not infer mining causes or historical dates unless explicitly shown.",
+        "scenario": null,
+        "tags": [
+          "underwater",
+          "seabed",
+          "rov",
+          "ceda",
+          "JC241"
+        ],
+        "capture_type": "general",
+        "location": "eastern Clarion-Clipperton Zone",
+        "camera_id": null
+      },
+      "clip_count": 54,
+      "total_bytes": 3057136673,
+      "max_clip_bytes": 81043759,
+      "uploads_completed_at_utc": "2026-10-17T10:54:56.081697Z",
+      "indexed_clip_count": 0,
+      "last_checked_at_utc": "2026-10-17T11:10:37.611583Z",
+      "monitor": {
+        "pid": 66753,
+        "status": "running",
+        "started_at_utc": "2026-10-17T11:10:36.829388Z",
+        "interval_seconds": 60,
+        "script": "/home/iverson930g/cronjob/ceda-soc250721/monitor.py",
+        "log": "~/data/ceda/ceda-ingest-monitor.log",
+        "last_success_at_utc": "2026-10-17T11:10:37.611594Z"
+      },
+      "storage_verification": {
+        "checked_at_utc": "2026-10-17T10:59:35.131432+00:00",
+        "method": "S3 HEAD: file size and stored ingest metadata; custom prompt URL-decoded",
+        "verified_clip_count": 54,
+        "checks": [
+          "size_matches",
+          "private_matches",
+          "allowed_users_matches",
+          "prompt_matches",
+          "tags_match",
+          "capture_type_matches",
+          "location_matches",
+          "original_filename_matches",
+          "camera_id_omitted"
+        ],
+        "server_checksum_verified": false
+      }
+    }
+  ]
+}

@@ -22,8 +22,11 @@ If the new skills do not appear, restart Codex with this repository open.
 ## Runtime configuration
 
 Local editing works without workshop credentials. Live API, GPU, DB, and Kubernetes
-operations need access to the configured workshop environment. Open this checkout
-with Codex running in that environment when using those workflows.
+operations need access to the configured workshop environment. You can keep Codex
+on your laptop and run those operations through SSH on the VM. Follow
+[Connect to the workshop services from Codex](SERVICE_CONNECTIONS.md) for
+cloudflared setup, SSH keys, service authentication, and a read-only query example.
+Alternatively, run Codex in the configured environment.
 
 [`config.example`](../config.example) documents the exported variables. The skills
 also use the VM's absolute `/config/` directory for team configuration and cluster

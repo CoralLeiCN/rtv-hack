@@ -14,3 +14,8 @@ For agent setup and workflows, see the [Codex setup and skill catalog](docs/CODE
 [repository instructions](AGENTS.md), [Codex skills](.agents/skills/), and
 [Cursor skills](.cursor/README.md). [`config.example`](config.example) documents
 the environment variables used by the skills.
+
+To connect from your laptop, follow the [service connection guide](docs/SERVICE_CONNECTIONS.md).
+External video sources, licences, verification and ingestion status are tracked in
+the [external video index](data/README.md). Dataset download and ingestion scripts
+are in [`cronjob/ceda-soc250721`](cronjob/ceda-soc250721/README.md).
