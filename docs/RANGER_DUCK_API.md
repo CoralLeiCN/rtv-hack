@@ -34,13 +34,15 @@ Health also establishes the browser's HttpOnly demo session cookie. Await this r
       "animal": "deer",
       "behavior_hint": "feeding",
       "description": "A deer lowers its head to feed in a clearing.",
-      "input_mode": "scripted_scene"
+      "input_mode": "scripted_scene",
+      "query": "deer feeding with its head lowered",
+      "broader_query": "hoofed animal feeding with its head lowered"
     }
   ]
 }
 ```
 
-Initial IDs are `deer-feeding`, `deer-walking`, and `deer-standing`. These describe staged scenarios, not verified footage availability. The server's scenario catalog may be adjusted after review; render its returned entries rather than hardcoding labels. No scenario includes a robot action.
+Initial IDs are `deer-feeding`, `deer-walking`, and `deer-standing`. These describe staged scenarios, not verified footage availability. The server's scenario catalog may be adjusted after review; render its returned entries rather than hardcoding labels. `query` and `broader_query` are display previews while a request is in flight; the server still selects the actual query. No scenario includes a robot action.
 
 ## Search
 
@@ -49,11 +51,15 @@ Initial IDs are `deer-feeding`, `deer-walking`, and `deer-standing`. These descr
 ```json
 {
   "encounter_id": "encounter-001",
-  "scenario_id": "deer-feeding"
+  "scenario_id": "deer-feeding",
+  "mode": "live",
+  "broaden": false
 }
 ```
 
-The frontend creates a new encounter ID for every Start or reset cycle. The backend validates the scenario, constructs its query, and requests live VSS retrieval. It must not fall back silently to replay.
+The frontend creates a new encounter ID for every Start or reset cycle. `mode` defaults to `live`; `broaden` defaults to false. Live mode validates the scenario, constructs its query, and requests VSS retrieval. It never falls back silently to replay. An explicit broader search changes "deer" to "hoofed animal" in the query and returns `match_type: "broader_category"`; the reviewed deer requirement for imitation still applies.
+
+Replay is an explicit request for the last successful live search in this browser session for the same scenario and broaden setting. It performs no new search, returns `mode: "replay"`, and issues fresh scoped clip IDs. A missing or expired snapshot returns 409 `replay_unavailable`. Snapshots expire after the clip TTL and disappear on restart; video playback still needs VSS connectivity. An older slow response cannot replace a newer snapshot. The UI must label replay and show the original recording time separately from the current request duration.
 
 Example response with a reviewed result:
 
@@ -62,14 +68,19 @@ Example response with a reviewed result:
   "encounter_id": "encounter-001",
   "search_id": "opaque-search-id",
   "mode": "live",
+  "match_type": "species",
   "status": "ok",
   "query": "deer feeding with its head lowered",
   "elapsed_ms": 4200,
+  "original_elapsed_ms": 4200,
+  "recorded_at": "2026-10-17T12:00:00+00:00",
   "candidates": [
     {
       "clip_id": "opaque-clip-id",
       "video_url": "/demo-api/clips/opaque-clip-id/video",
       "caption": "The animal lowers its head toward the grass.",
+      "caption_hash": "sha256:<64 lowercase hexadecimal characters>",
+      "review_reason": "The deer visibly lowers its head toward the ground.",
       "similarity": 0.72,
       "review_status": "reviewed",
       "eligibility_reason": "reviewed_match",
@@ -102,8 +113,9 @@ Candidate rules:
 - `review_status` is `reviewed`, `unreviewed`, or `stale`. `action` is non-null only for a reviewed, current, supported match.
 - `animal` and `reviewed_behavior` are null without a valid review. `similarity` may be null and is a retrieval score, not a probability.
 - `dataset` and segment times may be null if upstream data is incomplete. Missing timing or identity prevents imitation but may still permit playback.
+- `caption_hash` hashes the exact upstream caption before display redaction. `review_reason` contains the reviewer's note for a current reviewed reference, or null. Do not invent a reason when none was recorded.
 - `eligibility_reason` is a machine-readable string such as `reviewed_match`, `not_reviewed`, `reference_changed`, `incomplete_metadata`, `unsupported_behavior`, or `species_mismatch`. Clients must tolerate additional reasons.
-- `primitive` is `ground_pick`, `short_walk`, or `stand_hold` for the core demo. Optional supported values are `sit` and `head_scan`.
+- `primitive` is `ground_pick`, `short_walk`, or `stand_hold`. Planned optional movements `sit` and `head_scan` are not authorized by this implementation; those reviews return `unsupported_behavior` with no action until a verified simulator adapter supports them.
 - `max_duration_ms` is a cancellation ceiling, not a claim of successful completion. The simulator must observe completion. Short walk is bounded to 2000 ms and stand hold to 3000 ms.
 - `warnings` is a list of human-readable non-secret messages. No SQL, vectors, VSS tokens, or private storage URIs are returned.
 
@@ -133,7 +145,7 @@ Errors use a consistent JSON body:
 }
 ```
 
-Expected cases include 422 `invalid_request`, 404 `unknown_scenario`, 503 `live_not_configured`, 502 `upstream_error`, 504 `upstream_timeout`, and 404 `clip_not_found`. Authentication failures upstream are reported without credential or response-body details. Errors do not contain a fabricated successful result.
+Expected cases include 422 `invalid_request`, 404 `unknown_scenario`, 503 `live_not_configured`, 502 `upstream_error`, 504 `upstream_timeout`, 409 `replay_unavailable`, and 404 `clip_not_found`. Authentication failures upstream are reported without credential or response-body details. Errors do not contain a fabricated successful result.
 
 ## Frontend integration sequence
 
@@ -146,4 +158,4 @@ Expected cases include 422 `invalid_request`, 404 `unknown_scenario`, 503 `live_
 
 Frontend cancellation does not guarantee the upstream request stops, so the ID check is mandatory. The backend performs no simulator actions and creates no live model-training jobs.
 
-Replay support is deferred until live search and playback work. Any future replay route must return `mode: "replay"` and remain distinct from this live endpoint.
+Rehearsal controls may demonstrate explicitly labeled local no-match and timeout states. They must not fabricate live search evidence or enable imitation. Returning to Live clears rehearsal state.

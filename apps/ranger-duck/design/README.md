@@ -2,8 +2,10 @@
 
 Design export for the single-page demo described in
 [`docs/RANGER_DUCK_PLAN.md`](../../../docs/RANGER_DUCK_PLAN.md). This folder is
-the visual and interaction spec; the implementation (React + Three.js frontend,
-FastAPI backend) does not exist yet and should be built under `apps/ranger-duck/`.
+the visual and interaction spec. The implementation lives in `../frontend/`
+(React + Three.js/MuJoCo) and `../backend/` (FastAPI). The current wire contract
+is [`docs/RANGER_DUCK_API.md`](../../../docs/RANGER_DUCK_API.md); the illustrative
+field names below are adapted by the frontend.
 
 | File | What it is |
 | --- | --- |

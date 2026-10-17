@@ -3,6 +3,10 @@
 Build video agents on the deployed VSS stack using its search, metadata,
 detections, and video APIs.
 
+[Ranger Duck](apps/ranger-duck/README.md) combines a simulated wildlife encounter,
+archive search, video evidence, and the existing Microduck movement policies in
+one demo page.
+
 Hackathon documentation lives in [`docs/hackathon/`](docs/hackathon/):
 
 - [Build day guide](docs/hackathon/BUILD_DAY.md)

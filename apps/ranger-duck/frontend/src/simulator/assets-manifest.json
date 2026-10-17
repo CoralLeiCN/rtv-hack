@@ -1,0 +1,271 @@
+{
+  "repository": "https://huggingface.co/spaces/pollen-robotics/microduck-simulator",
+  "revision": "ad9d41a763f30dc770817c33d92dcfec0205db1e",
+  "files": [
+    {
+      "path": "robot/mjlab/kinematics.json",
+      "sha256": "099c64fa03280514eed881accf563061a640eb7800d5ce15be5af92d1f63d38b",
+      "bytes": 26666
+    },
+    {
+      "path": "robot/mjlab/robot_allcollisions.xml",
+      "sha256": "7a6fdf437f5a80c7348ad801f43f906b997a834389cb70cca5e1e8517ba38044",
+      "bytes": 32898
+    },
+    {
+      "path": "robot/mjlab/microduck.glb",
+      "sha256": "ad0b8d1c886a857fd09d337be11e731f4ac72bf099b0af63081031f97ed6eadb",
+      "bytes": 1279444
+    },
+    {
+      "path": "robot/mjlab/meshes/neck_pitch.stl",
+      "sha256": "dbd6fcbf8b8f27a8364d5bcae2b9a537d7e384325b44a653b360139b6fa1da2f",
+      "bytes": 85284
+    },
+    {
+      "path": "robot/mjlab/meshes/ankle_right.stl",
+      "sha256": "48b8551a13d22cc8752ddf3148796b357a6cbd6e2ecbd93c3ecdfbf55e533e72",
+      "bytes": 51584
+    },
+    {
+      "path": "robot/mjlab/meshes/sole_left.stl",
+      "sha256": "357f80bb46855e3ce50f817705acd80471dae90b4ee6b4a0a948614a7daeddb1",
+      "bytes": 197384
+    },
+    {
+      "path": "robot/mjlab/meshes/jaw.stl",
+      "sha256": "90afa64e47ef237f0f58d6f4830dc3cd6215328ed8a639b1e1a9eb2157307f4a",
+      "bytes": 120834
+    },
+    {
+      "path": "robot/mjlab/meshes/right_shell.stl",
+      "sha256": "c346581c2e3c2c189ea49372a147dfbc0dca89db4ec02f9f230921e480e762a7",
+      "bytes": 256384
+    },
+    {
+      "path": "robot/mjlab/meshes/sole_right.stl",
+      "sha256": "07801107a36dbc1c2b83b3b64ad98be39ba662a8a7fa0b62a29119b201f41fe6",
+      "bytes": 198684
+    },
+    {
+      "path": "robot/mjlab/meshes/seeed_bearing__configuration_default.stl",
+      "sha256": "e4338e0e6c7adeb52a35e02d6fa5babe761e8752ffa0fc2e31b0ba672c18630d",
+      "bytes": 260084
+    },
+    {
+      "path": "robot/mjlab/meshes/rim.stl",
+      "sha256": "a6d58f80ec60041e721cba1de7af5c834700166a5c10e7f68d1a2b79c7b78cb0",
+      "bytes": 28884
+    },
+    {
+      "path": "robot/mjlab/meshes/lens.stl",
+      "sha256": "b9b86fce70198040781a739e2c15d2996b549b25d73b7544005ae08a415b486e",
+      "bytes": 23484
+    },
+    {
+      "path": "robot/mjlab/meshes/noenoeil.stl",
+      "sha256": "55f3167627f6fbd1a19966f92396adf2ccd55795b13ded3b9f52705ba8a7ab77",
+      "bytes": 12384
+    },
+    {
+      "path": "robot/mjlab/meshes/upper_leg_right.stl",
+      "sha256": "97fd516a4c0e593fef9e22b1521d60ca86bd91966a4328db0834bac5ba1cabdf",
+      "bytes": 124434
+    },
+    {
+      "path": "robot/mjlab/meshes/foot_right.stl",
+      "sha256": "e2aba02ec1b949bc8a5a77ad3d0af9009dee80c100aa4bbfcf336f1fa5ef206f",
+      "bytes": 246084
+    },
+    {
+      "path": "robot/mjlab/meshes/ankle_r_v1.stl",
+      "sha256": "c200102fb6f067cbec73f048fe2020b127e61d47fcffd7dbd84c90439767fd3f",
+      "bytes": 69484
+    },
+    {
+      "path": "robot/mjlab/meshes/seeed_bearing__configuration__22x16x4.stl",
+      "sha256": "8551dc99cbdc012bd261c2a175f2cc766dd6aed0786781b35f8381cd3aa95b34",
+      "bytes": 260134
+    },
+    {
+      "path": "robot/mjlab/meshes/elec_rpi_robot_hat_pcb.stl",
+      "sha256": "acc66b75f2ff26f42339577c38c6f348ec73c4fbb52912637ba5244eb1a78ebb",
+      "bytes": 225434
+    },
+    {
+      "path": "robot/mjlab/meshes/foot_left.stl",
+      "sha256": "b7749b1f4fd9e7faf8180772d7ce8254139c60bc43aee463ec76afc86212d59c",
+      "bytes": 241934
+    },
+    {
+      "path": "robot/mjlab/meshes/top_head_shell.stl",
+      "sha256": "a59823b8f2ab23d530e6b071559f7fd308851ae035b7cb4d0b7baf7edef4b3e3",
+      "bytes": 194984
+    },
+    {
+      "path": "robot/mjlab/meshes/yaw2roll.stl",
+      "sha256": "c20cbdd8a9d52f789ec5a4b0d4a173a225652c6bc4610d555ea309c7a0e0d559",
+      "bytes": 119884
+    },
+    {
+      "path": "robot/mjlab/meshes/m12_lens_holder.stl",
+      "sha256": "d96825a096d5d3d5d252086cf0cdb3f5bc22d9f0baef0a3f97a85bae1617be99",
+      "bytes": 98334
+    },
+    {
+      "path": "robot/mjlab/meshes/upper_leg_left.stl",
+      "sha256": "a626dafcdd0074fd4e79e604d377495d304d222f1afd27b13487b7248b35a0b8",
+      "bytes": 133134
+    },
+    {
+      "path": "robot/mjlab/meshes/soft_mouth_top.stl",
+      "sha256": "451f53d30350552cb6e26f777698272f7c3fa557f389adb24f94c75a201e67cd",
+      "bytes": 98384
+    },
+    {
+      "path": "robot/mjlab/meshes/bottom_head_shell.stl",
+      "sha256": "331a361406e77c05256e5064197f785ac1e9c8f091079a3519c2e33f28ae5ebc",
+      "bytes": 231334
+    },
+    {
+      "path": "robot/mjlab/meshes/tire.stl",
+      "sha256": "14c08d73185a4b521897aca74fb8b2a6d306a20d80e8822aa56cf1b4ace29bec",
+      "bytes": 88284
+    },
+    {
+      "path": "robot/mjlab/meshes/left_shell.stl",
+      "sha256": "c31e71e2e55c5daccfef738c80053104ba2fb3589a0836ab1b6ebb5c380a05ae",
+      "bytes": 256334
+    },
+    {
+      "path": "robot/mjlab/meshes/ankle_l_v1.stl",
+      "sha256": "74f9a51e15ac8fef93fc2efa35b61dc53cf832d798f75c3229700bd9b3aed4c4",
+      "bytes": 79484
+    },
+    {
+      "path": "robot/mjlab/meshes/face_part.stl",
+      "sha256": "47ad1137a68bf72b2c93f1bf4836f18fb9a8d21a4f8f86fbe761b9871233fcce",
+      "bytes": 136784
+    },
+    {
+      "path": "robot/mjlab/meshes/hip_l.stl",
+      "sha256": "dbdf6e7f5587385c0f6a77b407931b30e81c9a212dac7c52b4e0884156049056",
+      "bytes": 229134
+    },
+    {
+      "path": "robot/mjlab/meshes/motor_support.stl",
+      "sha256": "d6725004f0a85a5cf0161214ea0d39fb6f14ee3563c9a96cd5aad725b5e2a716",
+      "bytes": 45284
+    },
+    {
+      "path": "robot/mjlab/meshes/leg.stl",
+      "sha256": "bfbc6ae5faefc56bd65d860cf3410a08e8286717063584f15b56bbd5302b20f8",
+      "bytes": 166434
+    },
+    {
+      "path": "robot/mjlab/meshes/np_f970.stl",
+      "sha256": "01fbacc788b53ebb7648cda07090133b8c696da31d700c560f45189494977871",
+      "bytes": 247734
+    },
+    {
+      "path": "robot/mjlab/meshes/upper_leg_rigidity_plate.stl",
+      "sha256": "96e50158d44ef97fc46f5d6330b6bb02fb93116790ae892a170fdd052e696aba",
+      "bytes": 45084
+    },
+    {
+      "path": "robot/mjlab/meshes/ankle_left.stl",
+      "sha256": "df5d7f04d63390a1e263e0138ee94e1aec2ff2b55cf63729f4ec461b25c1c1f0",
+      "bytes": 58284
+    },
+    {
+      "path": "robot/mjlab/meshes/pcb__raspberry_pi_zero_2_w.stl",
+      "sha256": "43d8368ced3d623eaa5ef538e8361f5878b85931b7cd469a4488eee7aa00bd91",
+      "bytes": 262184
+    },
+    {
+      "path": "robot/mjlab/meshes/jaw_soft.stl",
+      "sha256": "6c3ebb578ea5e6d7b995baca9b42ef7c9f9858b56dedf6f0d949f5e6ea9d3ef2",
+      "bytes": 84084
+    },
+    {
+      "path": "robot/mjlab/meshes/trunk_base.stl",
+      "sha256": "4b84ebe28041e6236ecafd4a26cebe537e21c14423e6acded3d78478c7650ed7",
+      "bytes": 38734
+    },
+    {
+      "path": "robot/mjlab/meshes/yaw_roll_motion.stl",
+      "sha256": "ae3740fde29a261b79650a25825baedd84d538fc67b6b20b79589125e5e05592",
+      "bytes": 62184
+    },
+    {
+      "path": "robot/mjlab/meshes/neck.stl",
+      "sha256": "3cb654ee9387d55c7d10d40fc84bb7cbf3cedb3243d1da499cf01c54d366079c",
+      "bytes": 18384
+    },
+    {
+      "path": "robot/mjlab/meshes/bearing_roll.stl",
+      "sha256": "fa0da0a5eef428a41da6e9639f75120781594e600c5db7518621750221669849",
+      "bytes": 30284
+    },
+    {
+      "path": "robot/mjlab/meshes/power_support.stl",
+      "sha256": "4aee9ddf8c12478d334f3d8d9e65af712072bef241283a08c895606fc2e3d9e8",
+      "bytes": 128234
+    },
+    {
+      "path": "robot/mjlab/meshes/speaker.stl",
+      "sha256": "0ef54df86c6093c166d73e33dc0b8364ef5643a7a1b1dacaba577be5a9c06c32",
+      "bytes": 684
+    },
+    {
+      "path": "robot/mjlab/meshes/banana_pcb_locker.stl",
+      "sha256": "2e51f6e23e4dbea660a9dbadcd763bbc77d48a7e3e0a58f047eab45554e07b55",
+      "bytes": 11634
+    },
+    {
+      "path": "robot/mjlab/meshes/roller_blade.stl",
+      "sha256": "a8b0e6dbdb593eceaba1a0cc2a70ad8aac56f4c3b22676dbfb97409c1a094615",
+      "bytes": 262184
+    },
+    {
+      "path": "robot/mjlab/meshes/xl330.stl",
+      "sha256": "d3c7b71750397083d3dfbad395fd8ac794763f43e2ea2b5006da5840c976fc82",
+      "bytes": 45584
+    },
+    {
+      "path": "policies/BEST_alpha_walking.onnx",
+      "sha256": "e36332d383997d51401897734cd3e79cf5038406feddb18b4d57ecfb141daa6c",
+      "bytes": 793705
+    },
+    {
+      "path": "policies/BEST_alpha_sitstand.onnx",
+      "sha256": "c6c40e35e726eabd803d633e090d112994f469921152448367953fbaf9799bc8",
+      "bytes": 793695
+    },
+    {
+      "path": "policies/BEST_alpha_stand.onnx",
+      "sha256": "1569268713e40deea795dd2922dba50d3621e15a872855408b6b1b125b1c094b",
+      "bytes": 793705
+    },
+    {
+      "path": "policies/alpha_ground_pick.onnx",
+      "sha256": "ffbf5109982ff999b0ba53afe86b9ae731bbec679d67fb7f8ab4c52152c88872",
+      "bytes": 793685
+    },
+    {
+      "path": "policies/roulade.onnx",
+      "sha256": "3d60da08fc13f29c1b57f41977aa898132c0d60042100149d8e775affcbca32b",
+      "bytes": 793685
+    },
+    {
+      "path": "policies/ball_kick_left.onnx",
+      "sha256": "d6928284dccd3dd61e08bf2f760effa74309fbefd97b2b31afb2a60f526d196a",
+      "bytes": 793685
+    },
+    {
+      "path": "policies/ball_kick_right.onnx",
+      "sha256": "147a32c388c6b19111b3ac3b550a9a6dc8b8bf267118af4d8c3712522eedb5af",
+      "bytes": 793685
+    }
+  ]
+}

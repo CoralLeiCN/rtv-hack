@@ -1,6 +1,6 @@
 # Ranger Duck implementation context
 
-This context supports the [approved plan](RANGER_DUCK_PLAN.md) and [frontend integration contract](RANGER_DUCK_API.md). The user will build the frontend separately. Backend work must stay under `apps/ranger-duck/backend/` and its own supporting files; do not create or change frontend files.
+This context supports the [approved plan](RANGER_DUCK_PLAN.md) and [frontend integration contract](RANGER_DUCK_API.md). The user subsequently supplied `apps/ranger-duck/design/` and requested frontend implementation by a subagent, with backend integration, commit, and push. The supplied design is the UX reference; the API contract records its runtime adaptation.
 
 ## Product decisions
 
@@ -10,6 +10,8 @@ This context supports the [approved plan](RANGER_DUCK_PLAN.md) and [frontend int
 - Core movements are feeding to `ground_pick`, walking to `short_walk`, and standing to `stand_hold`. Resting to `sit` and looking around to `head_scan` are optional.
 - New training, real animal interaction, physical robot deployment, voice input, and safari playlists are outside the approved build.
 - Keep live retrieval and cached replay visibly distinct. Never enable an action solely from the scenario or search query.
+- The implemented replay stores only previous successful live results in the browser's backend session. It is explicit, expires, and still requires VSS for video. Broader retrieval changes the query to a hoofed animal while preserving the deer review requirement.
+- The first simulator adapter implements `ground_pick`, `short_walk`, and `stand_hold`. Optional sitting and head scanning are not authorized as imitation actions until implemented and verified.
 
 ## VSS access
 
@@ -54,3 +56,15 @@ Reset must invalidate the current encounter, stop any action, and ignore late re
 The backend deliverable includes the HTTP service, dependency metadata, unit/integration tests, example configuration with names only, reference-manifest tooling, and startup instructions. It must run without VSS configuration for local contract testing, report live search as unconfigured, and avoid fake live data.
 
 Tests should cover upstream authentication and timeouts, evidence eligibility, response normalization, scoped opaque video IDs, and range playback. Live access and human review of clips remain separate verification steps when the configured VM is available. Do not deploy, upload, re-ingest, or modify the shared pipeline as part of backend implementation.
+
+## Implementation and verification
+
+The implementation preserves the supplied design's colors, typography, scenario controls, evidence cards, video HUD, behavior mapping, and stage strip. On desktop the scene stays visible while evidence details scroll. The simulator vendors the official Apache-licensed source at revision `ad9d41a763f30dc770817c33d92dcfec0205db1e`; a setup script verifies all 53 downloaded assets by SHA-256. Runtime binaries and private reference manifests are not committed.
+
+The simple video search app arrived in subsequent commits. Ranger Duck adapts its fractional timestamp formatting, playback retry and disposal, generic video MIME handling, sanitized stream cleanup, and JWT-only upstream request handling. Its free-query API and raw-source playback URLs are not used because Ranger Duck needs scenario requests, session-scoped clip IDs, and reviewed movement authorization.
+
+Verification on 17 October: 41 backend tests and 15 frontend/adapter tests pass, and the production frontend builds. Live checks returned archive results, played and sought a real segment, kept Copy disabled for unreviewed results, and distinguished explicit replay from live search. Three real browser controller checks completed without recovery: ground pick about 3.13 seconds, short walk about 2.46 seconds including settling (0.16 m translation, with commands bounded to two seconds), and stand about 3.33 seconds including settling. These controller checks used a development-only test hook, omitted from the production build; they do not establish reviewed wildlife evidence.
+
+The full feeding flow also passed through the ordinary browser UI: Start triggered live retrieval, a visually checked deer-feeding reference enabled Copy, the real controller performed `ground_pick`, and the UI reported completion after the duck returned to standing. The reference was checked in actual browser playback and its private manifest remains on the workshop VM at `/tmp/ranger-duck-smoke.wTyRsF/feeding-review.json`. Set `RANGER_REFERENCE_MANIFEST` to that path on the same VM to reuse it while the temporary directory exists. The reference must still occur in the current live results with unchanged identity, interval, and caption to enable Copy.
+
+The committed default manifest remains empty because real source identities are private. Fresh environments need their own footage review, and walking/standing references have not yet been reviewed. No shared service deployment, upload, or re-ingest was performed for this implementation.

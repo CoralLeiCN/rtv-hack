@@ -1,6 +1,6 @@
 # Ranger Duck demo implementation plan
 
-Agreed scope as of 17 October 2026. The user owns frontend design and implementation; the backend is delegated separately. The shared integration contract is [RANGER_DUCK_API.md](RANGER_DUCK_API.md), with supporting implementation context in [RANGER_DUCK_CONTEXT.md](RANGER_DUCK_CONTEXT.md).
+Agreed scope as of 17 October 2026. The user supplied the frontend design and subsequently delegated its implementation and backend integration. The shared integration contract is [RANGER_DUCK_API.md](RANGER_DUCK_API.md), with supporting implementation context in [RANGER_DUCK_CONTEXT.md](RANGER_DUCK_CONTEXT.md). The runtime implementation and startup instructions are in [apps/ranger-duck](../apps/ranger-duck/README.md).
 
 Build one browser page where a simulated duck encounters an animal, searches the existing wildlife video archive for a similar behavior, and imitates a selected reference using an existing movement policy. The encounter, search results, reference playback, and duck movement all remain on this page.
 
