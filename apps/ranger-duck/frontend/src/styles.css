@@ -208,3 +208,25 @@ dl.kv dt{color:var(--muted-2)}dl.kv dd{margin:0}
 @media(min-width:981px) and (max-width:1250px){.app-header{gap:12px 15px}.brand{flex-basis:260px}.encounter-tabs{order:3;flex-basis:100%;margin-left:0}.header-actions{margin-left:auto}.species-tabs{margin-left:auto}}
 @media(max-width:980px){.species-tabs{margin-left:auto}.app-header .encounter-tabs{width:100%}.app-header .header-actions{margin-left:0}.app-header .encounter-id{margin-right:auto}.header-actions{width:100%;justify-content:flex-start}}
 @media(max-width:580px){.species-tabs{margin-left:0}.species-tabs .tab{font-size:14px}.encounter-tabs .tab{font-size:13px;padding-inline:10px}.header-actions .btn{font-size:16px;padding:11px 13px}.header-actions .encounter-id{font-size:10px}.rank-state{font-size:8px}}
+
+/* Agent Loop mode shares the scene; its controller and evidence panel are separate. */
+.experience-tabs{display:flex;gap:10px;padding:16px 28px 0;flex-wrap:wrap}
+.agent-loop-panel{gap:16px;overflow-y:auto}
+.loop-form{display:flex;flex-direction:column;gap:12px}
+.loop-form textarea,.loop-form select{font:inherit;color:var(--paper);background:var(--ink-2);border:2px solid var(--rule);padding:12px;width:100%}
+.loop-form textarea{min-height:90px;resize:vertical}
+.loop-form textarea:focus,.loop-form select:focus{outline:2px solid var(--yellow)}
+.loop-video{width:100%;max-height:300px;background:var(--ink);border:2px solid var(--rule)}
+.agent-loop-panel p{overflow-wrap:anywhere}
+.agent-loop-panel .archive-heading{flex-wrap:wrap;gap:10px}
+.agent-loop-panel .box{display:flex;flex-direction:column;gap:12px;min-width:0}
+.agent-loop-panel .box p{margin:0;line-height:1.5}
+.agent-loop-panel .label{line-height:1.5}
+.agent-loop-panel .alert-actions{gap:14px;padding-bottom:6px}
+.agent-loop-panel .btn{font-size:16px;padding:12px}
+.agent-loop-panel .badge{font-size:9px}
+@media(min-width:981px){
+  .app-shell{grid-template-rows:auto auto minmax(0,1fr) auto}
+  .app-shell.agent-experience{grid-template-rows:auto auto minmax(0,1fr)}
+}
+@media(max-width:980px){.experience-tabs{padding:16px 20px 0}.agent-loop-panel{overflow:visible}}

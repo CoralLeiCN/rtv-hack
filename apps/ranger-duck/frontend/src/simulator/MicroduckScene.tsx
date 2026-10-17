@@ -2,7 +2,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DuckAdapter, type DuckAction, type DuckStatus, type NavigationStatus, type Runtime } from './adapter';
-import { createClearing, type SceneEncounter } from './clearing';
+import { createClearing, type SceneEncounter, type CompanionAction } from './clearing';
+import type { AnimalSpecies } from './animals';
 import { bootGame, disposeGame } from './upstream/game/game.js';
 import { gameApi, useGame } from './upstream/store.js';
 
@@ -10,6 +11,9 @@ export type { DuckStatus, NavigationStatus } from './adapter';
 export type { SceneEncounter } from './clearing';
 export interface MicroduckSceneHandle {
   perform(action: DuckAction): Promise<void>;
+  performCompanion(action: CompanionAction): Promise<void>;
+  stopCompanion(): void;
+  telemetry(): ReturnType<DuckAdapter['telemetry']>;
   stop(): void;
   reset(): void;
   prepareCycle(): Promise<void>;
@@ -19,6 +23,7 @@ export interface MicroduckSceneHandle {
   status(): DuckStatus;
 }
 type Props = {
+  loopAnimal?: AnimalSpecies;
   searching?: boolean;
   onReady?(): void;
   onError?(message: string): void;
@@ -44,6 +49,9 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
   useImperativeHandle(ref, () => ({
     perform: action => adapter.current?.perform(action) ?? Promise.reject(new Error('Simulator is still loading.')),
     stop: () => { motionGeneration.current += 1; clearing.current?.stop(); adapter.current?.stop(); },
+    performCompanion: action => clearing.current?.performCompanion(action, performance.now()) ?? Promise.reject(new Error('Scene is still loading.')),
+    stopCompanion: () => clearing.current?.stopRoleAction(),
+    telemetry: () => { if (!adapter.current) throw new Error('Simulator is still loading.'); return adapter.current.telemetry(); },
     roam: () => adapter.current?.roam(),
     approach: async () => {
       const generation = ++motionGeneration.current;
@@ -179,7 +187,10 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
+    const hidden = () => { if (document.hidden && callbacks.current.loopAnimal) { clearing.current?.stopRoleAction(); adapter.current?.stop(); } };
+    document.addEventListener('visibilitychange', hidden);
     return () => {
+      document.removeEventListener('visibilitychange', hidden);
       disposed = true;
       motionGeneration.current += 1;
       cancelAnimationFrame(raf);
@@ -196,6 +207,12 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       renderer.domElement.remove();
     };
   }, []);
+
+  useEffect(() => {
+    pendingEncounter.current = null;
+    if (props.loopAnimal) clearing.current?.showLoopAnimals(props.loopAnimal);
+    else clearing.current?.reset();
+  }, [props.loopAnimal]);
 
   return <div ref={host} style={{ position: 'absolute', inset: 0 }} />;
 });

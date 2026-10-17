@@ -1,5 +1,149 @@
 # Specification: web frontend for video search
 
+The Ranger Duck loop below is implemented as an additional mode. Live
+Codex/VSS end-to-end verification remains pending. The remaining sections
+describe the original search-only implementation; their manual playback and
+backend-order requirements apply to that experience, not to agent-directed
+selection and automatic playback in Loop mode.
+
+## Ranger Duck Loop mode (additional mode)
+
+Loop mode is additional to the existing encounter mode. Its initial scope is
+queries describing two cats or two deer interacting. Return the top 10 archive
+results in their original order (or all results when fewer than 10 exist).
+The pair is a search preference, not a result eligibility requirement: retain
+single animals, weak matches, and unrecognized behaviors.
+Both scenes contain one animal model and the duck. Loop mode assigns them the
+two video roles; encounter mode keeps direct search and fixed-sequence imitation.
+
+### Interaction flow
+
+1. The user enters a nonblank initial prompt and enables **Loop mode**.
+2. The agent searches the existing VSS archive and selects a relevant clip.
+3. Codex assigns distinct video subjects to the animal companion and duck,
+   quoting caption evidence for each role. It chooses a supported companion
+   animation, a duck action approximating the other animal's behavior, and their
+   order (`together`, `companion_first`, or `duck_first`). Playback starts both
+   roles according to that plan.
+4. The simulator reports the movement actually performed, whether it completed,
+   and the duck's resulting state. A requested movement or elapsed timer alone
+   does not establish completion. Record companion animation completion separately;
+   it is scripted animation, not physics telemetry.
+5. The agent uses the original prompt, the previous clip's evidence, and the
+   simulator's reaction report to generate the next search and select a new clip.
+6. Playback, reaction, and agent search repeat while Loop mode remains enabled.
+
+Run one cycle at a time. Wait for the current reaction to finish before asking
+the agent for the next search; do not overlap simulator commands or advance on
+a presumed reaction. This replaces the fixed result playback sequence for Loop
+mode. The separate loop API connects Codex decisions to VSS retrieval and the
+simulator; the existing encounter mode continues to use direct VSS search.
+
+### Context and evidence
+
+Keep a bounded, session-local history of recent queries, selected clips, and
+actual reactions. Give the agent enough of that history to maintain continuity
+and avoid repeatedly selecting the same clips. Preserve the initial prompt as
+the user's guiding intent throughout the session.
+
+Choose clips from actual search results. Retain provenance checks and supported
+movement limits, and add response-specific eligibility rules for Loop mode.
+The original mode's imitation rules remain unchanged. Give Codex all top 10
+captions and expose that same list in the Loop panel. Do not require a recognized
+behavior, confirmed pair, or confirmed species in each caption. Codex chooses
+one clip and maps its two animal roles using the supplied caption and prior
+outcome. Role plans require distinct subjects and nonempty exact evidence
+excerpts from that caption. This validates provenance, not semantic entailment;
+role interpretation remains model-inferred. If either role or a supported
+approximation is uncertain, use `insufficient_evidence`: the backend normalizes
+the plan to a standing companion and `stand_hold` duck, with an explicit neutral
+fallback label. This does not remove the result or claim an observed interaction.
+Keep unavailable results in place with an explanation: invalid provenance,
+stale/contradictory review, excessive duration, or a recent interval can prevent
+execution without removing the result or promoting rank 11. Grounded duck actions
+approximate the counterpart role, not an arbitrary response to the scene.
+An agent's selection or explanation alone does not bypass validation.
+
+Expose a structured action interface for `stand_hold`, `head_scan`, `short_walk`,
+and `ground_pick`, using their existing execution limits. Each command identifies
+the clip, cycle, action, allowed parameters, and response rationale. Validate
+session/cycle ownership, evidence, parameters, and simulator readiness before
+execution. Codex chooses one bounded plan per cycle. Companion animations are
+standing, alert, walking, approach, retreat, and feeding; cats additionally support
+hissing, greeting, and play. Companion animation lasts at most 3000 ms, with
+bounded movement in the clearing. Duck actions retain their existing limits. Validate the declared counterpart
+behavior against its primitive: still/stand_hold, looking/head_scan,
+moving/short_walk, or feeding/ground_pick.
+The next search waits for playback, companion animation, and actual duck
+completion. Stop, hidden-tab pause, and mode switches cancel both roles and
+prevent the delayed role in a sequential plan from starting.
+
+The initial implementation may use the archive's existing video captions to
+interpret clip content. Label that interpretation as inferred and distinguish it
+from physical execution. Show the video subjects, supporting excerpts, action
+approximations, ordering, and uncertainty. Do not present the generated scene as
+visual verification, learned motion, or an exact reconstruction.
+Feed the simulator's observed outcome back into the next search, including an
+incomplete or failed movement when relevant, rather than inventing a successful
+reaction.
+
+### Controls and visible state
+
+- Show a clearly labeled **Loop mode** toggle with its current on/off state.
+- Show the original prompt, current search query, selected clip, duck reaction,
+  and a concise explanation of why the next query follows from that reaction.
+- Distinguish searching, playing/reacting, settling, and paused/error states.
+- Turning Loop mode off cancels pending searches, prevents new cycles, and lets
+  the duck settle safely. Ignore late responses from a canceled cycle so they
+  cannot restart playback or movement.
+- Reset clears the interaction history and cancels the current cycle. Replacing
+  the initial prompt starts a fresh interaction context rather than mixing old
+  responses into the new loop.
+
+Automatic clip playback is part of the user-enabled loop. Handle browser
+playback restrictions visibly; do not advance as though blocked playback
+succeeded.
+
+### Recovery
+
+If a selected clip cannot support a duck reaction, explain the reason and try
+another result or an agent-refined search. Do not fabricate a reaction to keep
+the loop moving. Use a bounded retry policy and pause after repeated failures,
+including empty searches, unsupported clips, playback failures, or simulator
+failures. Show why the loop paused and allow the user to retry or change the
+prompt. Each cycle allows at most two searches; three consecutive failed cycle
+requests pause the loop. Configuration and simulator failures pause immediately.
+
+### Example sequence
+
+An illustrative sequence, contingent on the retrieved evidence:
+
+> Initial prompt: "Meet a curious deer" → a caption describes one deer approaching
+> while another watches → the companion uses `approach`, and the duck uses
+> `stand_hold` to approximate the watching animal → both finish and playback ends
+> → the next search uses the role plan and actual outcome to continue.
+
+### Loop acceptance criteria
+
+- A nonblank user prompt and enabling Loop mode start an agent-mediated search.
+- Each selected clip comes from a real search result. Codex chooses each reaction
+  through the supported action interface, and execution requires valid evidence,
+  response eligibility, parameters, and simulator readiness.
+- The second and subsequent searches use the preceding simulator outcome and
+  clip context, while retaining the original user prompt.
+- The loop continues across new clips without further user submissions and
+  uses recent history to avoid repeats.
+- Only one cycle is active; progression waits for the simulator's actual
+  reaction outcome.
+- The UI makes the query, reaction, and reason for the next search visible and
+  labels caption-derived reactions as inferred.
+- Disabling Loop mode or resetting prevents late results from starting another
+  clip or movement and allows the duck to settle safely.
+- Unsupported evidence and repeated failures produce visible recovery or a
+  pause rather than fabricated actions or an unbounded retry loop.
+
+## Original search-only scope
+
 This specification implements [intent.md](intent.md): submit a natural-language
 query, review matching video segments, and play them inline in a browser,
 without signing in.

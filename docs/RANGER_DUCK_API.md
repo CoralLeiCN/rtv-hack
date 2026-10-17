@@ -179,3 +179,118 @@ Expected cases include 422 `invalid_request`, 404 `unknown_scenario`, 503 `live_
 Frontend cancellation does not guarantee the upstream request stops, so the ID check is mandatory. The backend performs no simulator actions and creates no live model-training jobs.
 
 Rehearsal controls may demonstrate explicitly labeled local no-match and timeout states. They must not fabricate live search evidence or enable imitation. Returning to Live clears rehearsal state.
+
+## Additional Agent Loop mode
+
+The existing encounter routes and top-three sequence above are unchanged. Agent
+Loop mode uses separate sessions and may select an eligible result at any
+original rank. Health adds `loop_agent_available` (CLI executable present, not a
+login or connectivity check) and `loop_cycle_timeout_ms` (180000).
+
+Bootstrap with health to establish the cookie, then:
+
+| Request | Body | Result |
+| --- | --- | --- |
+| `POST /demo-api/loop` | `session_id` (client-generated UUID), `prompt` (1–1000 characters), `animal` (`cat` or `deer`) | Creates/replaces this browser's loop; returns ID and cycle timeout |
+| `POST /demo-api/loop/{id}/next` | None | Generates a query, searches, and returns one validated clip/action |
+| `POST /demo-api/loop/{id}/outcome` | Outcome below | Acknowledges actual execution; permits the next search only after completion |
+| `POST /demo-api/loop/{id}/pause` | None | Cancels active agent work and invalidates outstanding actions |
+| `POST /demo-api/loop/{id}/resume` | None | Resumes with preserved context and a fresh search; resets failure counter |
+
+A cycle response includes `session_id`, `cycle_id`, `cycle`, `query`,
+`query_reason`, `response_reason`, `action`, `role_plan`, `candidates`, and `clip`. The action uses the
+existing `primitive`, `evidence_id`, and `max_duration_ms` fields. The clip
+includes an opaque `clip_id`/`video_url`, caption, original retrieval `rank`,
+`observed_behavior`, `evidence_basis`, and parent `start_sec`/`end_sec` offsets.
+Playback starts at zero. Source URIs and credentials remain server-side.
+
+`role_plan` binds the two video subjects to one scene companion and the duck:
+
+```json
+{
+  "grounding": "caption_roles",
+  "companion": {"subject": "Approaching deer", "evidence": "one deer approaches"},
+  "duck": {"subject": "Watching deer", "evidence": "the other deer watches"},
+  "companion_behavior": "approach",
+  "duck_behavior": "looking",
+  "companion_duration_ms": 3000,
+  "timing": "together"
+}
+```
+
+The subjects must be distinct and both excerpts must occur in the selected
+caption. This checks the source binding, not the semantic correctness of the
+model's interpretation. `timing` is `together`, `companion_first`, or `duck_first`.
+Supported companion behaviors are standing, alert, walking, approach, retreat,
+and feeding; cats also allow hissing, greeting, and play. Durations are fixed
+by the backend at 3000 ms. The duck action approximates the counterpart's
+observed behavior with the existing bounded primitives. The backend validates
+`duck_behavior` against its primitive: still → stand_hold, looking → head_scan,
+moving → short_walk, feeding → ground_pick. Unknown roles use the neutral fallback.
+
+When two supported roles cannot be established, Codex sets
+`grounding: "insufficient_evidence"`. The backend normalizes the plan to standing
+plus `stand_hold`, empty excerpts, unassigned subjects, and simultaneous timing.
+The result remains selectable and playable, with an explicit neutral-fallback
+explanation. No counterpart behavior is claimed. The UI labels both role mappings
+as caption-inferred approximations, not an exact video reconstruction.
+
+An outcome has this shape:
+
+```json
+{
+  "cycle_id": "opaque-cycle-id",
+  "primitive": "head_scan",
+  "status": "completed",
+  "playback": "ended",
+  "companion": {"behavior": "approach", "status": "completed"},
+  "state": {
+    "status": "complete",
+    "position": [0.1, 0.0, 0.2],
+    "head_yaw": 0.01,
+    "simulation_time": 12.0
+  }
+}
+```
+
+Outcome status is `completed`, `failed`, or `cancelled`; playback is `ended`,
+`failed`, or `cancelled`. Completion requires ended playback and controller state
+`complete`, plus a completed companion animation matching the issued behavior.
+Companion completion describes a scripted render animation, not physics. Other
+outcomes pause the session. The next query receives both outcomes and the role
+plan. Cancellation prevents a delayed second role from starting. Telemetry comes from the browser
+simulator, is schema-validated and cycle-bound, and is not independent physical
+attestation. Duplicate or stale outcomes return 409. The browser must stop its
+own movement/video immediately on cancellation; server cancellation alone cannot
+control browser physics.
+
+Only one next request or outstanding action is allowed per session. Each cycle
+has a 180-second overall deadline, at most two VSS searches, and at most four
+structured Codex decisions (query and action selection per attempt). No-match
+attempts refine the query. Three consecutive failed cycle requests pause the
+session. The browser does not retry configuration failures or simulator failures
+automatically. The last five issued clip intervals cannot execute again, and the last
+five reaction records inform the agent. Clips longer than 120 seconds remain listed but cannot execute,
+so playback waiting is bounded. There is no automatic replay fallback.
+
+Loop searches ask for two cats or two deer interacting and request `top_k: 10`.
+The cycle response includes `candidates`, the same ranked list given to Codex:
+`candidate_id`, `rank`, `caption`, `observed_behavior`, `evidence_basis`,
+`allowed_actions`, and `unavailable_reason`. Return all available results up to
+10 in upstream order, without pair, species-presence, or behavior filtering,
+deduplication, or promotion from rank 11. Single-animal and weak matches remain
+selectable. The UI shows this list separately from the one selected clip.
+
+Unexecutable results remain listed with an empty `allowed_actions`: incomplete
+provenance, invalid source, stale/contradictory review, duration over 120 seconds,
+or a recently issued interval. When no candidate can execute, bounded recovery
+still applies. These checks are independent of caption content.
+All executable candidates offer `stand_hold`, `head_scan`, `short_walk`, and
+`ground_pick`, with ceilings of 3000/2400/2000/8000 ms respectively.
+`observed_behavior: "caption_context"` does not assert a classified animal
+behavior. The caption is inferred evidence; the role plan separately identifies
+the two subjects and supported approximations, or a neutral fallback. Encounter
+imitation checks are unchanged, while its scene now shows one animal plus the duck.
+
+Sessions are memory-only, tied to the browser cookie, bounded by the existing
+session capacity/TTL, and invalidated on backend restart. Use one backend worker.

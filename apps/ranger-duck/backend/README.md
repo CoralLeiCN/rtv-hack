@@ -158,3 +158,31 @@ Video requests accept one standard byte range. The proxy forwards `Range`/`If-Ra
 Tests use fabricated upstream responses. They cover authentication caching/refresh, bounded timeouts, error redaction, live-only results, exact review binding and staleness, rank preservation, species and interaction grounding, negation, session isolation/expiry, ranges, HEAD, redirect rejection, and no-config startup. They do not establish the accuracy of a live video-model caption. Live playback remains the way to inspect the actual evidence.
 
 On 17 October 2026, all 163 backend tests passed after active-caption preference and the sitting/nodding additions. They cover later-rank selection, solitary behaviors, original rank preservation, exact legacy reviews, wrong actors/species, negation, provenance, and active behavior appearing after a still pose. Earlier live smoke tests established a session, returned 15 search candidates, replayed the same recorded result, and streamed 32 video bytes with status 206 and `video/mp4`. HEAD returned 200 with no body; an invalid range returned 416; another session could not access the clip (404). These checks do not replace visual footage review.
+
+## Agent Loop mode
+
+The additional Agent Loop mode uses a Codex CLI installed on the backend host,
+with that OS user's existing Codex login. Run `codex login` interactively there
+if needed; do not paste credentials into chat or configuration files. The CLI
+must support `exec --ignore-user-config --ephemeral --output-schema` (see the
+[official CLI reference](https://developers.openai.com/codex/cli/reference)).
+No OpenAI API key is required by this integration.
+
+`loop_agent.py` makes ephemeral structured decisions in temporary directories:
+first a query, then a selected clip and supported response after the backend
+performs retrieval. It uses read-only execution, disables shell tools, apps,
+web search, hooks, and multi-agent tools, and does not load the user's custom
+config. Both query and response decisions explicitly use `gpt-6-luna` via
+`--model`; there is no automatic model fallback. Workshop credentials and API-key
+environment variables are not passed to the subprocess. The backend validates
+all returned decisions; the agent never receives source URIs or video tokens.
+
+Health reports executable availability only. A missing login, incompatible CLI,
+or unavailable model service returns a safe `agent_failed` error on the first
+cycle. The overall cycle deadline is 180 seconds, including waiting for one of
+two agent-process slots. Stopping a session cancels the active decision process.
+The application does not install Codex or modify its login/configuration.
+
+See the [loop API contract](../../../docs/RANGER_DUCK_API.md#additional-agent-loop-mode)
+for session operations, response rules, telemetry, and retry limits. Existing
+encounter search/replay behavior is unchanged.

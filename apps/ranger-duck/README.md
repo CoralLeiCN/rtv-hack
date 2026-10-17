@@ -5,7 +5,8 @@ One page for a scripted wildlife encounter, live archive retrieval, reference pl
 See the repository README for the [tech stack](../../README.md#ranger-duck-tech-stack)
 and [agentic search architecture](../../README.md#how-agentic-search-works), including
 Codex login, search tool calls, reranking, and the remaining frontend integration.
-The current demo uses direct VSS search; the agent prototype is not connected yet.
+Encounter mode uses direct VSS search. The additional Agent Loop mode connects
+Codex query and response decisions to archive search and actual simulator outcomes.
 
 ## Start development
 
@@ -28,7 +29,35 @@ RANGER_BACKEND_URL=http://127.0.0.1:18001 npm run dev
 
 The default backend target is `http://127.0.0.1:8000`. Open the Local URL printed by Vite. All browser requests remain on that page's origin, including video playback and session cookies.
 
-## Demo flow
+## Agent Loop mode
+
+1. Install and sign in to Codex CLI on the backend host using the
+   [backend instructions](backend/README.md#agent-loop-mode). Configure VSS as for
+   the existing demo.
+2. Select **Agent Loop mode**, enter an initial prompt, and choose Cat or Deer.
+   The visible species selector determines archive scope and shows the matching
+   single animal companion beside the duck. The animal and duck represent the
+   two video roles; the companion remains visible while paused.
+3. Turn the loop on. Codex generates a query, selects a real eligible clip and a
+   two-role plan. Playback runs the companion animation and the duck action in
+   the chosen order, with caption excerpts explaining each role.
+4. Playback, companion animation, and actual duck controller completion must finish. The outcome feeds
+   the next query automatically. The panel shows the query, evidence, chosen
+   response, and measured outcome.
+5. Turn the loop off to stop. Resume uses preserved context with a fresh search;
+   Reset or a changed prompt/species starts a new session. Hidden tabs pause and
+   require explicit resume. Switching modes stops the active controller.
+
+Queries still ask for two cats or two deer interacting. The top 10 results reach
+Codex in archive order even when they show only one animal or are weak matches.
+Expand **Search results** to see those candidates and any execution limitations.
+The duck approximates the counterpart animal’s caption-described behavior.
+Sparse clips stay playable with a labeled neutral pause when two roles cannot
+be assigned.
+Caption interpretation remains labeled as inferred. No-match recovery is bounded,
+failed movement pauses the loop, and no cached clip silently replaces a search.
+
+## Existing encounter demo flow
 
 1. Wait for the simulator and backend catalog. Choose Cat or Deer, then an interaction.
 2. Press Start. One animal appears outside the box and triggers one live interaction search. The duck roams while waiting; the animal can patrol outside the east side of the box.

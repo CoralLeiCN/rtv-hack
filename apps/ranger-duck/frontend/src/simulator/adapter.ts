@@ -81,6 +81,10 @@ export class DuckAdapter {
   }
 
   status() { return this.state; }
+  telemetry() {
+    return { status: this.state, position: Array.from(this.runtime.data.qpos).slice(0, 3),
+      head_yaw: this.runtime.headYaw, simulation_time: this.runtime.data.time };
+  }
   private yaw() {
     const q = this.runtime.data.qpos;
     return Math.atan2(2 * (q[3] * q[6] + q[4] * q[5]), 1 - 2 * (q[5] ** 2 + q[6] ** 2));

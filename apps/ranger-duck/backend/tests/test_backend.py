@@ -98,7 +98,10 @@ def search(client):
 def test_no_configuration_is_runnable_and_reports_it():
     client, upstream, _ = make_client(settings=Settings())
     with client:
-        assert client.get("/demo-api/health").json() == {"status": "ok", "api_version": "1", "live_configured": False, "reviewed_reference_count": 0, "search_timeout_ms": 30000}
+        health = client.get("/demo-api/health").json()
+        assert {key: health[key] for key in ("status", "api_version", "live_configured", "reviewed_reference_count", "search_timeout_ms")} == {"status": "ok", "api_version": "1", "live_configured": False, "reviewed_reference_count": 0, "search_timeout_ms": 30000}
+        assert health["loop_cycle_timeout_ms"] == 180000
+        assert isinstance(health["loop_agent_available"], bool)
         scenarios = client.get("/demo-api/encounters").json()["encounters"]
         assert len(scenarios) == 6 and all("action" not in s for s in scenarios)
         assert all(s["animal"] == s["interaction_partner"] for s in scenarios)

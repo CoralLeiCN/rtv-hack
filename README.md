@@ -28,11 +28,14 @@ Canary-1B is available in the workshop but is not part of this app's search flow
 
 ## How agentic search works
 
-**Integration status:** the current frontend and backend run direct VSS search
-with Live and Replay modes. The Codex agent prototype was implemented and tested
-separately; it still needs adapting to the current backend and wiring into the
-new frontend. The agent flow below describes that prototype and the intended
-integration, not an option already available in the shipped UI.
+**Integration status:** encounter mode retains direct VSS search with Live and
+Replay controls. The additional **Agent Loop mode** now uses Codex CLI structured
+decisions to generate queries and choose supported responses; actual simulator
+outcomes guide subsequent searches. See the [Loop mode guide](apps/ranger-duck/README.md#agent-loop-mode)
+and [current API contract](docs/RANGER_DUCK_API.md#additional-agent-loop-mode).
+The diagram and numbered flow below describe the earlier MCP search-agent
+prototype. The new loop instead executes bounded retrieval in the backend between
+Codex query and selection decisions; it does not use that prototype's MCP bridge.
 
 ```mermaid
 sequenceDiagram

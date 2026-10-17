@@ -22,6 +22,8 @@ from .evidence import Manifest, caption_hash, normalize_segments, safe_text
 from .session import COOKIE_NAME, ClipRegistry, SearchSnapshot
 from .stream import close_stream
 from .vss import VSSClient
+from .loop import LoopService, install_loop_routes
+from .loop_agent import CYCLE_TIMEOUT
 
 SCENARIOS = {
     "deer-feeding": {"id": "deer-feeding", "label": "Forage together", "animal": "deer", "behavior_hint": "feeding",
@@ -70,7 +72,7 @@ class ProxyStreamingResponse(StreamingResponse):
 
 
 def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTransport | None = None,
-               manifest: Manifest | None = None) -> FastAPI:
+               manifest: Manifest | None = None, loop_agent=None) -> FastAPI:
     settings = settings or Settings.from_env()
     manifest = manifest if manifest is not None else Manifest.load(settings.manifest_path)
     registry = ClipRegistry(settings.clip_ttl_sec, settings.max_sessions)
@@ -90,11 +92,15 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         yield
+        await loop_service.close()
         await client.close()
 
     app = FastAPI(title="Ranger Duck backend", version="1", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.registry = registry
     app.state.vss = client
+    loop_service = LoopService(registry, client, manifest, public_text, loop_agent)
+    app.state.loop_service = loop_service
+    install_loop_routes(app, loop_service)
 
     @app.exception_handler(DemoError)
     async def demo_error_handler(_: Request, error: DemoError):
@@ -103,7 +109,7 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     @app.exception_handler(RequestValidationError)
     async def invalid_request_handler(_: Request, error: RequestValidationError):
         # Never echo request bodies or Pydantic inputs into public errors.
-        return JSONResponse(DemoError("invalid_request", "Provide a valid encounter_id and scenario_id.", 422).body(), status_code=422)
+        return JSONResponse(DemoError("invalid_request", "Provide valid fields for this request.", 422).body(), status_code=422)
 
     @app.middleware("http")
     async def private_api_responses(request: Request, call_next):
@@ -121,7 +127,9 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     async def health(request: Request):
         response = JSONResponse({"status": "ok", "api_version": "1", "live_configured": settings.configured,
                 "reviewed_reference_count": len(manifest.entries),
-                "search_timeout_ms": round(settings.search_timeout_sec * 1000)})
+                "search_timeout_ms": round(settings.search_timeout_sec * 1000),
+                "loop_agent_available": loop_service.agent.available,
+                "loop_cycle_timeout_ms": CYCLE_TIMEOUT * 1000})
         establish_cookie(response, registry.session(request.cookies.get(COOKIE_NAME)))
         return response
 

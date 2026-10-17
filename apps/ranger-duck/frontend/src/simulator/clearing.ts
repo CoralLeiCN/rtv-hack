@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createCat, createDeer, type AnimalActor, type AnimalSpecies } from './animals';
+import { createCat, createDeer, type AnimalActor, type AnimalSpecies, type AnimalPose } from './animals';
 import { ANIMAL_ANCHOR, createAnimalMotor, stepAnimalMotor, type AnimalActivity } from './animalMotor';
 export { ANIMAL_ANCHOR } from './animalMotor';
 
@@ -8,6 +8,8 @@ export type SceneEncounter = {
   interaction_partner?: string;
 };
 export type DuckScenePose = { x: number; z: number; yaw: number };
+export type CompanionBehavior = 'standing' | 'alert' | 'walking' | 'approach' | 'retreat' | 'feeding' | 'hissing' | 'greeting' | 'play';
+export type CompanionAction = { behavior: CompanionBehavior; durationMs: number };
 type Interaction = 'feeding' | 'following' | 'greeting' | 'boundary' | 'alert' | 'play';
 export function interactionFor(hint: string): Interaction {
   if (/hiss|defens|standoff|boundary/.test(hint)) return 'boundary';
@@ -66,12 +68,21 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
   const actors: Partial<Record<AnimalSpecies, AnimalActor>> = {};
   let encounter: (SceneEncounter & { behavior: Interaction; start: number; reached: boolean }) | null = null;
   let primary: AnimalActor | null = null;
+  let loopActor: AnimalActor | null = null;
+  let loopSpecies: AnimalSpecies | null = null;
+  let roleAction: (CompanionAction & { start: number; fromX: number; resolve(): void; reject(error: Error): void }) | null = null;
+  const stopRoleAction = () => {
+    const pending = roleAction; roleAction = null;
+    loopActor?.pose('standing', 0);
+    pending?.reject(new DOMException('Companion action stopped.', 'AbortError'));
+  };
   let motor = createAnimalMotor();
   let activity: AnimalActivity = 'hold';
   let interaction: { resolve(): void; reject(error: Error): void; stable: number | null; timer: ReturnType<typeof setTimeout> } | null = null;
   let previous = 0;
   const hideActors = () => { for (const actor of Object.values(actors)) actor.root.visible = false; };
   const stop = () => {
+    stopRoleAction();
     activity = 'hold'; motor.speed = 0;
     if (interaction) { clearTimeout(interaction.timer); interaction.reject(new Error('Animal approach cancelled.')); interaction = null; }
   };
@@ -89,8 +100,31 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
     return actors[species]!;
   };
   return {
+    showLoopAnimals(species: AnimalSpecies) {
+      stop(); encounter = null; hideActors();
+      loopSpecies = species;
+      loopActor = actorFor(species);
+      primary = loopActor;
+      loopActor.root.visible = true;
+      loopActor.root.position.set(ANIMAL_ANCHOR.x, 0, ANIMAL_ANCHOR.z);
+      loopActor.root.rotation.set(0, 0, 0); // Face the duck, not a second animal model.
+      loopActor.pose('standing', 0);
+    },
+    performCompanion(action: CompanionAction, now: number): Promise<void> {
+      if (!loopActor || roleAction) return Promise.reject(new Error('Companion is unavailable or busy.'));
+      const allowed = ['standing', 'alert', 'walking', 'approach', 'retreat', 'feeding', ...(loopSpecies === 'cat' ? ['hissing', 'greeting', 'play'] : [])];
+      if (!allowed.includes(action.behavior) || !Number.isFinite(action.durationMs) || action.durationMs <= 0 || action.durationMs > 3000) {
+        return Promise.reject(new Error('Unsupported companion action.'));
+      }
+      loopActor.root.position.set(action.behavior === 'retreat' ? ANIMAL_ANCHOR.x : ANIMAL_ANCHOR.x + 0.4, 0, ANIMAL_ANCHOR.z);
+      loopActor.root.rotation.set(0, 0, 0);
+      return new Promise((resolve, reject) => {
+        roleAction = { ...action, start: now, fromX: loopActor!.root.position.x, resolve, reject };
+      });
+    },
+    stopRoleAction,
     start(input: SceneEncounter, now: number) {
-      stop();
+      stop(); loopActor = null; loopSpecies = null;
       hideActors();
       encounter = { ...input, behavior: interactionFor(input.behavior_hint), start: now, reached: false };
       primary = actorFor(input.animal === 'cat' ? 'cat' : 'deer');
@@ -101,9 +135,9 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
       primary.pose('alert', 0);
       previous = now;
     },
-    reset() { stop(); encounter = null; hideActors(); },
+    reset() { stop(); encounter = null; loopActor = null; loopSpecies = null; hideActors(); },
     stop,
-    setActivity(next: AnimalActivity) { if (!interaction) activity = next; },
+    setActivity(next: AnimalActivity) { if (!loopActor && !interaction) activity = next; },
     inspect() {
       let meshes = 0, triangles = 0;
       const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>();
@@ -115,7 +149,7 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
         geometries.add(mesh.geometry);
         for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) materials.add(material);
       });
-      return { species: encounter?.animal ?? null, activity, position: { x: motor.x, z: motor.z }, yaw: motor.yaw, speed: motor.speed, meshes, triangles, geometries: geometries.size, materials: materials.size };
+      return { species: loopSpecies ?? encounter?.animal ?? null, activity, position: { x: loopActor?.root.position.x ?? motor.x, z: loopActor?.root.position.z ?? motor.z }, yaw: motor.yaw, speed: motor.speed, meshes, triangles, geometries: geometries.size, materials: materials.size };
     },
     prepareInteraction(): Promise<void> {
       stop();
@@ -129,11 +163,27 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
       });
     },
     focus() {
-      if (!encounter?.reached || !primary) return null;
+      if ((!loopActor && !encounter?.reached) || !primary) return null;
       const duck = getDuckPose();
       return { x: (duck.x + primary.root.position.x) / 2, z: (duck.z + primary.root.position.z) / 2 };
     },
     frame(now: number): string | null {
+      if (loopActor) {
+        const action = roleAction;
+        if (!action) return null;
+        const elapsed = Math.max(0, now - action.start);
+        const progress = Math.min(1, elapsed / action.durationMs);
+        const moving = ['approach', 'retreat', 'walking'].includes(action.behavior);
+        const target = action.behavior === 'retreat' ? ANIMAL_ANCHOR.x + 0.4 : action.behavior === 'walking' ? ANIMAL_ANCHOR.x + 0.15 : ANIMAL_ANCHOR.x;
+        if (moving) loopActor.root.position.x = THREE.MathUtils.lerp(action.fromX, target, progress);
+        loopActor.pose(moving ? 'walking' : action.behavior as AnimalPose, elapsed / 1000);
+        if (progress === 1) {
+          roleAction = null;
+          loopActor.pose('standing', 0);
+          action.resolve(); // Completion of a scripted animation, not physics telemetry.
+        }
+        return null;
+      }
       if (!encounter || !primary) return null;
       const duck = getDuckPose();
       const dt = Math.min(0.05, Math.max(0, (now - previous) / 1000));

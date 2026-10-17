@@ -7,6 +7,8 @@ export interface Health {
   live_configured: boolean;
   reviewed_reference_count: number;
   search_timeout_ms?: number;
+  loop_agent_available?: boolean;
+  loop_cycle_timeout_ms?: number;
 }
 export interface Encounter {
   id: string;
@@ -65,7 +67,7 @@ export class ApiError extends Error {
   }
 }
 
-async function readResponse<T>(response: Response): Promise<T> {
+export async function readResponse<T>(response: Response): Promise<T> {
   let body;
   try { body = await response.json(); }
   catch { throw new ApiError('invalid_response', 'The demo service returned an unreadable response. Please retry.', true); }

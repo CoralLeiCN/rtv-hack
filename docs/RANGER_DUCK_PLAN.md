@@ -1,5 +1,9 @@
 # Ranger Duck implementation plan
 
+This document describes the existing encounter mode. The additional agent-driven
+Loop mode is implemented separately; see [plan.md](plan.md). Its query, selection,
+and repeat rules do not replace the encounter rules below.
+
 Current scope, updated 17 October 2026: one page combines one animal permitted to patrol outside the duck arena, a roaming physics-simulated duck, live archive search, and the three highest-ranked compatible video actions. This supersedes the original manual-selection/Copy flow. The user selected cat–cat and deer–deer reference interactions.
 
 The implementation follows the [design handoff](../apps/ranger-duck/design/README.md), with added species/interaction controls and automatic sequence status. See the [API contract](RANGER_DUCK_API.md), [behavior research](RANGER_DUCK_INTERACTIONS.md), and [startup instructions](../apps/ranger-duck/README.md), and [motion inventory](RANGER_DUCK_ANIMATION.md).
@@ -89,3 +93,9 @@ Never overlap movements. Reset and cancellation invalidate both pending searches
 Check query specificity and source rank preservation, caption inference and negation, review compatibility, replay/session scope, and range playback in backend tests. Check compatible-action selection, preserved source ranks, navigation cancellation, pause/resume and stale result handling in frontend tests. Verify new primitives using actual MuJoCo physics, then run at least one live cat interaction sequence through the browser with no per-action clicks. Build the production frontend and check that development-only instrumentation is omitted.
 
 Archive availability remains an external input. The initial cat queries found observation/head-turn clips, while deer co-foraging queries returned solitary deer. Both can supply supported actions under the current policy; the description must still reflect what the footage actually contains.
+
+Scene update (17 October 2026): render one animal companion plus Microduck.
+The archive still searches same-species pairs; the duck represents the other
+video animal. The additional Loop mode assigns both caption-described roles
+through Codex as documented in [spec.md](spec.md). Encounter search, eligibility,
+and fixed-sequence playback remain unchanged.
