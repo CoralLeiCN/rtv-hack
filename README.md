@@ -1,4 +1,28 @@
-# VAST Builders Challenge: Video Agents
+# MicroDuck: An Interactive Robotic Companion for Animals
+
+## What We Built
+
+MicroDuck uses real-world animal videos to guide a simulated robot’s responses, combining video search, playback, agent-driven actions, and physics simulation. We ingested three Hugging Face datasets totaling **X minutes of video**.
+
+## Why It Matters
+
+Robot training needs diverse interaction data. MicroDuck explores using animal videos as behavioral references for embodied AI. Potential applications include long-term, close-range wildlife observation and pet companionship.
+
+## How It Works
+
+- **Encounter Mode:** Retrieve an interaction video, use one animal’s behavior as the situation and the other’s as a response reference, then execute MicroDuck’s closest supported action.
+- **Loop Mode:** Turn each completed action into the next search prompt and repeat.
+
+The agent harness coordinates retrieval, interpretation, action selection, and execution feedback, using existing pretrained movement policies to explore future training workflows.
+
+## Technology
+
+- **Simulation:** Pollen Robotics’ MicroDuck simulator, MuJoCo WebAssembly physics, Three.js rendering, and ONNX Runtime Web movement policies.
+- **Agent and evaluation:** Codex with MCP search tools; Weights & Biases for tracing and evaluation.
+- **Video infrastructure:** VSS, VastDB, and S3 for searchable clips, captions, metadata, detections, and playback; VAST DataEngine with Cosmos3-Reason, YOLO11, and Cosmos Embed1 for descriptions, detections, and embeddings.
+- **Application:** React and TypeScript frontend with a Python FastAPI backend.
+
+## VAST Builders Challenge: Video Agents
 
 Build video agents on the deployed VSS stack using its search, metadata,
 detections, and video APIs.
