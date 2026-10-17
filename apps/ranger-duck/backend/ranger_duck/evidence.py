@@ -58,6 +58,7 @@ class Segment:
     similarity: float | None
     dataset: str | None
     rank: int = 1
+    dataset_id: str | None = None
 
     @property
     def complete(self) -> bool:
@@ -77,6 +78,7 @@ class Segment:
                 extra_metadata = None
         extra_metadata = extra_metadata if isinstance(extra_metadata, dict) else {}
         dataset = raw.get("dataset") or metadata.get("dataset") or extra_metadata.get("dataset")
+        dataset_id = raw.get("dataset_id") or metadata.get("dataset_id") or extra_metadata.get("dataset_id")
         return cls(
             source=raw["source"],
             parent=raw.get("original_video") if valid_source(raw.get("original_video")) else None,
@@ -85,6 +87,7 @@ class Segment:
             similarity=number(raw.get("similarity_score")),
             dataset=safe_text(dataset, 100) or None,
             rank=rank,
+            dataset_id=safe_text(dataset_id, 100) or None,
         )
 
     def review_draft(self) -> dict:
@@ -93,7 +96,7 @@ class Segment:
                 "segment_end_sec": self.end, "caption": self.caption,
                 "caption_sha256": caption_hash(self.caption), "animal": "", "behavior": "",
                 "interaction_partner": "", "interaction_evidence": "",
-                "dataset": self.dataset, "source_label": "", "review_note": ""}
+                "dataset": self.dataset, "dataset_id": self.dataset_id, "source_label": "", "review_note": ""}
 
 
 class Manifest:

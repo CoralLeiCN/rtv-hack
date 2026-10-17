@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../src/api';
-import { runAgentLoop, playAndReact, runRoleActions, type AgentCycle, type ReactionOutcome } from '../src/agentLoop';
+import { runAgentLoop, playAndReact, reactionState, runRoleActions, type AgentCycle, type ReactionOutcome } from '../src/agentLoop';
 
 const cycle: AgentCycle = {
   session_id: 's', cycle_id: 'c', cycle: 1, query: 'two deer', query_reason: 'initial prompt', response_reason: 'look at companion',
@@ -29,6 +29,10 @@ class Video extends EventTarget {
 }
 
 describe('agent loop sequencing', () => {
+  it('keeps navigation-only telemetry out of the strict outcome schema', () => {
+    const telemetry = { ...outcome.state, navigation: 'approaching', commands: { forward: 0.25, lateral: 0, yaw: 0.2 }, body_yaw: 0.1 };
+    expect(reactionState(telemetry)).toEqual(outcome.state);
+  });
   it('waits for actual execution and acknowledged outcome before another search', async () => {
     const controller = new AbortController();
     const execution = deferred<ReactionOutcome>(); const acknowledgement = deferred<void>();

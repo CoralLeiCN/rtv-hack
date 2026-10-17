@@ -30,7 +30,9 @@ type Navigation = {
   simStart: number; deadline?: ReturnType<typeof setTimeout>;
   resolve?(): void; reject?(error: Error): void;
 };
-const APPROACH_POINT = [0.38, 0] as const;
+// The forward-only turning policy needs room to turn back after a walking
+// imitation. Keep the interaction stand-off inside the arena, not by its edge.
+const APPROACH_POINT = [0.12, 0] as const;
 // Keep the robot's body inside the visible yellow box, with room to turn.
 const ROAM_POINTS = [[0.02, 0.18], [-0.35, 0.18], [-0.35, -0.18], [0.02, -0.18]];
 type Preparation = {
@@ -50,6 +52,8 @@ export class DuckAdapter {
   private walkWaypoint = 0;
   private disposed = false;
   private standingFromSit = false;
+  private companionTarget: { x: number; y: number } | null = null;
+  private attentionEnabled = false;
   readonly source: {
     id: string; connected: boolean; readonly command: Float32Array; axes: object;
     isActive(): boolean; poll(): void; onAction?: (action: string) => void;
@@ -82,8 +86,25 @@ export class DuckAdapter {
 
   status() { return this.state; }
   telemetry() {
+    const command = this.source.command;
+    const q = this.runtime.data.qpos;
     return { status: this.state, position: Array.from(this.runtime.data.qpos).slice(0, 3),
-      head_yaw: this.runtime.headYaw, simulation_time: this.runtime.data.time };
+      head_yaw: this.runtime.headYaw, simulation_time: this.runtime.data.time,
+      navigation: this.navigationState, primitive: this.pending?.primitive ?? null,
+      commands: { forward: command[0], lateral: command[1], yaw: command[2] }, body_yaw: this.yaw(),
+      target: this.companionTarget ? { ...this.companionTarget,
+        distance: Math.hypot(this.companionTarget.x - q[0], this.companionTarget.y - q[1]),
+        facing_error: this.facingError() } : null };
+  }
+  setCompanionTarget(target: { x: number; y: number } | null) { this.companionTarget = target; }
+  private facingError() {
+    const q = this.runtime.data.qpos;
+    const desired = this.companionTarget ? Math.atan2(this.companionTarget.y - q[1], this.companionTarget.x - q[0]) : 0;
+    return Math.atan2(Math.sin(desired - this.yaw()), Math.cos(desired - this.yaw()));
+  }
+  private atInteractionPose() {
+    const q = this.runtime.data.qpos;
+    return Math.hypot(q[0] - APPROACH_POINT[0], q[1] - APPROACH_POINT[1]) < 0.1 && Math.abs(this.facingError()) < 0.7;
   }
   private yaw() {
     const q = this.runtime.data.qpos;
@@ -139,11 +160,12 @@ export class DuckAdapter {
     if (this.pending || this.preparation || this.runtime.recovery || this.runtime.inputLocked || this.runtime.mode !== 'walk') return Promise.reject(new Error('Wait for the duck to return to its ready pose.'));
     this.cancelNavigation();
     this.clearCommand();
+    this.attentionEnabled = true;
     this.setNavigation('approaching');
     this.setStatus('busy');
     return new Promise((resolve, reject) => {
       this.navigation = {
-        kind: 'approaching', reached: false, stableSince: null, simStart: this.runtime.data.time, resolve, reject,
+        kind: 'approaching', reached: this.atInteractionPose(), stableSince: null, simStart: this.runtime.data.time, resolve, reject,
         deadline: setTimeout(() => this.failNavigation('The duck could not reach its interaction position in time.'), 25000),
       };
     });
@@ -247,9 +269,7 @@ export class DuckAdapter {
       }
       if (this.outsideGuard()) { this.failNavigation('Navigation stopped at the arena safety margin.'); return; }
       if (navigation.kind === 'approaching') {
-        const q = runtime.data.qpos;
-        const distance = Math.hypot(q[0] - APPROACH_POINT[0], q[1] - APPROACH_POINT[1]);
-        if (distance < 0.1 && Math.abs(this.yaw()) < 0.7) navigation.reached = true;
+        if (this.atInteractionPose()) navigation.reached = true;
         if (navigation.reached) {
           this.clearCommand();
           this.setNavigation('settling');
@@ -280,7 +300,9 @@ export class DuckAdapter {
     if (!action) {
       if (runtime.mode !== 'walk') { this.setStatus('recovering'); return; }
       if (this.state === 'recovering') this.setStatus('ready');
-      runtime.headTarget[2] = searching ? Math.sin(this.clock() / 1000) * 0.08 : 0;
+      runtime.headTarget[2] = this.attentionEnabled && this.companionTarget
+        ? Math.max(-0.3, Math.min(0.3, this.facingError()))
+        : searching && !this.companionTarget ? Math.sin(this.clock() / 1000) * 0.08 : 0;
       return;
     }
     const q = runtime.data.qpos;
@@ -310,7 +332,7 @@ export class DuckAdapter {
       action.minHead = Math.min(action.minHead, angle);
       action.maxHead = Math.max(action.maxHead, angle);
       action.entered ||= action.maxHead - action.minHead > 0.18;
-      finished = action.entered && elapsed >= action.duration && Math.abs(angle - action.initialHead) < 0.1 && runtime.mode === 'walk';
+      finished = action.entered && elapsed >= action.duration && Math.abs(angle - (nod ? action.initialHead : 0)) < 0.1 && runtime.mode === 'walk';
     } else if (action.primitive === 'sit_cycle') {
       action.entered ||= runtime.mode === 'sitstand' && runtime.sitFlag === 1 && q[2] < action.initialHeight - 0.025;
       if (!action.entered && elapsed > 2400) { this.fail('The controller did not reach a seated pose.'); return; }
@@ -340,6 +362,7 @@ export class DuckAdapter {
     this.source.onAction?.('walk');
   }
   stop() {
+    this.attentionEnabled = false;
     this.cancelNavigation();
     const preparation = this.preparation;
     this.preparation = null;

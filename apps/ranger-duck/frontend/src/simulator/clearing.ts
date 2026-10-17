@@ -138,6 +138,9 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
     reset() { stop(); encounter = null; loopActor = null; loopSpecies = null; hideActors(); },
     stop,
     setActivity(next: AnimalActivity) { if (!loopActor && !interaction) activity = next; },
+    interactionTarget() {
+      return primary?.root.visible ? { x: primary.root.position.x, z: primary.root.position.z } : null;
+    },
     inspect() {
       let meshes = 0, triangles = 0;
       const geometries = new Set<THREE.BufferGeometry>(), materials = new Set<THREE.Material>();

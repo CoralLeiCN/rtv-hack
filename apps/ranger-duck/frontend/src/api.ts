@@ -1,5 +1,10 @@
 export type SearchMode = 'live' | 'replay';
 export type Primitive = 'ground_pick' | 'short_walk' | 'stand_hold' | 'head_scan' | 'head_nod' | 'sit_cycle';
+export interface SearchScope {
+  tags: string[];
+  requested_dataset_id?: string;
+  dataset_filter_applied?: boolean;
+}
 
 export interface Health {
   status: string;
@@ -9,6 +14,9 @@ export interface Health {
   search_timeout_ms?: number;
   loop_agent_available?: boolean;
   loop_cycle_timeout_ms?: number;
+  encounter_agent_available?: boolean;
+  encounter_plan_timeout_ms?: number;
+  encounter_timeout_ms?: number;
 }
 export interface Encounter {
   id: string;
@@ -36,10 +44,14 @@ export interface Candidate {
   review_reason?: string | null;
   action_basis?: 'reviewed' | 'video_caption' | null;
   action_reason?: string | null;
+  action_planner?: 'agent';
+  agent_reason?: string | null;
+  evidence_excerpt?: string | null;
   inferred_behavior?: string | null;
   interaction_partner?: string | null;
   provenance: {
     dataset: string | null;
+    dataset_id?: string | null;
     source_label: string;
     parent_id: string | null;
     segment_start_sec: number | null;
@@ -53,12 +65,25 @@ export interface SearchResult {
   mode: SearchMode;
   status: 'ok' | 'no_supported_imitation' | 'no_results';
   query: string;
+  query_basis?: 'agent';
+  query_reason?: string;
+  action_planner?: 'agent';
+  agent_plan?: { summary: string };
+  search_scope?: SearchScope;
   match_type?: 'species' | 'broader_category' | 'species_interaction' | 'broader_behavior';
   elapsed_ms: number;
   original_elapsed_ms?: number;
   recorded_at?: string;
   candidates: Candidate[];
   warnings: string[];
+}
+export interface EncounterPlan {
+  encounter_id: string;
+  plan_id: string;
+  query: string;
+  query_reason: string;
+  query_basis: 'agent';
+  search_scope?: SearchScope;
 }
 export class ApiError extends Error {
   constructor(public code: string, message: string, public retryable = false) {
@@ -88,6 +113,7 @@ export async function searchArchive(input: {
   scenario_id: string;
   mode: SearchMode;
   broaden: boolean;
+  plan_id?: string;
 }, signal: AbortSignal): Promise<SearchResult> {
   return readResponse(await fetch('/demo-api/search', {
     method: 'POST',
@@ -96,4 +122,15 @@ export async function searchArchive(input: {
     body: JSON.stringify(input),
     signal,
   }));
+}
+export async function planEncounter(input: { encounter_id: string; scenario_id: string; broaden: boolean }, signal: AbortSignal): Promise<EncounterPlan> {
+  return readResponse(await fetch('/demo-api/encounter-plan', {
+    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input), signal,
+  }));
+}
+export async function cancelEncounter(encounterId: string): Promise<void> {
+  await fetch(`/demo-api/encounters/${encodeURIComponent(encounterId)}/cancel`, {
+    method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(10000),
+  });
 }

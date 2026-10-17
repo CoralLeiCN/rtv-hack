@@ -73,7 +73,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
   const eligible = isEligible(candidate);
   const inferred = candidate.action_basis === 'video_caption';
   const behavior = candidate.inferred_behavior ?? candidate.reviewed_behavior;
-  const actionReason = candidate.action_reason ?? candidate.review_reason;
+  const actionReason = candidate.agent_reason ?? candidate.action_reason ?? candidate.review_reason;
   const p = candidate.provenance;
   const archiveTime = p.segment_start_sec == null ? null : p.segment_start_sec + position;
   const seek = (value: number) => { if (video.current && Number.isFinite(value)) video.current.currentTime = value; };
@@ -126,7 +126,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
     {autoplayBlocked && !videoError && <div className="body-note">Automatic playback was blocked. Press Play to watch this segment.</div>}
     {videoError && <div className="alert compact" role="alert"><span>{videoError}</span><div className="alert-actions"><button className="seg" onClick={() => void retryVideo()}>Retry video</button><button className="seg" onClick={onRetry}>Search again</button></div></div>}
     <div className="behavior-panel">
-      <div className="badge-row spread"><span className="label">Video behavior → duck move</span><span className={`badge ${eligible ? inferred ? 'inferred' : 'rev' : 'hot'}`}>{eligible ? inferred ? 'Caption-inferred' : 'Reviewed' : 'Skipped'}</span></div>
+      <div className="badge-row spread"><span className="label">{candidate.action_planner === 'agent' ? 'Agent plan · video → duck move' : 'Video behavior → duck move'}</span><span className={`badge ${eligible ? inferred ? 'inferred' : 'rev' : 'hot'}`}>{eligible ? inferred ? 'Caption-inferred' : 'Reviewed' : 'Skipped'}</span></div>
       {eligible ? <div className="behavior-mapping">
         <div><span className="label secondary">{inferred ? 'Inferred from caption' : 'Reviewed in footage'}</span><span className="behavior-name">{behaviorLabel(behavior)}</span><span className="body-note">{actionReason ?? 'Mapped from the returned video evidence.'}</span></div>
         <div className="allowed-primitive"><span className="label secondary">Duck approximation</span><span className="mono primitive">{candidate.action!.primitive}</span><span className="body-note">{primitiveLabel} · {(candidate.action!.max_duration_ms / 1000).toFixed(1).replace(/\.0$/, '')} s motion window</span></div>
@@ -142,6 +142,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
         <dt>model caption</dt><dd>{candidate.caption || 'none available'}</dd>
         <dt>caption hash</dt><dd>{candidate.caption_hash ?? 'not supplied by this backend'}</dd>
         <dt>action basis</dt><dd>{candidate.action_basis ?? 'none'}</dd>
+        {candidate.action_planner && <><dt>action planner</dt><dd>{candidate.action_planner}</dd><dt>agent reason</dt><dd>{candidate.agent_reason ?? 'none supplied'}</dd><dt>caption evidence</dt><dd>{candidate.evidence_excerpt ?? 'none supplied'}</dd></>}
         <dt>inferred label</dt><dd>{candidate.inferred_behavior ?? 'none'}</dd>
         <dt>interaction pair</dt><dd>{candidate.animal ?? 'unresolved'} · {candidate.interaction_partner ?? 'unresolved'}</dd>
         <dt>action reason</dt><dd>{candidate.action_reason ?? 'none recorded'}</dd>
@@ -155,6 +156,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
         <dt>clip id</dt><dd>{candidate.clip_id}</dd>
         <dt>archive rank</dt><dd>{candidate.rank ?? 'not supplied'}</dd>
         <dt>provenance</dt><dd>{p.dataset ?? 'not supplied'}</dd>
+        {p.dataset_id && <><dt>dataset id</dt><dd>{p.dataset_id}</dd></>}
       </dl>}
     </div>
   </div>;

@@ -1,4 +1,4 @@
-import { ApiError, readResponse, type Primitive } from './api';
+import { ApiError, readResponse, type Primitive, type SearchScope } from './api';
 import type { CompanionBehavior } from './simulator/clearing';
 import type { DuckStatus } from './simulator/adapter';
 
@@ -8,19 +8,21 @@ export interface LoopCandidate {
   allowed_actions: Primitive[]; unavailable_reason: string | null;
 }
 export interface RolePlan {
-  grounding: 'caption_roles' | 'insufficient_evidence';
+  grounding: 'caption_roles' | 'single_behavior' | 'insufficient_evidence';
   companion: { subject: string; evidence: string };
   duck: { subject: string; evidence: string };
-  duck_behavior: 'still' | 'looking' | 'moving' | 'feeding' | 'unknown';
+  duck_behavior: 'still' | 'looking' | 'moving' | 'feeding' | 'nodding' | 'sitting' | 'unknown';
   companion_behavior: CompanionBehavior; companion_duration_ms: number;
   timing: 'together' | 'companion_first' | 'duck_first';
 }
 export interface AgentCycle {
   session_id: string; cycle_id: string; cycle: number;
   query: string; query_reason: string; response_reason: string;
+  search_scope?: SearchScope;
   candidates: LoopCandidate[]; role_plan: RolePlan;
   action: { primitive: Primitive; max_duration_ms: number; evidence_id: string };
   clip: { clip_id: string; video_url: string; caption: string; rank: number;
+    dataset?: string | null; dataset_id?: string | null;
     observed_behavior: string; evidence_basis: string; start_sec: number; end_sec: number };
 }
 export interface ReactionOutcome {
@@ -28,6 +30,12 @@ export interface ReactionOutcome {
   playback: 'ended' | 'failed' | 'cancelled';
   companion: { behavior: CompanionBehavior; status: 'completed' | 'failed' | 'cancelled' };
   state: { status: DuckStatus; position: number[]; head_yaw: number; simulation_time: number };
+}
+export function reactionState(telemetry: ReactionOutcome['state']): ReactionOutcome['state'] {
+  const { status, position, head_yaw, simulation_time } = telemetry;
+  // Live control telemetry also includes navigation; the outcome API retains
+  // its strict, stable state contract.
+  return { status, position, head_yaw, simulation_time };
 }
 export async function loopRequest<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   return readResponse(await fetch(`/demo-api/loop${path}`, {

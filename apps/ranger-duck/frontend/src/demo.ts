@@ -1,7 +1,7 @@
 import type { Candidate, Primitive, SearchResult } from './api';
 
 export type Stage = 'idle' | 'encounter' | 'searching' | 'ready' | 'imitating' | 'complete' | 'paused' | 'nomatch' | 'failed';
-export const STAGES = ['Encounter', 'Searching', 'Actions ready', 'Auto imitation', 'Roam & repeat'];
+export const STAGES = ['Encounter', 'Searching', 'Actions ready', 'Auto imitation', 'Attend & repeat'];
 export const STAGE_INDEX: Record<Stage, number> = { idle: -1, encounter: 0, searching: 1, ready: 2, imitating: 3, complete: 4, paused: 3, nomatch: 1, failed: 1 };
 
 export function searchDeadlineMs(backendBudget: unknown): number {
@@ -29,12 +29,12 @@ export function visibleCandidates(candidates: Candidate[]): { candidate: Candida
     .map((entry, index) => ({ ...entry, rank: index + 1 }));
 }
 
-export type LoopPhase = 'preparing' | 'approaching' | 'waiting' | 'running' | 'completed' | 'roaming' | 'cycle_complete';
+export type LoopPhase = 'preparing' | 'approaching' | 'waiting' | 'running' | 'completed' | 'attending' | 'cycle_complete';
 export function motionLabel(primitive: Primitive): string {
   return { sit_cycle: 'Sitting down and standing back up', head_nod: 'Nodding up and down', stand_hold: 'Holding a steady stance', head_scan: 'Looking around', short_walk: 'Walking / turning within the arena', ground_pick: 'Dipping toward the ground' }[primitive];
 }
 export function loopPhaseLabel(phase: LoopPhase): string {
-  return { preparing: 'waiting for balance', approaching: 'approaching the animal', waiting: 'waiting for balance', running: 'active', completed: 'action complete', roaming: 'roaming between cycles', cycle_complete: 'continuing to the next pass' }[phase];
+  return { preparing: 'waiting for balance', approaching: 'approaching the animal', waiting: 'waiting for balance', running: 'active', completed: 'action complete', attending: 'facing the animal between cycles', cycle_complete: 'continuing to the next pass' }[phase];
 }
 export function behaviorLabel(value: string | null | undefined): string {
   if (!value) return 'Supported behavior';
@@ -84,14 +84,14 @@ export async function runReferenceLoop(options: {
   signal: AbortSignal;
   prepareCycle: () => Promise<void>;
   approach: () => Promise<void>;
-  roam: () => void;
+  attend: () => Promise<void>;
   status: () => string;
   perform: (action: NonNullable<Candidate['action']>) => Promise<void>;
   onProgress: (progress: LoopProgress) => void;
   firstCycle?: number;
   transitionMs?: number;
   readinessTimeoutMs?: number;
-  roamingMs?: number;
+  attentionMs?: number;
 }): Promise<void> {
   const { signal } = options;
   const slots = sequenceSlots(options.candidates);
@@ -121,10 +121,10 @@ export async function runReferenceLoop(options: {
       await waitFor(options.transitionMs ?? 450, signal);
     }
     checkSignal(signal);
-    options.onProgress({ cycle, rank: null, phase: 'roaming', candidate: null });
+    options.onProgress({ cycle, rank: null, phase: 'attending', candidate: null });
     checkSignal(signal);
-    options.roam();
-    await waitFor(options.roamingMs ?? 2400, signal);
+    await interruptible(options.attend(), signal);
+    await waitFor(options.attentionMs ?? 2400, signal);
     options.onProgress({ cycle, rank: null, phase: 'cycle_complete', candidate: null });
     cycle += 1;
   }

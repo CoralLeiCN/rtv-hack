@@ -13,6 +13,16 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
+def animal_search_scope(animal: str) -> dict:
+    """Expose actual tag filters separately from the requested dataset identity."""
+    if animal == "cat":
+        # The live metadata schema does not offer dataset_id as a filter key.
+        # These user-supplied tags are passed unchanged to the VSS engine.
+        return {"tags": ["meow-10k", "cat-behavior"],
+                "requested_dataset_id": "hf-smgjch-meow-10k", "dataset_filter_applied": False}
+    return {"tags": ["wildlife"]}
+
+
 class VSSClient:
     def __init__(self, settings: Settings, transport: httpx.AsyncBaseTransport | None = None):
         self.settings = settings

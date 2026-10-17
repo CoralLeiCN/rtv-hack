@@ -124,7 +124,7 @@ def test_search_uses_each_ranked_caption_even_if_it_differs_from_encounter_hint(
     assert all(item["interaction_partner"] == "cat" for item in result["candidates"][:2])
     assert result["warnings"]
     sent = json.loads(next(r.content for r in upstream.requests if r.url.path.endswith("/search")))
-    assert sent["tags"] == [] and "another cat" in sent["query"]
+    assert sent["tags"] == ["meow-10k", "cat-behavior"] and "another cat" in sent["query"]
     # Grounding consumes existing captions only; no second reasoning request.
     assert sum(r.url.path.endswith("/search") for r in upstream.requests) == 1
     rendered = json.dumps(result)
@@ -236,8 +236,8 @@ def test_broadening_keeps_cat_pair_and_authorized_search_scope():
         response = client.post("/demo-api/search", json={**PAYLOAD, "scenario_id": "cat-play", "broaden": True})
         catalog = client.get("/demo-api/encounters").json()["encounters"]
     sent = json.loads(next(r.content for r in upstream.requests if r.url.path.endswith("/search")))
-    assert response.json()["query"] == sent["query"] == "Two cats interacting with each other"
-    assert sent["tags"] == [] and sent["include_public"] is True
+    assert response.json()["query"] == sent["query"] == "Cats interacting OR A cat alone showing similar observable motion"
+    assert sent["tags"] == ["meow-10k", "cat-behavior"] and sent["include_public"] is True
     assert all(s["role"] == "focal_animal" and s["animal"] == s["interaction_partner"] for s in catalog)
 
 

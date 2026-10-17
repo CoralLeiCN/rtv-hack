@@ -11,7 +11,8 @@ from ranger_duck.app import create_app
 from ranger_duck.evidence import Manifest
 from ranger_duck.loop_agent import ActionDecision, QueryDecision, CodexAgent, RolePlan
 from ranger_duck.errors import DemoError
-from test_backend import SETTINGS, ROW, Upstream, reviewed
+from ranger_duck.encounter_agent import EncounterQueryDecision, EncounterActionsDecision
+from test_backend import SETTINGS, ROW, Upstream, reviewed, EncounterAgent
 
 
 def neutral_plan():
@@ -37,9 +38,12 @@ class Agent:
         self.plan = None
 
     async def decide(self, context, schema):
+        if schema in {EncounterQueryDecision, EncounterActionsDecision}:
+            return await EncounterAgent.decide(self, context, schema)
         self.calls.append(json.loads(json.dumps(context)))
         if schema is QueryDecision:
-            return QueryDecision(query='A companion responds to an approaching deer', reason='Follow the prior actual reaction.')
+            return QueryDecision(query=f"A {context['animal']} approaches another {context['animal']}",
+                                 individual_query=f"A {context['animal']} walks alone", reason='Follow the prior actual reaction.')
         selected = next(c for c in context['candidates'] if c['allowed_actions'])
         plan = self.plan or (paired_plan(selected['caption'], self.primitive) if 'one deer approaches' in selected['caption'] and 'the other deer' in selected['caption'] else neutral_plan())
         return ActionDecision.model_construct(candidate_id='unknown' if self.invalid_id else next(c['candidate_id'] for c in context['candidates'] if c['allowed_actions']),
@@ -179,12 +183,19 @@ def test_caption_content_does_not_filter_results_but_stale_reviews_block_executi
 
 
 def test_cat_scope_and_unavailable_agent():
-    client, upstream, _, _ = setup([row(caption='Two cats interact; one cat approaches another cat.')])
+    clip = {**row(caption='Two cats interact; one cat approaches another cat.'),
+            'extra_metadata': json.dumps({'dataset_id': 'actual-archive-dataset'})}
+    client, upstream, _, _ = setup([clip])
     with client:
         start(client, animal='cat')
-        assert next_cycle(client).status_code == 200
+        cycle = next_cycle(client)
+        assert cycle.status_code == 200
+        assert cycle.json()['search_scope'] == {'tags': ['meow-10k', 'cat-behavior'],
+                                               'requested_dataset_id': 'hf-smgjch-meow-10k', 'dataset_filter_applied': False}
+        assert cycle.json()['clip']['dataset_id'] == 'actual-archive-dataset'
         search = next(r for r in upstream.requests if r.url.path.endswith('/search'))
-        assert json.loads(search.content)['tags'] == []
+        assert json.loads(search.content)['tags'] == ['meow-10k', 'cat-behavior']
+        assert 'metadata_filters' not in json.loads(search.content)
     agent = Agent(); agent.available = False
     client, _, _, _ = setup(agent=agent)
     with client:
@@ -215,7 +226,47 @@ def test_pause_cancels_inflight_agent_without_issuing_action():
     asyncio.run(scenario())
 
 
-def test_cli_runner_uses_schema_and_does_not_forward_workshop_secrets(tmp_path, monkeypatch):
+@pytest.mark.parametrize('caption,primitive,behavior', [
+    ('A deer walks across a clearing.', 'short_walk', 'moving'),
+    ('A deer feeds.', 'ground_pick', 'feeding'),
+    ('A deer raises its head.', 'head_nod', 'nodding'),
+    ('A deer looks around.', 'head_scan', 'looking'),
+    ('A deer sits down.', 'sit_cycle', 'sitting'),
+    ('A deer stands still.', 'stand_hold', 'still'),
+])
+def test_loop_can_imitate_six_supported_solitary_behaviors_without_a_second_role(caption, primitive, behavior):
+    agent = Agent(); agent.primitive = primitive
+    agent.plan = RolePlan(grounding='single_behavior',
+        companion={'subject': 'Unassigned', 'evidence': ''},
+        duck={'subject': 'The solitary deer', 'evidence': caption},
+        companion_behavior='standing', duck_behavior=behavior, timing='together')
+    client, _, _, _ = setup([row(caption=caption)], agent=agent)
+    with client:
+        start(client)
+        result = next_cycle(client)
+    assert result.status_code == 200, result.text
+    cycle = result.json()
+    assert cycle['action']['primitive'] == primitive
+    assert cycle['role_plan']['grounding'] == 'single_behavior'
+    assert cycle['role_plan']['companion'] == {'subject': 'Unassigned scene companion', 'evidence': ''}
+    assert cycle['role_plan']['companion_behavior'] == 'standing'
+
+
+@pytest.mark.parametrize('caption', ['A cat walks across a room.', 'A deer does not walk.', 'A deer may walk.'])
+def test_loop_single_behavior_needs_positive_selected_species_evidence(caption):
+    agent = Agent(); agent.primitive = 'short_walk'
+    agent.plan = RolePlan(grounding='single_behavior',
+        companion={'subject': 'Unassigned', 'evidence': ''},
+        duck={'subject': 'Claimed deer', 'evidence': caption},
+        companion_behavior='standing', duck_behavior='moving', timing='together')
+    client, _, _, _ = setup([row(caption=caption)], agent=agent)
+    with client:
+        start(client)
+        assert next_cycle(client).json()['error']['code'] == 'invalid_agent_action'
+
+
+@pytest.mark.parametrize('schema', [QueryDecision, EncounterQueryDecision])
+def test_cli_runner_uses_schema_and_does_not_forward_workshop_secrets(tmp_path, monkeypatch, schema):
     import sys
     script = tmp_path / 'fake-codex'
     script.write_text(f'#!{sys.executable}\n' + '''import sys, os, json
@@ -224,17 +275,39 @@ assert "PASSWORD" not in os.environ and "OPENAI_API_KEY" not in os.environ
 assert "--sandbox" in sys.argv and "read-only" in sys.argv
 assert "features.shell_tool=false" in sys.argv
 assert "--ignore-user-config" in sys.argv
+assert 'forced_login_method="chatgpt"' in sys.argv
 assert sys.argv[sys.argv.index("--model")+1] == "gpt-6-luna"
 payload = sys.stdin.read()
 assert "original_prompt" in payload
-Path(sys.argv[sys.argv.index("--output-last-message")+1]).write_text(json.dumps({"query":"two deer interact", "reason":"initial prompt"}))
+assert "Interactions must be cat–cat or deer–deer" in payload
+assert "similar solitary motion by that same species" in payload
+assert "Do not expand the query to interactions with people or other species" in payload
+assert "individual_query" in payload and "Both fields are required" in payload
+Path(sys.argv[sys.argv.index("--output-last-message")+1]).write_text(json.dumps({"query":"two deer interact", "individual_query":"A deer walks alone", "reason":"initial prompt"}))
 ''')
     script.chmod(0o700)
     monkeypatch.setenv('PASSWORD', 'do-not-pass')
     monkeypatch.setenv('OPENAI_API_KEY', 'do-not-pass')
     agent = CodexAgent(); agent.executable = str(script)
-    result = asyncio.run(agent.decide({'original_prompt': 'deer'}, QueryDecision))
+    result = asyncio.run(agent.decide({'original_prompt': 'deer'}, schema))
     assert result.query == 'two deer interact'
+    assert result.individual_query == 'A deer walks alone'
+
+
+@pytest.mark.parametrize('individual_query', ['A cat walks alone', '   '])
+def test_loop_validates_individual_query_branch_before_archive_search(individual_query):
+    class InvalidIndividual(Agent):
+        async def decide(self, context, schema):
+            result = await super().decide(context, schema)
+            if schema is QueryDecision:
+                result.individual_query = individual_query
+            return result
+    client, upstream, _, _ = setup(agent=InvalidIndividual())
+    with client:
+        start(client)
+        result = next_cycle(client)
+    assert result.json()['error']['code'] == 'invalid_agent_query'
+    assert not any(r.url.path.endswith('/search') for r in upstream.requests)
 
 
 @pytest.mark.parametrize('primitive', ['stand_hold', 'head_scan', 'short_walk', 'ground_pick'])
@@ -263,8 +336,10 @@ def test_top_ten_are_returned_without_pair_or_behavior_filtering(primitive):
         search = next(r for r in upstream.requests if r.url.path.endswith('/search'))
         payload = json.loads(search.content)
         assert payload['top_k'] == 10
-        assert payload['query'].startswith('Two deer interacting.')
+        assert payload['query'] == 'A deer approaches another deer OR A deer walks alone'
         assert payload['tags'] == ['wildlife']
+        assert 'metadata_filters' not in payload
+        assert cycle['search_scope'] == {'tags': ['wildlife']}
         assert 's3://' not in response.text
 
 

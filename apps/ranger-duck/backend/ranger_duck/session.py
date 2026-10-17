@@ -16,6 +16,10 @@ class SearchSnapshot:
     recorded_at: str
     started: float
     expires: float
+    annotations: tuple[dict, ...] = ()
+    query_reason: str = ''
+    agent_summary: str = ''
+    search_scope: dict = field(default_factory=dict)
 
 
 @dataclass

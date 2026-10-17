@@ -12,6 +12,7 @@ from ranger_duck.app import create_app
 from ranger_duck.config import Settings
 from ranger_duck.evidence import Manifest, Segment
 from ranger_duck.session import COOKIE_NAME
+from ranger_duck.encounter_agent import EncounterQueryDecision, EncounterActionsDecision
 
 SETTINGS = Settings(ingress_url="https://vss.invalid", username="test-user", password="test-secret")
 ROW = {"source": "s3://test-segments/clip.mp4", "original_video": "s3://test-parents/animal.mp4",
@@ -83,9 +84,30 @@ class Upstream:
         raise AssertionError("Unexpected upstream path")
 
 
-def make_client(upstream=None, manifest=None, settings=SETTINGS):
+class EncounterAgent:
+    available = True
+
+    def __init__(self):
+        self.calls = []
+
+    async def decide(self, context, schema):
+        self.calls.append(json.loads(json.dumps(context)))
+        if schema is EncounterQueryDecision:
+            animal = context['animal']
+            query = (f"{'Cats' if animal == 'cat' else 'Deer'} interacting" if context['broaden'] else
+                     f"{animal.capitalize()} {context['encounter']['behavior_hint']}, interacting with another {animal}")
+            return EncounterQueryDecision(query=query, individual_query=f"A {animal} alone showing similar observable motion",
+                                          reason='Search the chosen encounter and similar observable individual motion.')
+        return EncounterActionsDecision(summary='Use the active observed behaviors, skipping unsupported clips.', actions=[{
+            'candidate_id': c['candidate_id'], 'decision': 'imitate' if c['allowed_actions'] else 'skip',
+            'primitive': c['preferred_action'], 'evidence_excerpt': c['caption'] if c['allowed_actions'] else '',
+            'reason': 'Approximate the supported behavior in this exact caption.' if c['allowed_actions'] else 'No supported behavior.'
+        } for c in context['candidates']])
+
+
+def make_client(upstream=None, manifest=None, settings=SETTINGS, agent=None):
     upstream = upstream or Upstream()
-    app = create_app(settings, httpx.MockTransport(upstream), Manifest(manifest))
+    app = create_app(settings, httpx.MockTransport(upstream), Manifest(manifest), agent or EncounterAgent())
     return TestClient(app), upstream, app
 
 
@@ -186,7 +208,7 @@ def test_broader_search_changes_query_without_relaxing_review_or_species_rules()
         response = client.post("/demo-api/search", json={**PAYLOAD, "broaden": True})
         result = response.json()
         sent = json.loads(next(r.content for r in upstream.requests if r.url.path.endswith("/search")))
-        assert sent["query"] == result["query"] == "Two deer interacting with each other"
+        assert sent["query"] == result["query"] == "Deer interacting OR A deer alone showing similar observable motion"
         assert result["match_type"] == "broader_behavior"
         assert result["candidates"][0]["action"] is None
         assert result["candidates"][0]["eligibility_reason"] == "species_mismatch"
@@ -287,6 +309,25 @@ def test_auth_is_verified_cached_and_retried_once():
         assert upstream.logins == 2
         assert sum(r.url.path.endswith("/auth/me") for r in upstream.requests) == 2
         assert sum(r.url.path.endswith("/search") for r in upstream.requests) == 3
+
+
+def test_cat_scope_survives_auth_refresh_and_broadening_without_unsupported_dataset_filter():
+    upstream = Upstream()
+    upstream.fail_search_once = True
+    client, _, _ = make_client(upstream)
+    with client:
+        response = client.post("/demo-api/search", json={**PAYLOAD, "scenario_id": "cat-play", "broaden": True})
+        assert response.status_code == 200
+        scope = response.json()["search_scope"]
+        assert scope == {"tags": ["meow-10k", "cat-behavior"],
+                         "requested_dataset_id": "hf-smgjch-meow-10k", "dataset_filter_applied": False}
+        assert response.json()["candidates"][0]["provenance"]["dataset_id"] is None
+        replay = client.post("/demo-api/search", json={**PAYLOAD, "scenario_id": "cat-play", "broaden": True, "mode": "replay"})
+        assert replay.json()["search_scope"] == scope
+    requests = [json.loads(r.content) for r in upstream.requests if r.url.path.endswith("/search")]
+    assert len(requests) == 2
+    assert all(item["tags"] == ["meow-10k", "cat-behavior"] for item in requests)
+    assert all("metadata_filters" not in item for item in requests)
 
 
 @pytest.mark.parametrize("kind,expected", [("timeout", 504), ("deadline", 504), ("error", 502), ("authentication", 502), ("unsupported_fast_search", 502)])
@@ -405,7 +446,7 @@ def test_changed_caption_hash_and_invalid_manifest_fail_closed(tmp_path):
     assert Manifest([reference]).entries == []
     path = tmp_path / "invalid.json"
     path.write_text("not json")
-    app = create_app(replace(SETTINGS, manifest_path=path), httpx.MockTransport(Upstream()))
+    app = create_app(replace(SETTINGS, manifest_path=path), httpx.MockTransport(Upstream()), loop_agent=EncounterAgent())
     with TestClient(app) as client:
         result = search(client)
         assert result["warnings"] and result["candidates"][0]["action"] is None
@@ -435,7 +476,7 @@ def test_upstream_cookies_are_not_sent_and_rejected_token_is_cleared():
             response.headers["set-cookie"] = "upstream-session=private; Path=/"
             return response
 
-        app = create_app(SETTINGS, httpx.MockTransport(handler))
+        app = create_app(SETTINGS, httpx.MockTransport(handler), loop_agent=EncounterAgent())
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://demo.test") as client:
             await client.get("/demo-api/health")
             result = (await client.post("/demo-api/search", json=PAYLOAD)).json()
@@ -476,7 +517,22 @@ def test_extra_metadata_only_exposes_redacted_dataset():
         assert "test-secret" not in json.dumps(result)
 
 
-def test_health_bootstrap_keeps_reordered_search_responses_in_one_session():
+@pytest.mark.parametrize("metadata", [
+    {"dataset_id": "actual-archive-dataset"},
+    {"metadata": {"dataset_id": "actual-archive-dataset"}},
+    {"extra_metadata": {"dataset_id": "actual-archive-dataset"}},
+    {"extra_metadata": json.dumps({"dataset_id": "actual-archive-dataset", "private": "test-secret"})},
+])
+def test_dataset_identity_comes_from_clip_metadata_not_requested_scope(metadata):
+    client, _, _ = make_client(Upstream([{**ROW, **metadata}]))
+    with client:
+        result = client.post("/demo-api/search", json={**PAYLOAD, "scenario_id": "cat-play"}).json()
+    assert result["search_scope"]["requested_dataset_id"] == "hf-smgjch-meow-10k"
+    assert result["candidates"][0]["provenance"]["dataset_id"] == "actual-archive-dataset"
+    assert "test-secret" not in json.dumps(result)
+
+
+def test_health_bootstrap_keeps_replaced_search_in_one_session():
     async def run():
         base = Upstream()
 
@@ -485,17 +541,18 @@ def test_health_bootstrap_keeps_reordered_search_responses_in_one_session():
                 await asyncio.sleep(0.03)
             return await base(request)
 
-        app = create_app(SETTINGS, httpx.MockTransport(reordered))
+        app = create_app(SETTINGS, httpx.MockTransport(reordered), loop_agent=EncounterAgent())
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://demo.test") as client:
             await client.get("/demo-api/health")
             session = client.cookies.get(COOKIE_NAME)
             old = asyncio.create_task(client.post("/demo-api/search", json=PAYLOAD))
+            await asyncio.sleep(0.005)
             current = await client.post("/demo-api/search", json={"encounter_id": "encounter-02", "scenario_id": "deer-walking"})
             previous = await old
-            assert current.status_code == previous.status_code == 200
+            assert current.status_code == 200 and previous.status_code == 409
             assert client.cookies.get(COOKIE_NAME) == session
             assert len(app.state.registry.sessions) == 1
-            for response in (current, previous):
+            for response in (current,):
                 url = response.json()["candidates"][0]["video_url"]
                 assert (await client.get(url)).status_code == 200
         await app.state.vss.close()

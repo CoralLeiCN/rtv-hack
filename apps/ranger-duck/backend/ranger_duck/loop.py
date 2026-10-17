@@ -13,6 +13,9 @@ from .evidence import Segment
 from .loop_evidence import annotate_response
 from .loop_agent import CodexAgent, QueryDecision, ActionDecision, Primitive, LIMITS, CYCLE_TIMEOUT, CompanionBehavior, COMPANION_BEHAVIORS, DUCK_ROLE_ACTIONS
 from .session import COOKIE_NAME
+from .encounter_agent import combined_behavior_query
+from .interaction import classify_interaction
+from .vss import animal_search_scope
 
 
 class StrictModel(BaseModel):
@@ -108,11 +111,12 @@ class LoopService:
             context = {'original_prompt': loop.prompt, 'animal': loop.animal,
                        'history': loop.history, 'rejected_queries': rejected_queries}
             query = await self.agent.decide(context, QueryDecision)
-            words = self.public_text(query.query, 600).strip()
+            words = self.public_text(query.query, 280).strip()
             if not words:
                 raise DemoError('invalid_agent_query', 'The agent returned an empty query. Retry the loop.', 502)
-            actual_query = f"Two {'cats' if loop.animal == 'cat' else 'deer'} interacting. {words}"
-            result = await self.client.search(actual_query, tags=[] if loop.animal == 'cat' else ['wildlife'], top_k=10)
+            actual_query = combined_behavior_query(words, self.public_text(query.individual_query, 280), loop.animal)
+            scope = animal_search_scope(loop.animal)
+            result = await self.client.search(actual_query, tags=scope['tags'], top_k=10)
             choices, segments = [], {}
             # Preserve the first ten upstream ranks, including single animals,
             # weak matches, duplicates, and clips unavailable for execution.
@@ -152,6 +156,16 @@ class LoopService:
                 plan.update(companion_behavior='standing', duck_behavior='unknown', timing='together',
                             companion={'subject': 'Unassigned animal role', 'evidence': ''},
                             duck={'subject': 'Unassigned counterpart role', 'evidence': ''})
+            elif plan['grounding'] == 'single_behavior':
+                evidence = plan['duck']['evidence'].strip()
+                observed, _ = classify_interaction(chosen['caption'], loop.animal)
+                quoted, _ = classify_interaction(evidence, loop.animal)
+                if (not plan['duck']['subject'].strip() or not evidence or evidence not in chosen['caption']
+                        or DUCK_ROLE_ACTIONS.get(plan['duck_behavior']) != primitive
+                        or not observed or not quoted or observed[1] != primitive or quoted[1] != primitive):
+                    raise DemoError('invalid_agent_action', 'The single animal response needs a supported positive behavior and exact selected-species caption evidence.', 502)
+                plan.update(companion_behavior='standing', timing='together',
+                            companion={'subject': 'Unassigned scene companion', 'evidence': ''})
             elif (plan['companion_behavior'] not in COMPANION_BEHAVIORS[loop.animal]
                   or DUCK_ROLE_ACTIONS.get(plan['duck_behavior']) != primitive
                   or plan['companion']['subject'].strip().casefold() == plan['duck']['subject'].strip().casefold()
@@ -180,9 +194,12 @@ class LoopService:
             loop.recent = (loop.recent + [identity])[-5:]
             return {'session_id': loop.id, 'cycle_id': cycle_id, 'cycle': loop.cycle,
                     'query': actual_query, 'query_reason': self.public_text(query.reason, 800),
+                    'search_scope': scope,
                     'response_reason': reason, 'action': action, 'candidates': choices, 'role_plan': plan,
                     'clip': {'clip_id': clip_id, 'video_url': f'/demo-api/clips/{clip_id}/video',
                              'caption': chosen['caption'], 'rank': segment.rank,
+                             'dataset': self.public_text(segment.dataset, 100) or None,
+                             'dataset_id': self.public_text(segment.dataset_id, 100) or None,
                              'observed_behavior': chosen['observed_behavior'],
                              'evidence_basis': chosen['evidence_basis'],
                              'start_sec': segment.start, 'end_sec': segment.end}}

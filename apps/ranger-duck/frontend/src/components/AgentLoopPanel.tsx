@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { ApiError, getHealth, type Health } from '../api';
-import { checkActive, loopRequest, playAndReact, runAgentLoop, runRoleActions, type AgentCycle, type ReactionOutcome } from '../agentLoop';
+import { checkActive, loopRequest, playAndReact, reactionState, runAgentLoop, runRoleActions, type AgentCycle, type ReactionOutcome } from '../agentLoop';
 import type { MicroduckSceneHandle } from '../simulator/MicroduckScene';
 
 type Props = { duck: RefObject<MicroduckSceneHandle>; ready: boolean; health: Health | null; onSearching(value: boolean): void;
@@ -72,6 +72,9 @@ export function AgentLoopPanel({ duck, ready, health, onSearching, animal, onAni
       setStatus('Preparing the duck…');
       await duck.current!.prepareCycle();
       checkActive(controller.signal);
+      setStatus('Facing and approaching the animal…');
+      await duck.current!.ensureInteraction();
+      checkActive(controller.signal);
       await runAgentLoop({
         signal: controller.signal,
         onSearch: attempt => { if (current()) { setStatus(`Codex is searching${attempt > 1 ? ` · attempt ${attempt}/3` : ''}…`); onSearching(true); } },
@@ -87,6 +90,10 @@ export function AgentLoopPanel({ duck, ready, health, onSearching, animal, onAni
           let completed = false;
           let companionStatus: ReactionOutcome['companion']['status'] = 'cancelled';
           try {
+            setStatus(`Cycle ${next.cycle} · facing and approaching the animal`);
+            await duck.current!.ensureInteraction();
+            checkActive(controller.signal);
+            setStatus(`Cycle ${next.cycle} · playing clip and responding`);
             await playAndReact(video.current!, next, controller.signal,
               () => runRoleActions(next.role_plan, controller.signal,
                 async () => {
@@ -103,7 +110,7 @@ export function AgentLoopPanel({ duck, ready, health, onSearching, animal, onAni
             if (current()) setError(failure instanceof Error ? failure.message : 'The reaction failed.');
           } finally { duck.current?.stopCompanion(); }
           checkActive(controller.signal);
-          const state = duck.current!.telemetry();
+          const state = reactionState(duck.current!.telemetry());
           if (!completed) duck.current!.stop();
           const report: ReactionOutcome = { cycle_id: next.cycle_id, primitive: next.action.primitive,
             status: completed ? 'completed' : 'failed', playback: video.current!.ended ? 'ended' : 'failed', state,
@@ -111,7 +118,15 @@ export function AgentLoopPanel({ duck, ready, health, onSearching, animal, onAni
           if (current()) { setOutcome(report); setHistory(previous => [`${next.cycle}. ${next.action.primitive} · ${report.status}`, ...previous].slice(0, 5)); }
           return report;
         },
-        report: report => loopRequest(`/${id}/outcome`, report, controller.signal),
+        report: async report => {
+          await loopRequest(`/${id}/outcome`, report, controller.signal);
+          checkActive(controller.signal);
+          if (report.status === 'completed') {
+            setStatus('Facing the animal before the next search…');
+            await duck.current!.ensureInteraction();
+            checkActive(controller.signal);
+          }
+        },
       });
     } catch (failure) {
       if (current() || (active.current === controller && controller.signal.reason === 'deadline')) {
@@ -124,7 +139,7 @@ export function AgentLoopPanel({ duck, ready, health, onSearching, animal, onAni
   const available = ready && !!health?.live_configured && health.loop_agent_available !== false;
 
   return <aside className="archive-column agent-loop-panel" aria-label="Agent Loop mode">
-    <div className="archive-heading"><h2 className="display">Loop mode</h2><span className="badge">One companion · duck as counterpart</span></div>
+    <div className="archive-heading"><h2 className="display">Loop mode</h2><span className="badge">Caption-grounded animal behavior</span></div>
     <form className="box loop-form" onSubmit={event => { event.preventDefault(); void start(); }}>
       <label className="label" htmlFor="loop-prompt">Initial prompt</label>
       <textarea id="loop-prompt" maxLength={1000} value={prompt} disabled={running} onChange={event => setPrompt(event.target.value)} />
@@ -145,8 +160,8 @@ export function AgentLoopPanel({ duck, ready, health, onSearching, animal, onAni
         {candidate.unavailable_reason && <p className="body-note">Unavailable for this cycle: {candidate.unavailable_reason.replaceAll('_', ' ')}</p>}
       </li>)}</ol>
     </details>}
-    {cycle && <div className="box"><div className="label">{cycle.clip.evidence_basis === 'reviewed' ? 'Reviewed interaction' : 'Inferred from archive caption'}</div><p>{cycle.clip.caption}</p><div className="label">{cycle.role_plan.grounding === 'caption_roles' ? 'Two video roles · caption-inferred approximation' : 'Insufficient role evidence · neutral fallback'}</div>
-      <p>Companion: {cycle.role_plan.companion.subject} → {cycle.role_plan.companion_behavior}</p>
+    {cycle && <div className="box"><div className="label">{cycle.clip.evidence_basis === 'reviewed' ? 'Reviewed interaction' : 'Inferred from archive caption'}</div><p>{cycle.clip.caption}</p>{cycle.clip.dataset_id && <dl className="kv mono"><dt>dataset id</dt><dd>{cycle.clip.dataset_id}</dd></dl>}<div className="label">{cycle.role_plan.grounding === 'caption_roles' ? 'Two video roles · caption-inferred approximation' : cycle.role_plan.grounding === 'single_behavior' ? 'Individual behavior · duck imitation' : 'Insufficient role evidence · neutral fallback'}</div>
+      {cycle.role_plan.grounding === 'single_behavior' ? <p>Scene companion: standing nearby. No second video role is inferred.</p> : <p>Companion: {cycle.role_plan.companion.subject} → {cycle.role_plan.companion_behavior}</p>}
       {cycle.role_plan.companion.evidence && <blockquote>{cycle.role_plan.companion.evidence}</blockquote>}
       <p>Duck: {cycle.role_plan.duck.subject} → {cycle.action.primitive}</p>
       {cycle.role_plan.duck.evidence && <blockquote>{cycle.role_plan.duck.evidence}</blockquote>}

@@ -4,18 +4,23 @@ This context supports the [approved plan](RANGER_DUCK_PLAN.md) and [frontend int
 
 ## Current product decisions
 
-- One page contains one animal outside the yellow box, the continuous MuJoCo duck, live search, reference playback and automatic movement status. The latest request permits a bounded east-side animal patrol while the duck roams; original procedural geometry remains because the animal-model replacement was canceled.
-- Cat scenarios are Hissing, Greeting and Social play; deer scenarios are Forage together, Follow companion and Herd alert. Search queries remain cat–cat and deer–deer interaction queries.
+- One page contains one animal outside the yellow box, the continuous MuJoCo duck, live search, reference playback and automatic movement status. The animal remains outside the arena and the duck attends to it during search and between clips; original procedural geometry remains because the animal-model replacement was canceled.
+- Cat scenarios are Hissing, Greeting and Social play; deer scenarios are Forage together, Follow companion and Herd alert. The agent generates a fresh query for interactions of the selected species or similar individual behavior.
+- Cat searches in both modes use tags `meow-10k` and `cat-behavior`; the requested dataset identity is `hf-smgjch-meow-10k`. The live schema exposes no dataset_id search filter, and sampled cat results omit that metadata, so this ID is recorded as requested scope rather than fabricated clip provenance. Deer retains the wildlife tag.
 - Returned footage may show a single animal. An explicit supported behavior of the selected species plus complete provenance is sufficient; an actual interaction is not required.
 - Filter all returned candidates for compatible actions, preserve retrieval order, and take the first three. Display action positions and original source ranks separately. Incompatible clips do not occupy visible slots; later ranks can fill them.
-- The duck roams while waiting and between passes. Before an action, the animal returns to its anchor and faces the duck; the wrapper observes its settling before the duck approaches, settles and executes the reference-derived motion. Navigation and scripted animal movement are separate from imitation.
+- Whenever an animal appears, the duck turns toward it and approaches only as needed, including while the agent is planning/searching. It maintains attention between clips. Before an action the animal settles at its anchor, then the duck completes positioning and executes the reference-derived motion. The UI shows actual movement commands; navigation remains separate from imitation.
 - Supported primitives are `short_walk`, `ground_pick`, `head_nod`, `head_scan`, `sit_cycle` and `stand_hold`. Within a caption, that order prioritizes active supported behavior: walk → pick → nod → scan → sit → hold. Species/actor attribution and negation still apply; exact current reviews keep their explicit behavior. Retrieval order is unchanged. Unsupported climbing, retreat or lying does not become a fabricated movement.
 - Exact reviewed solitary references are usable again. Caption-inferred actions remain labeled unreviewed. Stale, invalid or contradictory reviews do not silently authorize new actions.
 - Stop and hidden-tab handling stop navigation and imitation. Visibility-only pauses resume automatically; manual Stop and reference inspection stay paused. Clip transitions and repeated cycles never reset physics.
-- Replay is explicit, session-scoped, expires and still needs VSS for video. Broader search relaxes behavior wording while retaining the interaction query's species pair.
+- Replay is explicit, session-scoped, expires and still needs VSS for video. Broader search relaxes behavior wording while retaining the selected species and allowing interactions or similar individual motion.
 - New training, physical robot control, camera recognition and actual live-animal interaction remain outside scope.
 
 These decisions supersede the earlier fixed-animal, strict pair eligibility and raw-rank 1–3 rules recorded in the historical notes below. See the [current plan](RANGER_DUCK_PLAN.md), [API contract](RANGER_DUCK_API.md) and [behavior research](RANGER_DUCK_INTERACTIONS.md).
+
+## Local agent runtime
+
+The demo backend and Codex CLI run on the presenter's Mac using the existing ChatGPT OAuth login. The user explicitly rejected a private SSH bridge; no agent bridge or copied account credentials are part of this implementation. Search and action planning use bounded structured decisions. VSS access still needs its own local configuration.
 
 ## VSS access
 
@@ -138,3 +143,22 @@ same duck scene throughout. The animal returned to its anchor before approach.
 Stop during the third cycle's approach canceled movement and left the duck
 ready. These are observed run results, not an archive ranking or latency
 guarantee.
+
+
+## Local OAuth and proactive attention validation
+
+The local Codex CLI reported ChatGPT authentication and produced a real structured
+query. Both the local Encounter and Loop APIs completed live tagged cat searches.
+A normal Encounter run selected compatible archive ranks 1, 4 and 7, ran five
+automatic three-action cycles, and Stop preserved the duck while zeroing movement.
+The browser showed actual turning/walking commands during positioning.
+
+A separate continuous MuJoCo check completed three consecutive walking actions
+and returns to the interior interaction position `(0.12,0)`: 42.6 seconds of
+physics, 427 samples, no reset, recovery or arena-boundary failure. The wider
+stand-off leaves room for the pretrained policy's forward turning radius.
+
+Cat searches send both requested tags. A live metadata-schema check confirmed
+that `dataset_id` is not a supported filter field; sampled tagged clips lacked
+a dataset identifier. The configured ID is therefore marked as requested scope.
+Actual clip identifiers are preserved only when the archive returns them.

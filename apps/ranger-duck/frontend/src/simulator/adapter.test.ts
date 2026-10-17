@@ -160,6 +160,34 @@ describe('evidence primitive execution', () => {
 });
 
 describe('separate continuous navigation', () => {
+  it('holds an already reached interaction pose with no extra locomotion', async () => {
+    const { adapter, runtime, advance } = fixture();
+    (runtime.data.qpos as Float64Array)[0] = 0.12;
+    adapter.setCompanionTarget({ x: 1.05, y: 0.05 });
+    const result = adapter.approach();
+    expect([...adapter.source.command]).toEqual([0, 0, 0]);
+    advance(300); advance(300);
+    await result;
+    advance(20);
+    expect(runtime.headTarget[2]).toBeGreaterThan(0);
+    expect(runtime.headTarget[2]).toBeLessThan(0.1);
+    expect(adapter.telemetry().target?.distance).toBeCloseTo(Math.hypot(0.93,0.05));
+    expect(adapter.telemetry().commands.forward).toBe(0);
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+    adapter.stop(); advance(20);
+    adapter.tick(true); // A pending search cannot re-enable stopped attention.
+    expect(runtime.headTarget[2]).toBe(0);
+  });
+
+  it('reports commanded navigation separately from evidence primitives', async () => {
+    const { adapter } = fixture();
+    adapter.setCompanionTarget({ x: 1.05, y: 0.05 });
+    const result = adapter.approach().catch(error => error);
+    expect(adapter.telemetry()).toMatchObject({ navigation: 'approaching', primitive: null, commands: { forward: 0.25, lateral: 0 } });
+    adapter.stop(); await result;
+    expect(adapter.telemetry()).toMatchObject({ navigation: 'idle', commands: { forward: 0, yaw: 0 } });
+  });
+
   it('roams without an evidence action and Stop clears all navigation commands', () => {
     const { adapter, runtime } = fixture();
     adapter.roam();
@@ -178,7 +206,7 @@ describe('separate continuous navigation', () => {
     advance(2000);
     expect(adapter.navigationStatus()).toBe('approaching');
     const q = runtime.data.qpos as Float64Array;
-    q[0] = 0.32; q[1] = 0;
+    q[0] = 0.06; q[1] = 0;
     q[3] = Math.cos(Math.PI / 4); q[6] = Math.sin(Math.PI / 4);
     advance(1000);
     expect(adapter.navigationStatus()).toBe('approaching');

@@ -21,9 +21,10 @@ from .errors import DemoError, upstream_error
 from .evidence import Manifest, caption_hash, normalize_segments, safe_text
 from .session import COOKIE_NAME, ClipRegistry, SearchSnapshot
 from .stream import close_stream
-from .vss import VSSClient
+from .vss import VSSClient, animal_search_scope
 from .loop import LoopService, install_loop_routes
-from .loop_agent import CYCLE_TIMEOUT
+from .loop_agent import CYCLE_TIMEOUT, CodexAgent
+from .encounter import EncounterService, PLAN_TIMEOUT, ENCOUNTER_TIMEOUT
 
 SCENARIOS = {
     "deer-feeding": {"id": "deer-feeding", "label": "Forage together", "animal": "deer", "behavior_hint": "feeding",
@@ -55,6 +56,14 @@ class SearchRequest(BaseModel):
     encounter_id: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
     scenario_id: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
     mode: Literal["live", "replay"] = "live"
+    broaden: bool = False
+    plan_id: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
+
+
+class PlanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    encounter_id: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
+    scenario_id: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")
     broaden: bool = False
 
 
@@ -92,14 +101,18 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         yield
+        await encounter_service.close()
         await loop_service.close()
         await client.close()
 
     app = FastAPI(title="Ranger Duck backend", version="1", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.registry = registry
     app.state.vss = client
-    loop_service = LoopService(registry, client, manifest, public_text, loop_agent)
+    agent = loop_agent if loop_agent is not None else CodexAgent()
+    loop_service = LoopService(registry, client, manifest, public_text, agent)
+    encounter_service = EncounterService(registry, manifest, public_text, agent)
     app.state.loop_service = loop_service
+    app.state.encounter_service = encounter_service
     install_loop_routes(app, loop_service)
 
     @app.exception_handler(DemoError)
@@ -129,13 +142,38 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
                 "reviewed_reference_count": len(manifest.entries),
                 "search_timeout_ms": round(settings.search_timeout_sec * 1000),
                 "loop_agent_available": loop_service.agent.available,
-                "loop_cycle_timeout_ms": CYCLE_TIMEOUT * 1000})
+                "loop_cycle_timeout_ms": CYCLE_TIMEOUT * 1000,
+                "encounter_agent_available": agent.available,
+                "encounter_plan_timeout_ms": PLAN_TIMEOUT * 1000,
+                "encounter_timeout_ms": ENCOUNTER_TIMEOUT * 1000})
         establish_cookie(response, registry.session(request.cookies.get(COOKIE_NAME)))
         return response
 
     @app.get("/demo-api/encounters")
     async def encounters():
         return {"encounters": list(SCENARIOS.values())}
+
+    @app.post("/demo-api/encounter-plan")
+    async def plan_encounter(payload: PlanRequest, request: Request):
+        scenario = SCENARIOS.get(payload.scenario_id)
+        if scenario is None:
+            raise DemoError("unknown_scenario", "Choose an encounter from the scenario catalog.", 404)
+        client._require_config()
+        owner = encounter_service.owner(request)
+        plan = await encounter_service.run(owner, payload.encounter_id,
+            lambda: encounter_service.plan(owner, payload.encounter_id, scenario, payload.broaden), request, PLAN_TIMEOUT)
+        response = JSONResponse({"encounter_id": payload.encounter_id, "plan_id": plan.id,
+                                 "query": plan.query, "query_reason": plan.reason, "query_basis": "agent",
+                                 "search_scope": animal_search_scope(scenario["animal"])})
+        establish_cookie(response, owner)
+        return response
+
+    @app.post("/demo-api/encounters/{encounter_id}/cancel")
+    async def cancel_encounter(encounter_id: str, request: Request):
+        owner = request.cookies.get(COOKIE_NAME)
+        if owner in registry.sessions:
+            encounter_service.cancel(owner, encounter_id)
+        return {"status": "cancelled", "encounter_id": encounter_id}
 
     @app.post("/demo-api/search")
     async def search(payload: SearchRequest, request: Request):
@@ -144,21 +182,32 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
             raise DemoError("unknown_scenario", "Choose an encounter from the scenario catalog.", 404)
         started = time.monotonic()
         key = (payload.scenario_id, payload.broaden)
-        query = scenario["broader_query"] if payload.broaden else scenario["query"]
         if payload.mode == "replay":
             snapshot = registry.replay(request.cookies.get(COOKIE_NAME), key)
+            session_id = registry.session(request.cookies.get(COOKIE_NAME))
         else:
-            result = await client.search(query, tags=[] if scenario["animal"] == "cat" else ["wildlife"])
-            snapshot = SearchSnapshot(query=query, segments=tuple(normalize_segments(result["results"])),
-                elapsed_ms=round((time.monotonic() - started) * 1000),
-                recorded_at=datetime.now(timezone.utc).isoformat(), started=started,
-                expires=time.monotonic() + settings.clip_ttl_sec)
-        session_id = registry.session(request.cookies.get(COOKIE_NAME))
+            client._require_config()
+            session_id = encounter_service.owner(request)
+            async def live_search():
+                if payload.plan_id:
+                    plan = encounter_service.planned(session_id, payload.plan_id, payload.encounter_id, payload.scenario_id, payload.broaden)
+                else:
+                    plan = await encounter_service.plan(session_id, payload.encounter_id, scenario, payload.broaden)
+                scope = animal_search_scope(scenario["animal"])
+                result = await client.search(plan.query, tags=scope["tags"])
+                segments = tuple(normalize_segments(result["results"]))
+                annotations, summary = await encounter_service.actions(segments, scenario, plan.query)
+                return SearchSnapshot(query=plan.query, segments=segments,
+                    elapsed_ms=round((time.monotonic() - started) * 1000),
+                    recorded_at=datetime.now(timezone.utc).isoformat(), started=started,
+                    expires=time.monotonic() + settings.clip_ttl_sec, annotations=annotations,
+                    query_reason=plan.reason, agent_summary=summary, search_scope=scope)
+            snapshot = await encounter_service.run(session_id, payload.encounter_id, live_search, request, ENCOUNTER_TIMEOUT)
         if payload.mode == "live":
             registry.remember(session_id, key, snapshot)
         candidates = []
-        for segment in snapshot.segments:
-            annotation = manifest.annotate_interaction(segment, scenario["animal"], scenario["interaction_partner"])
+        for segment, recorded_annotation in zip(snapshot.segments, snapshot.annotations):
+            annotation = dict(recorded_annotation)
             reference = annotation.pop("_reference", None)
             clip_id = registry.add(session_id, segment.source)
             source_label = (reference or {}).get("source_label") or f"Reference clip {segment.rank:02d}"
@@ -169,6 +218,7 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
                 "review_reason": public_text((reference or {}).get("review_note"), 1000) or None,
                 **annotation,
                 "provenance": {"dataset": public_text(dataset, 100) or None,
+                    "dataset_id": public_text(segment.dataset_id, 100) or None,
                     "source_label": public_text(source_label, 150), "parent_id": opaque_parent(segment.parent),
                     "segment_start_sec": segment.start, "segment_end_sec": segment.end}})
         response = JSONResponse({"encounter_id": payload.encounter_id,
@@ -176,10 +226,13 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
             "match_type": "broader_behavior" if payload.broaden else "species_interaction",
             "status": "ok" if any(c["action"] for c in candidates) else "no_supported_imitation" if candidates else "no_results",
             "query": snapshot.query, "elapsed_ms": round((time.monotonic() - started) * 1000),
+            "query_basis": "agent", "query_reason": snapshot.query_reason,
+            "search_scope": snapshot.search_scope,
+            "action_planner": "agent", "agent_plan": {"summary": snapshot.agent_summary},
             "original_elapsed_ms": snapshot.elapsed_ms, "recorded_at": snapshot.recorded_at,
             "candidates": candidates,
             "warnings": ([manifest.warning] if manifest.warning else []) +
-                (["Actions marked video_caption are derived from the existing video-model caption, not a visual review. Interaction-focused search can return solitary behavior; only the caption determines each action."]
+                (["Agent-planned actions marked video_caption use exact excerpts from existing video-model captions, not a visual review. Interaction or similar individual behavior can supply evidence; the requested encounter never supplies a missing motion."]
                  if any(c["action_basis"] == "video_caption" for c in candidates) else []) +
                 (["Replaying a previous live search. Video playback still requires VSS access."] if payload.mode == "replay" else [])})
         establish_cookie(response, session_id)

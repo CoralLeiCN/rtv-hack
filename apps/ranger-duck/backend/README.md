@@ -2,7 +2,7 @@
 
 A read-only FastAPI service for the single-page wildlife encounter demo. The frontend and Microduck simulator are built separately; this directory contains no frontend code. The shared [API contract](../../../docs/RANGER_DUCK_API.md) is the integration reference.
 
-The service turns an animal–duck encounter into a live species-pair VSS search, returns redacted video references, and proxies segment playback. Bounded imitation actions come from each returned video's existing model caption or an exact human review. A deterministic classifier requires the selected species and a supported visible behavior; returned footage may contain a solitary animal. The requested scenario never supplies a missing action. It never trains, uploads, re-ingests, deploys, or changes the shared pipeline.
+The local service asks the signed-in Codex CLI to generate a query for the selected animal's interactions or similar individual behavior, retrieves ranked VSS clips, and asks the agent to plan bounded actions from their captions or exact reviews. It returns redacted references and proxies segment playback. A deterministic classifier requires the selected species and a supported visible behavior; returned footage may contain a solitary animal. The requested scenario never supplies a missing action. It never trains, uploads, re-ingests, deploys, or changes the shared pipeline.
 
 ## Run locally without VSS configuration
 
@@ -40,39 +40,20 @@ Await the health bootstrap before enabling Start, so overlapping searches share 
 
 For one production page, set `RANGER_STATIC_DIR` to the frontend's existing build directory. The backend serves its `index.html` and assets at `/`; no frontend build or modification is performed here.
 
-## Live VM startup
+## Local archive configuration
 
 Required configuration names: `INGRESS_URL`, `USERNAME`, `PASSWORD`. The backend automatically reads `.env` in this backend directory, regardless of the working directory. Exported environment variables take precedence, including empty values. It does not source shell files or search other directories for configuration.
 
-For local setup, copy `example.env` to `.env` in this directory, set `INGRESS_URL` to the full URL including `https://`, and fill in `USERNAME` and `PASSWORD` privately. `.env` is ignored by Git; keep real values out of `example.env`. Quote values containing spaces or `#`; `${...}` is treated literally. Restart the backend after changing `.env`. Alternatively, continue loading the VM's existing `/config/*.config` into Bash as shown below.
+For local setup, copy `example.env` to `.env` in this directory, set `INGRESS_URL` to the full URL including `https://`, and fill in `USERNAME` and `PASSWORD` privately. `.env` is ignored by Git; keep real values out of `example.env`. Quote values containing spaces or `#`; `${...}` is treated literally. Restart the backend after changing `.env`. Use the configured archive service directly from this Mac; local startup does not require a VM backend.
 
-The checked workshop VM has Python 3.12 but lacks pip and the venv bootstrap package. If the ordinary venv setup above fails there, install dependencies into a private temporary directory without changing system packages. From this backend directory:
+The demo backend and Codex CLI run on the same Mac. Use `codex login` to
+complete ChatGPT OAuth if needed, then `codex login status` to check it. The
+application uses the existing login and does not read/copy OAuth tokens. Keep
+VSS credentials in the ignored backend `.env`; no SSH agent bridge is used.
 
-```bash
-RANGER_RUNTIME_DIR="$(mktemp -d /tmp/ranger-duck-runtime.XXXXXX)"
-curl -fsSL https://bootstrap.pypa.io/pip/pip.pyz -o "$RANGER_RUNTIME_DIR/pip.pyz"
-python3 "$RANGER_RUNTIME_DIR/pip.pyz" install --quiet --target "$RANGER_RUNTIME_DIR/deps" .
-export PYTHONPATH="$RANGER_RUNTIME_DIR/deps${PYTHONPATH:+:$PYTHONPATH}"
-```
+Search uses the authenticated user's existing VSS ACL scope. Deer scenarios retain the observed `wildlife` tag; cat scenarios use `tags: ["meow-10k", "cat-behavior"]` for the requested cat library. It does not guess metadata filters. The deployed VSS schema rejects `llm_top_n: 0`; this backend explicitly requests `llm_top_n: 1` and discards synthesis. The agent adds one query decision and one batched action-planning decision; VSS search still has its own deadline. Call it **Live search**, not synthesis-free search. Its actual duration is returned as `elapsed_ms`; any timeout is an error, never an automatic replay.
 
-For this setup, use `python3` in place of `.venv/bin/python` in the startup command below and keep the same shell session. The temporary directory lasts only until VM cleanup; repeat setup when it is removed.
-
-If the VM has exactly one existing team configuration, run these commands in **Bash 4+**, not zsh:
-
-```bash
-mapfile -t RANGER_CONFIG_FILES < <(find /config -maxdepth 1 -type f -name '*.config' | sort)
-(( ${#RANGER_CONFIG_FILES[@]} == 1 )) || { echo 'Expected exactly one workshop configuration'; exit 1; }
-set -a
-source "${RANGER_CONFIG_FILES[0]}" >/dev/null
-set +a
-.venv/bin/python -m uvicorn ranger_duck.app:app --host 127.0.0.1 --port 8000 --workers 1
-```
-
-Forward the VM port through the team's existing SSH connection. If frontend development runs on your laptop, point its proxy at that forwarded backend port. Never put VSS credentials or tokens into frontend settings, browser URLs, tracked `.env` files, or logs.
-
-Search uses the authenticated user's existing VSS ACL scope. Deer scenarios retain the observed `wildlife` tag; cat scenarios use `tags: []` to include domestic cats in the authorized archive. It does not guess metadata filters. The deployed VSS schema rejects `llm_top_n: 0`; this backend explicitly requests `llm_top_n: 1` and discards synthesis. Caption interpretation adds no model calls. Call it **Live search**, not synthesis-free search. Its actual duration is returned as `elapsed_ms`; any timeout is an error, never an automatic replay.
-
-The design's explicit Replay control sends `mode: "replay"` to the same route. It returns the last successful live result for that session, scenario, and `broaden` setting, with a visible replay mode, original timing, and recording timestamp. Missing/expired snapshots return 409. Search snapshots are memory-only and expire with the configured TTL; replayed video still streams from VSS. `broaden: true` relaxes the requested behavior but keeps the same species pair: two cats interacting or two deer interacting.
+The design's explicit Replay control sends `mode: "replay"` to the same route. It returns the last successful live result for that session, scenario, and `broaden` setting, with a visible replay mode, original timing, and recording timestamp. Missing/expired snapshots return 409. Search snapshots are memory-only and expire with the configured TTL; replayed video still streams from VSS. `broaden: true` relaxes the requested behavior while retaining the species and permitting interactions or similar solitary motion.
 
 ## Interaction evidence and optional human review
 
@@ -159,30 +140,37 @@ Tests use fabricated upstream responses. They cover authentication caching/refre
 
 On 17 October 2026, all 163 backend tests passed after active-caption preference and the sitting/nodding additions. They cover later-rank selection, solitary behaviors, original rank preservation, exact legacy reviews, wrong actors/species, negation, provenance, and active behavior appearing after a still pose. Earlier live smoke tests established a session, returned 15 search candidates, replayed the same recorded result, and streamed 32 video bytes with status 206 and `video/mp4`. HEAD returned 200 with no body; an invalid range returned 416; another session could not access the clip (404). These checks do not replace visual footage review.
 
-## Agent Loop mode
+## Local agent decisions
 
-The additional Agent Loop mode uses a Codex CLI installed on the backend host,
-with that OS user's existing Codex login. Run `codex login` interactively there
-if needed; do not paste credentials into chat or configuration files. The CLI
-must support `exec --ignore-user-config --ephemeral --output-schema` (see the
-[official CLI reference](https://developers.openai.com/codex/cli/reference)).
-No OpenAI API key is required by this integration.
+Both Encounter and Agent Loop modes use a locally installed Codex CLI with the
+presenter's existing ChatGPT OAuth login. No OpenAI API key is required. The
+CLI must support `exec --ignore-user-config --ephemeral --output-schema`; see
+the [official CLI reference](https://developers.openai.com/codex/cli/reference).
 
-`loop_agent.py` makes ephemeral structured decisions in temporary directories:
-first a query, then a selected clip and supported response after the backend
-performs retrieval. It uses read-only execution, disables shell tools, apps,
-web search, hooks, and multi-agent tools, and does not load the user's custom
-config. Both query and response decisions explicitly use `gpt-6-luna` via
-`--model`; there is no automatic model fallback. Workshop credentials and API-key
-environment variables are not passed to the subprocess. The backend validates
-all returned decisions; the agent never receives source URIs or video tokens.
+Encounter mode first calls `POST /demo-api/encounter-plan`. The returned query
+and reason are shown before `/demo-api/search` uses its session-scoped
+`plan_id`. Calling search without a plan remains supported and generates one
+internally. Queries request interactions **or similar individual behavior** of
+the selected species. The structured decision requires both an interaction branch and a similar solitary-behavior branch; the server validates both species scopes and joins them with `OR`. After retrieval, one batched agent decision proposes
+actions for up to 15 clips. The backend validates exact caption excerpts,
+selected species, supported behavior, review/provenance vetoes and primitive
+limits. It keeps archive order; the frontend takes the first three compatible
+actions. Replay reuses recorded decisions without another agent call.
 
-Health reports executable availability only. A missing login, incompatible CLI,
-or unavailable model service returns a safe `agent_failed` error on the first
-cycle. The overall cycle deadline is 180 seconds, including waiting for one of
-two agent-process slots. Stopping a session cancels the active decision process.
-The application does not install Codex or modify its login/configuration.
+`loop_agent.py` runs ephemeral structured decisions in temporary directories
+using `gpt-6-luna` and forced ChatGPT sign-in. It disables shell tools, apps,
+web search, hooks and multi-agent tools, and does not load user custom config.
+Workshop credentials and API-key environment variables are excluded. Source
+URIs and video tokens never enter the agent context.
 
-See the [loop API contract](../../../docs/RANGER_DUCK_API.md#additional-agent-loop-mode)
-for session operations, response rules, telemetry, and retry limits. Existing
-encounter search/replay behavior is unchanged.
+Health reports executable availability, not a successful paid inference probe.
+Missing login, incompatible CLI or unavailable model returns `agent_failed`.
+Query planning is limited to 60 seconds; search plus action planning and each
+Loop cycle have a 180-second ceiling. At most two Codex decisions run at once.
+Stop/reset cancel pending work, including the CLI child process. The application
+does not install Codex or modify its login/configuration.
+
+Agent Loop mode adds context from actual playback and controller outcomes to
+the next query. Paired captions can assign two grounded roles; single-animal
+clips can supply a supported duck behavior without inventing a second observed
+animal. See the [Loop contract](../../../docs/RANGER_DUCK_API.md#additional-agent-loop-mode).

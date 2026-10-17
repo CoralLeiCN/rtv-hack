@@ -1,6 +1,6 @@
 # Ranger Duck frontend and backend contract
 
-Contract version 1, updated 17 October 2026 for six supported motions, caption activity priority and an automatic sequence. The frontend and backend implement these routes.
+Contract version 1, updated 17 October 2026 for local OAuth agent planning, six supported motions and automatic animal attention. The frontend and backend implement these routes.
 
 Use relative `/demo-api/` URLs. For separate frontend development, proxy that prefix to the backend on `127.0.0.1:8000` through the frontend dev server. Forward cookies and Range headers. This preserves same-origin behavior and avoids exposing VSS credentials. Production may serve the built frontend through the same backend when a static directory is configured.
 
@@ -14,7 +14,12 @@ Use relative `/demo-api/` URLs. For separate frontend development, proxy that pr
   "api_version": "1",
   "live_configured": false,
   "reviewed_reference_count": 0,
-  "search_timeout_ms": 30000
+  "search_timeout_ms": 30000,
+  "encounter_agent_available": true,
+  "encounter_plan_timeout_ms": 60000,
+  "encounter_timeout_ms": 180000,
+  "loop_agent_available": true,
+  "loop_cycle_timeout_ms": 180000
 }
 ```
 
@@ -48,7 +53,35 @@ Health also establishes the browser's HttpOnly demo session cookie. Await this r
 }
 ```
 
-IDs are `deer-feeding`, `deer-walking`, `deer-standing`, `cat-hissing`, `cat-greeting`, and `cat-play`. Species and interaction selectors are derived from this catalog. These describe staged scenarios, not verified footage availability. The server's scenario catalog may be adjusted after review; render its returned entries rather than hardcoding labels. `query` and `broader_query` are display previews while a request is in flight; the server still selects the actual query. No scenario includes a robot action.
+IDs are `deer-feeding`, `deer-walking`, `deer-standing`, `cat-hissing`, `cat-greeting`, and `cat-play`. Species and interaction selectors are derived from this catalog. These describe staged scenarios, not verified footage availability. The server's scenario catalog may be adjusted after review; render its returned entries rather than hardcoding labels. `query` and `broader_query` are legacy catalog examples, not executed queries or loading previews; the agent creates the actual query on demand. No scenario includes a robot action.
+
+## Encounter query planning
+
+`POST /demo-api/encounter-plan`
+
+```json
+{"encounter_id":"encounter-001","scenario_id":"deer-feeding","broaden":false}
+```
+
+The local ChatGPT-authenticated Codex CLI generates a concrete query covering
+same-species interaction **or similar individual behavior**. The structured decision requires both an interaction branch and a similar solitary-behavior branch; the server validates both species scopes and joins them with `OR`. The response is:
+
+```json
+{
+  "encounter_id":"encounter-001",
+  "plan_id":"opaque-plan-id",
+  "query":"Deer grazing together or a single deer lowering its head to feed",
+  "query_reason":"Find observable feeding motion, whether social or solitary.",
+  "query_basis":"agent"
+}
+```
+
+This example is illustrative, not a fixed query. Display the returned query
+before search. Plans are session/scenario/encounter/broaden-bound and expire
+within five minutes (or the shorter clip TTL). Planning has a 60-second deadline.
+`POST /demo-api/encounters/{encounter_id}/cancel` cancels pending planning/search
+and invalidates its plan. Stop, Reset and replacement also abort the browser
+request; the backend watches disconnection and terminates the CLI subprocess.
 
 ## Search
 
@@ -59,13 +92,21 @@ IDs are `deer-feeding`, `deer-walking`, `deer-standing`, `cat-hissing`, `cat-gre
   "encounter_id": "encounter-001",
   "scenario_id": "deer-feeding",
   "mode": "live",
-  "broaden": false
+  "broaden": false,
+  "plan_id": "opaque-plan-id"
 }
 ```
 
-The frontend creates a new encounter ID for every Start or reset cycle. `mode` defaults to `live`; `broaden` defaults to false. Live mode validates the scenario, constructs its query, and requests VSS retrieval. It never falls back silently to replay. An explicit broader search relaxes the interaction wording while retaining the selected species pair, and returns `match_type: "broader_behavior"`. Normal searches return `species_interaction`. Cat requests use the authenticated archive without a wildlife-only tag; deer requests retain the wildlife tag.
+The frontend creates a new encounter ID for every Start or reset cycle. `mode` defaults to `live`; `broaden` defaults to false. Live mode validates and executes the supplied plan. Without `plan_id`, it generates a plan internally. It retrieves VSS clips, then asks the agent for one batched caption-grounded action plan. It never falls back silently to replay. An explicit broader search relaxes the interaction wording while retaining the selected species, and returns `match_type: "broader_behavior"`. Normal searches retain the legacy `species_interaction` match label; individual behavior is also eligible. Cat requests send `tags: ["meow-10k", "cat-behavior"]`; deer requests retain `tags: ["wildlife"]`. This applies to Encounter and Loop mode, including broader searches.
 
-Replay is an explicit request for the last successful live search in this browser session for the same scenario and broaden setting. It performs no new search, returns `mode: "replay"`, and issues fresh scoped clip IDs. A missing or expired snapshot returns 409 `replay_unavailable`. Snapshots expire after the clip TTL and disappear on restart; video playback still needs VSS connectivity. An older slow response cannot replace a newer snapshot. The UI must label replay and show the original recording time separately from the current request duration.
+Cat responses include `search_scope` with the two applied tags,
+`requested_dataset_id: "hf-smgjch-meow-10k"` and `dataset_filter_applied: false`.
+The current VSS metadata schema does not expose `dataset_id` as a filter, so no
+unsupported metadata filter is sent. The requested ID describes configuration,
+not verified clip provenance. If the archive supplies an actual `dataset_id`,
+it is preserved separately in candidate provenance (or the Loop clip).
+
+Replay is an explicit request for the last successful live search in this browser session for the same scenario and broaden setting. It performs no new search or agent call, reuses recorded decisions, returns `mode: "replay"`, and issues fresh scoped clip IDs. A missing or expired snapshot returns 409 `replay_unavailable`. Snapshots expire after the clip TTL and disappear on restart; video playback still needs VSS connectivity. An older slow response cannot replace a newer snapshot. The UI must label replay and show the original recording time separately from the current request duration.
 
 Illustrative response with a caption-inferred interaction:
 
@@ -119,12 +160,20 @@ This is an illustrative contract example, not real archive evidence or a measure
 
 Response `status` is `ok` when any returned candidate supports imitation, `no_supported_imitation` when clips exist but none is eligible, or `no_results` when there are no usable segment candidates. All three are successful HTTP responses.
 
+Additional response fields are `query_basis: "agent"`, `query_reason`,
+`action_planner: "agent"` and `agent_plan: {"summary": "..."}`. Each candidate
+adds `action_planner`, `agent_reason` and `evidence_excerpt` (an exact caption
+substring for valid inferred actions). All values are redacted for browser
+display. Search plus action planning has a 180-second deadline, including the
+existing VSS search budget. The browser adds five seconds of transport grace.
+
 Candidate rules:
 
 - `rank` is the original one-based upstream segment rank. Invalid or duplicate sources can leave gaps; no parent-diversity reranking or promotion occurs.
 - `review_status` is `reviewed`, `unreviewed`, or `stale`. A non-null `action` can have `action_basis: "reviewed"` or `"video_caption"`. Caption inference never changes the status to reviewed.
 - `action_reason` explains the observed role and approximation. `inferred_behavior` describes caption-derived behavior; `reviewed_behavior` is reserved for a valid visual review. `animal` and `interaction_partner` identify the supported pair when available.
-- A caption-inferred action requires the selected species, an explicitly supported behavior and complete source/parent/interval metadata. Single-animal footage is eligible. The query asks for interactions, but the returned action does not require one. Shared, solitary and social behavior must retain their actual labels; ambiguous actors, negated statements and unsupported movements remain ineligible.
+- A caption-inferred action requires the selected species, an explicitly supported behavior and complete source/parent/interval metadata. Single-animal footage is eligible. The query permits interactions or similar solitary motion. Shared, solitary and social behavior must retain their actual labels; ambiguous actors, negated statements and unsupported movements remain ineligible.
+- The agent proposal must select a permitted primitive and quote an exact contiguous caption excerpt that independently supports it. Skipped, omitted or unverified proposals remain ineligible (`agent_skipped` or `agent_action_unverified`); unavailable evidence cannot be overridden.
 - An exact current review can authorize a supported solitary or social behavior. Pair evidence is optional. Stale, invalid or contradictory reviews block caption fallback.
 - `similarity` is a retrieval score, not a probability. `dataset` and interval times may be null for incomplete upstream data; such a result may still be playable without authorizing movement.
 - `caption_hash` hashes the exact upstream caption before display redaction. `review_reason` is a reviewer's actual recorded note, or null. Do not invent a review.
@@ -137,7 +186,7 @@ Within each caption, supported actions are considered in this order: `short_walk
 
 The frontend filters all returned candidates by compatibility, sorts by original `rank`, and uses up to three eligible actions. Queue positions are 1–3; source rank stays visible for provenance. Incompatible clips do not occupy a card or loop slot, and a later source rank can fill a queue position. If fewer than three qualify, show the actual count.
 
-One animal may patrol outside the east side of the yellow box while the duck roams. Before an evidence action, the animal returns to its interaction anchor and faces the duck; the browser waits for that observed settling, then the duck approaches, settles and performs the action. Navigation is distinct from the reference-derived motion and does not overlap it. Preserve the same duck body and physics clock throughout; repeat the same queue without new searches or resets.
+One animal stays outside the east side of the yellow box. As soon as it appears, the duck faces and approaches it as needed, including during query planning and search. It remains attentive between actions. Before an evidence action, the animal returns to its interaction anchor and faces the duck; the browser waits for that observed settling, then the duck approaches, settles and performs the action. Navigation is distinct from the reference-derived motion and does not overlap it. Preserve the same duck body and physics clock throughout; repeat the same queue without new searches or resets.
 
 Stop/Resume controls both navigation and the action sequence. Reset, changed encounters, replacement searches, hidden-tab pause and teardown cancel motion. A visibility-only pause automatically resumes on return; manual Stop or reference inspection stays paused. Ignore responses whose encounter ID is no longer current.
 
@@ -171,9 +220,9 @@ Expected cases include 422 `invalid_request`, 404 `unknown_scenario`, 503 `live_
 
 1. Load health and the encounter catalog. Await health before sending any searches to establish the session cookie.
 2. Start the selected scene and create a new encounter ID.
-3. Send the search request when the one-animal encounter is ready. The animal may patrol outside the box; it never enters the duck arena.
+3. Call encounter-plan and show its generated query/reason, then search with the returned plan ID. The animal remains outside the duck arena.
 4. Display results, measured time, and a selected reference video on the same page.
-5. Select the first three compatible actions, display their source ranks, and loop through approach, evidence action and roaming phases. Preserve physics across clips and cycles; repeat without another search.
+5. Select the first three compatible actions, display their source ranks, and loop through approach, evidence action and attention phases. Preserve physics across clips and cycles; repeat without another search.
 6. On Reset, abort the pending fetch, invalidate the encounter ID, stop the motion, and clear the previous evidence selection.
 
 Frontend cancellation does not guarantee the upstream request stops, so the ID check is mandatory. The backend performs no simulator actions and creates no live model-training jobs.
@@ -182,7 +231,7 @@ Rehearsal controls may demonstrate explicitly labeled local no-match and timeout
 
 ## Additional Agent Loop mode
 
-The existing encounter routes and top-three sequence above are unchanged. Agent
+Agent
 Loop mode uses separate sessions and may select an eligible result at any
 original rank. Health adds `loop_agent_available` (CLI executable present, not a
 login or connectivity check) and `loop_cycle_timeout_ms` (180000).
@@ -226,10 +275,15 @@ and feeding; cats also allow hissing, greeting, and play. Durations are fixed
 by the backend at 3000 ms. The duck action approximates the counterpart's
 observed behavior with the existing bounded primitives. The backend validates
 `duck_behavior` against its primitive: still → stand_hold, looking → head_scan,
-moving → short_walk, feeding → ground_pick. Unknown roles use the neutral fallback.
+moving → short_walk, feeding → ground_pick, nodding → head_nod, sitting → sit_cycle. Unknown behavior uses the neutral fallback.
 
-When two supported roles cannot be established, Codex sets
-`grounding: "insufficient_evidence"`. The backend normalizes the plan to standing
+A supported individual behavior uses `grounding: "single_behavior"`, an exact
+selected-species duck evidence excerpt, an unassigned stationary companion and
+`together` timing. The backend independently checks the excerpt for that
+supported motion. No second observed animal is claimed.
+
+When neither supported individual behavior nor two roles can be established,
+Codex sets `grounding: "insufficient_evidence"`. The backend normalizes the plan to standing
 plus `stand_hold`, empty excerpts, unassigned subjects, and simultaneous timing.
 The result remains selectable and playable, with an explicit neutral-fallback
 explanation. No counterpart behavior is claimed. The UI labels both role mappings
@@ -273,7 +327,8 @@ automatically. The last five issued clip intervals cannot execute again, and the
 five reaction records inform the agent. Clips longer than 120 seconds remain listed but cannot execute,
 so playback waiting is bounded. There is no automatic replay fallback.
 
-Loop searches ask for two cats or two deer interacting and request `top_k: 10`.
+Loop queries cover cat–cat or deer–deer interactions, or similar individual
+behavior of the selected species, and request `top_k: 10`.
 The cycle response includes `candidates`, the same ranked list given to Codex:
 `candidate_id`, `rank`, `caption`, `observed_behavior`, `evidence_basis`,
 `allowed_actions`, and `unavailable_reason`. Return all available results up to
@@ -285,12 +340,14 @@ Unexecutable results remain listed with an empty `allowed_actions`: incomplete
 provenance, invalid source, stale/contradictory review, duration over 120 seconds,
 or a recently issued interval. When no candidate can execute, bounded recovery
 still applies. These checks are independent of caption content.
-All executable candidates offer `stand_hold`, `head_scan`, `short_walk`, and
-`ground_pick`, with ceilings of 3000/2400/2000/8000 ms respectively.
+All executable candidates offer the six bounded primitives: `stand_hold`,
+`head_scan`, `short_walk`, `ground_pick`, `head_nod` and `sit_cycle`, with ceilings
+of 3000/2400/2000/8000/2400/6000 ms respectively. The selected role evidence must
+support the chosen action.
 `observed_behavior: "caption_context"` does not assert a classified animal
 behavior. The caption is inferred evidence; the role plan separately identifies
-the two subjects and supported approximations, or a neutral fallback. Encounter
-imitation checks are unchanged, while its scene now shows one animal plus the duck.
+two subjects, supported individual behavior, or a neutral fallback. The scene
+contains one animal plus the duck in either mode.
 
 Sessions are memory-only, tied to the browser cookie, bounded by the existing
 session capacity/TTL, and invalidated on backend restart. Use one backend worker.

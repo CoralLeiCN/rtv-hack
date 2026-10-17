@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DuckAdapter, type DuckAction, type DuckStatus, type NavigationStatus, type Runtime } from './adapter';
 import { createClearing, type SceneEncounter, type CompanionAction } from './clearing';
+import { InteractionCoordinator } from './interaction';
 import type { AnimalSpecies } from './animals';
 import { bootGame, disposeGame } from './upstream/game/game.js';
 import { gameApi, useGame } from './upstream/store.js';
@@ -18,6 +19,7 @@ export interface MicroduckSceneHandle {
   reset(): void;
   prepareCycle(): Promise<void>;
   approach(): Promise<void>;
+  ensureInteraction(): Promise<void>;
   roam(): void;
   startEncounter(encounter: SceneEncounter): void;
   status(): DuckStatus;
@@ -27,6 +29,7 @@ type Props = {
   searching?: boolean;
   onReady?(): void;
   onError?(message: string): void;
+  onMovementError?(message: string): void;
   onStatus?(status: DuckStatus): void;
   onNavigation?(status: NavigationStatus): void;
   onEncounterReady?(id: string): void;
@@ -50,26 +53,39 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
   const clearing = useRef<ReturnType<typeof createClearing> | null>(null);
   const status = useRef<DuckStatus>('loading');
   const pendingEncounter = useRef<SceneEncounter | null>(null);
-  const motionGeneration = useRef(0);
+  const interaction = useRef<InteractionCoordinator | null>(null);
+  const autoInteraction = useRef(false);
+  const stopMotion = () => {
+    pendingEncounter.current = null;
+    autoInteraction.current = false;
+    interaction.current?.cancel();
+    clearing.current?.stop();
+    adapter.current?.stop();
+  };
+  const ensureInteraction = () => {
+    autoInteraction.current = false;
+    if (!clearing.current?.interactionTarget()) return Promise.reject(new Error('No animal is present.'));
+    if (document.hidden) return Promise.reject(new DOMException('Approach paused while the tab is hidden.', 'AbortError'));
+    return interaction.current?.ensure() ?? Promise.reject(new Error('Simulator is still loading.'));
+  };
 
   useImperativeHandle(ref, () => ({
     perform: action => adapter.current?.perform(action) ?? Promise.reject(new Error('Simulator is still loading.')),
-    stop: () => { motionGeneration.current += 1; clearing.current?.stop(); adapter.current?.stop(); },
+    stop: stopMotion,
     performCompanion: action => clearing.current?.performCompanion(action, performance.now()) ?? Promise.reject(new Error('Scene is still loading.')),
     stopCompanion: () => clearing.current?.stopRoleAction(),
-    telemetry: () => { if (!adapter.current) throw new Error('Simulator is still loading.'); return adapter.current.telemetry(); },
-    roam: () => adapter.current?.roam(),
-    approach: async () => {
-      const generation = ++motionGeneration.current;
-      callbacks.current.onNavigation?.('settling');
-      await clearing.current?.prepareInteraction();
-      if (generation !== motionGeneration.current || !adapter.current) throw new DOMException('Approach cancelled.', 'AbortError');
-      await adapter.current.approach();
+    telemetry: () => {
+      if (!adapter.current) throw new Error('Simulator is still loading.');
+      const state = adapter.current.telemetry();
+      return interaction.current?.phase === 'settling' ? { ...state, navigation: 'settling' } : state;
     },
-    reset: () => { motionGeneration.current += 1; pendingEncounter.current = null; clearing.current?.reset(); adapter.current?.reset(); },
-    prepareCycle: () => adapter.current?.prepareCycle() ?? Promise.reject(new Error('Simulator is still loading.')),
+    roam: () => { stopMotion(); adapter.current?.roam(); },
+    approach: ensureInteraction,
+    ensureInteraction,
+    reset: () => { stopMotion(); pendingEncounter.current = null; clearing.current?.reset(); adapter.current?.reset(); },
+    prepareCycle: () => { interaction.current?.cancel(); return adapter.current?.prepareCycle() ?? Promise.reject(new Error('Simulator is still loading.')); },
     startEncounter: encounter => {
-      motionGeneration.current += 1;
+      stopMotion();
       pendingEncounter.current = encounter;
       clearing.current?.reset();
       adapter.current?.reset();
@@ -179,6 +195,15 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       frameClearing();
       rl.controls.addEventListener('start', cameraInteraction);
       adapter.current = new DuckAdapter(rl, changed, () => performance.now(), next => callbacks.current.onNavigation?.(next));
+      const duck = adapter.current;
+      interaction.current = new InteractionCoordinator({
+        prepareDuck: () => duck.prepareCycle(),
+        prepareAnimal: () => {
+          callbacks.current.onNavigation?.('settling');
+          return clearing.current?.prepareInteraction() ?? Promise.reject(new Error('Scene is unavailable.'));
+        },
+        approach: () => duck.approach(),
+      });
       // Development-only smoke-test hook; omitted from production bundles.
       if (import.meta.env.DEV) (window as unknown as { __rangerDuck?: DuckAdapter }).__rangerDuck = adapter.current;
       api.startEntrance?.();
@@ -194,6 +219,8 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       previous = now;
       api.frame?.(dt);
       if (booted) {
+        const animal = clearing.current?.interactionTarget();
+        adapter.current?.setCompanionTarget(animal ? { x: animal.x, y: -animal.z } : null);
         adapter.current?.tick(callbacks.current.searching);
         const navigation = adapter.current?.navigationStatus();
         clearing.current?.setActivity(navigation === 'roaming' ? 'patrol' : navigation === 'approaching' || navigation === 'settling' || adapter.current?.status() === 'busy' ? 'interact' : 'hold');
@@ -205,7 +232,13 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
             const encounter = pendingEncounter.current;
             pendingEncounter.current = null;
             clearing.current?.start(encounter, now);
+            autoInteraction.current = true;
           }
+        }
+        if (autoInteraction.current && !document.hidden && adapter.current?.status() === 'ready' && clearing.current?.interactionTarget()) {
+          void ensureInteraction().catch(error => {
+            if (error instanceof Error && error.name !== 'AbortError' && !/cancelled|stopped/i.test(error.message)) callbacks.current.onMovementError?.(error.message);
+          });
         }
       }
       const encounterId = clearing.current?.frame(now);
@@ -214,12 +247,16 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
-    const hidden = () => { if (document.hidden && callbacks.current.loopAnimal) { clearing.current?.stopRoleAction(); adapter.current?.stop(); } };
+    // Let App abort its sequence first; then cover navigation begun before
+    // a sequence exists (for example an animal newly selected in Loop mode).
+    const hidden = () => { if (document.hidden) queueMicrotask(() => { if (document.hidden) stopMotion(); }); };
     document.addEventListener('visibilitychange', hidden);
     return () => {
       document.removeEventListener('visibilitychange', hidden);
       disposed = true;
-      motionGeneration.current += 1;
+      autoInteraction.current = false;
+      interaction.current?.cancel();
+      interaction.current = null;
       cancelAnimationFrame(raf);
       resize.disconnect();
       adapter.current?.dispose();
@@ -237,8 +274,9 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
   }, []);
 
   useEffect(() => {
+    stopMotion();
     pendingEncounter.current = null;
-    if (props.loopAnimal) clearing.current?.showLoopAnimals(props.loopAnimal);
+    if (props.loopAnimal) { clearing.current?.showLoopAnimals(props.loopAnimal); autoInteraction.current = true; }
     else clearing.current?.reset();
   }, [props.loopAnimal]);
 
