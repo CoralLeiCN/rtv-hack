@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="description" content="Search the VSS video archive using a description of a scene or event.">
+    <title>Video search · VSS</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./config.js"></script>
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand" aria-label="VSS">
+        <svg class="brand-mark" width="30" height="30" viewBox="0 0 30 30" fill="none" aria-hidden="true">
+          <rect width="30" height="30" rx="8" fill="currentColor"/>
+          <path d="M8 10V8h4M18 8h4v4M22 18v4h-4M12 22H8v-4" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="m13 11 6 4-6 4v-8Z" fill="white"/>
+        </svg>
+        <span>VSS</span>
+      </div>
+      <span class="header-context">Video archive</span>
+    </header>
+
+    <main class="workspace">
+      <div class="intro">
+        <p class="eyebrow">A moment, found.</p>
+        <h1>Video search</h1>
+        <p class="intro-description">Describe a scene or event. Find the matching moments in your video archive.</p>
+      </div>
+
+      <section id="search-panel" class="search-panel" aria-label="Search the video archive">
+        <form id="search-form" class="search-form" novalidate>
+          <label for="query">What are you looking for?</label>
+          <div class="search-controls">
+            <div class="query-field">
+              <svg class="search-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="10.75" cy="10.75" r="6.75" stroke="currentColor" stroke-width="1.7"/>
+                <path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              </svg>
+              <input id="query" name="query" type="text" placeholder="A forklift passing near a person" autocomplete="off" required>
+            </div>
+            <button id="search-button" class="primary-button search-button" type="submit">Search</button>
+          </div>
+        </form>
+
+        <div class="results-area">
+          <h2 id="results-heading" class="results-heading" hidden>Matching moments</h2>
+          <p id="search-status" class="search-status" role="status" aria-live="polite">Enter a description to search your archive.</p>
+          <p id="search-error" class="error-message" role="alert" hidden></p>
+          <ol id="results" class="results" aria-labelledby="results-heading"></ol>
+        </div>
+      </section>
+
+      <noscript><p class="error-message">Enable JavaScript in your browser to search the video archive.</p></noscript>
+    </main>
+  </body>
+</html>
