@@ -10,6 +10,7 @@ one demo page.
 Hackathon documentation lives in [`docs/hackathon/`](docs/hackathon/):
 
 - [Build day guide](docs/hackathon/BUILD_DAY.md)
+- [Submission requirements, judging criteria, and schedule](docs/SUBMISSION.md)
 - [Before you build](docs/hackathon/BEFORE_YOU_BUILD.md)
 - [Architecture reference](docs/hackathon/ARCHITECTURE_REFERENCE.md)
 - [Infrastructure onboarding (PDF)](docs/hackathon/BUILDERS-CHALLENGE-INFRA-ONBOARDING.pdf)
