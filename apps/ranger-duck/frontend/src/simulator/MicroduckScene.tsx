@@ -1,18 +1,20 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { DuckAdapter, type DuckAction, type DuckStatus, type Runtime } from './adapter';
+import { DuckAdapter, type DuckAction, type DuckStatus, type NavigationStatus, type Runtime } from './adapter';
 import { createClearing, type SceneEncounter } from './clearing';
 import { bootGame, disposeGame } from './upstream/game/game.js';
 import { gameApi, useGame } from './upstream/store.js';
 
-export type { DuckStatus } from './adapter';
+export type { DuckStatus, NavigationStatus } from './adapter';
 export type { SceneEncounter } from './clearing';
 export interface MicroduckSceneHandle {
   perform(action: DuckAction): Promise<void>;
   stop(): void;
   reset(): void;
   prepareCycle(): Promise<void>;
+  approach(): Promise<void>;
+  roam(): void;
   startEncounter(encounter: SceneEncounter): void;
   status(): DuckStatus;
 }
@@ -21,6 +23,7 @@ type Props = {
   onReady?(): void;
   onError?(message: string): void;
   onStatus?(status: DuckStatus): void;
+  onNavigation?(status: NavigationStatus): void;
   onEncounterReady?(id: string): void;
 };
 type DebugRuntime = Runtime & {
@@ -40,6 +43,8 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
   useImperativeHandle(ref, () => ({
     perform: action => adapter.current?.perform(action) ?? Promise.reject(new Error('Simulator is still loading.')),
     stop: () => adapter.current?.stop(),
+    roam: () => adapter.current?.roam(),
+    approach: () => adapter.current?.approach() ?? Promise.reject(new Error('Simulator is still loading.')),
     reset: () => { pendingEncounter.current = null; clearing.current?.reset(); adapter.current?.reset(); },
     prepareCycle: () => adapter.current?.prepareCycle() ?? Promise.reject(new Error('Simulator is still loading.')),
     startEncounter: encounter => {
@@ -125,7 +130,7 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       rl.controls.target.set(-0.2, 0.16, -0.05);
       camera.position.set(0.75, 0.65, 1.35);
       rl.controls.update();
-      adapter.current = new DuckAdapter(rl, changed);
+      adapter.current = new DuckAdapter(rl, changed, () => performance.now(), next => callbacks.current.onNavigation?.(next));
       // Development-only smoke-test hook; omitted from production bundles.
       if (import.meta.env.DEV) (window as unknown as { __rangerDuck?: DuckAdapter }).__rangerDuck = adapter.current;
       api.startEntrance?.();

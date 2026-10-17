@@ -166,12 +166,12 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
         response = JSONResponse({"encounter_id": payload.encounter_id,
             "search_id": secrets.token_urlsafe(24), "mode": payload.mode,
             "match_type": "broader_behavior" if payload.broaden else "species_interaction",
-            "status": "ok" if any(c["action"] and c["rank"] <= 3 for c in candidates) else "no_supported_imitation" if candidates else "no_results",
+            "status": "ok" if any(c["action"] for c in candidates) else "no_supported_imitation" if candidates else "no_results",
             "query": snapshot.query, "elapsed_ms": round((time.monotonic() - started) * 1000),
             "original_elapsed_ms": snapshot.elapsed_ms, "recorded_at": snapshot.recorded_at,
             "candidates": candidates,
             "warnings": ([manifest.warning] if manifest.warning else []) +
-                (["Actions marked video_caption are derived from the existing video-model caption, not a visual review. Returned interactions may differ from the requested encounter; only the caption determines each action."]
+                (["Actions marked video_caption are derived from the existing video-model caption, not a visual review. Interaction-focused search can return solitary behavior; only the caption determines each action."]
                  if any(c["action_basis"] == "video_caption" for c in candidates) else []) +
                 (["Replaying a previous live search. Video playback still requires VSS access."] if payload.mode == "replay" else [])})
         establish_cookie(response, session_id)

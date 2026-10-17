@@ -8,20 +8,20 @@ function PlayIcon({ playing = false }: { playing?: boolean }) {
     : <polygon points="3,2 14,8 3,14" fill="currentColor" />}</svg>;
 }
 
-export function ReferenceCard({ candidate, rank, selected, sequenceState, onSelect }: { candidate: Candidate; rank: number; selected: boolean; sequenceState?: string; onSelect: () => void }) {
+export function ReferenceCard({ candidate, rank, sourceRank, selected, sequenceState, onSelect }: { candidate: Candidate; rank: number; sourceRank: number; selected: boolean; sequenceState?: string; onSelect: () => void }) {
   const p = candidate.provenance;
   const inferred = candidate.action_basis === 'video_caption';
   const supported = isEligible(candidate);
   return <button className={`card ${selected ? 'sel' : ''}`} onClick={onSelect} aria-pressed={selected} title="Pause the loop and inspect this reference">
     <div className="ir reference-thumb" aria-hidden="true">
-      <span className="mono thumb-cam">REF</span>
+      <span className="mono thumb-cam">ACT</span>
       <span className="mono thumb-time">{segmentTime(p.segment_start_sec)}</span>
       <span className="display thumb-rank">{String(rank).padStart(2, '0')}</span>
     </div>
     <div className="reference-copy">
       <div className="badge-row"><span className={`badge ${inferred ? 'inferred' : candidate.review_status === 'reviewed' ? 'rev' : 'unrev'}`}>
         {inferred ? 'Caption-inferred' : candidate.review_status === 'reviewed' ? `Reviewed · ${behaviorLabel(candidate.reviewed_behavior)}` : candidate.review_status === 'stale' ? 'Review outdated' : 'No supported action'}
-      </span><span className="mono similarity">sim {candidate.similarity == null ? '—' : candidate.similarity.toFixed(2)}</span>{sequenceState && <span className={`mono rank-state ${sequenceState}`}>{sequenceState}</span>}</div>
+      </span><span className="mono source-rank">Source #{sourceRank}</span><span className="mono similarity">sim {candidate.similarity == null ? '—' : candidate.similarity.toFixed(2)}</span>{sequenceState && <span className={`mono rank-state ${sequenceState}`}>{sequenceState}</span>}</div>
       <div className="clamp2 caption">{candidate.caption || 'No model caption available.'}</div>
       {!supported && <div className="clamp2 skip-reason" title={eligibilityNote(candidate)}>{eligibilityNote(candidate)}</div>}
       <div className="mono source-summary">{p.source_label} · {segmentTime(p.segment_start_sec)}–{segmentTime(p.segment_end_sec)}</div>
@@ -136,7 +136,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
         {actionActive && <span className="mono action-elapsed"><span className="dot live" aria-hidden="true" />Active · {(actionElapsedMs / 1000).toFixed(1)} s elapsed</span>}
       </div>
       {actionError && <div className="action-error" role="alert">{actionError}</div>}
-      <div className="mono copy-note">{eligible ? evidenceNote : 'This rank stays in place and is skipped. Lower-ranked results are not promoted.'} {autoPlaying ? 'Use Stop to pause.' : sequenceLabel}</div>
+      <div className="mono copy-note">{eligible ? evidenceNote : 'No compatible evidence-based action was returned.'} {autoPlaying ? 'Scripted navigation is separate from this action. Use Stop to pause.' : sequenceLabel}</div>
       <button className="seg details-toggle" onClick={() => setDetailsOpen(value => !value)} aria-expanded={detailsOpen}>{detailsOpen ? 'Hide evidence details' : 'Evidence details'}</button>
       {detailsOpen && <dl className="kv mono">
         <dt>model caption</dt><dd>{candidate.caption || 'none available'}</dd>
@@ -153,6 +153,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
         <dt>parent video</dt><dd>{p.parent_id || 'unresolved'}</dd>
         <dt>segment</dt><dd>{segmentTime(p.segment_start_sec)}–{segmentTime(p.segment_end_sec)} · source-relative</dd>
         <dt>clip id</dt><dd>{candidate.clip_id}</dd>
+        <dt>archive rank</dt><dd>{candidate.rank ?? 'not supplied'}</dd>
         <dt>provenance</dt><dd>{p.dataset ?? 'not supplied'}</dd>
       </dl>}
     </div>

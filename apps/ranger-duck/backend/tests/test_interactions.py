@@ -4,7 +4,7 @@ import json
 import pytest
 
 from ranger_duck.evidence import Manifest, Segment, normalize_segments
-from ranger_duck.interaction import classify_interaction
+from ranger_duck.interaction import classify_interaction, has_species_pair
 from test_backend import PAYLOAD, ROW, Upstream, make_client, reviewed, search
 
 
@@ -30,10 +30,23 @@ from test_backend import PAYLOAD, ROW, Upstream, make_client, reviewed, search
     ("deer", "Two deer stand still together.", "group_alert", "stand_hold"),
     ("deer", "Two deer graze on opposite sides of a field.", "focal_foraging", "ground_pick"),
     ("deer", "Two deer graze next to each other.", "co_feeding", "ground_pick"),
+    ("cat", "A solitary cat is hissing.", "focal_hissing", "stand_hold"),
+    ("cat", "A cat looks up.", "focal_head_movement", "head_scan"),
+    ("cat", "A cat walks across a room.", "focal_walking", "short_walk"),
+    ("cat", "A cat watches a feather toy.", "object_attention", "head_scan"),
+    ("cat", "A cat watches it.", "focal_attention", "head_scan"),
+    ("cat", "A cat stands quietly.", "focal_standing", "stand_hold"),
+    ("cat", "Two cats stand nearby. One cat jumps at a feather toy.", "focal_standing", "stand_hold"),
+    ("cat", "Two cats sit near a feather toy. One watches it.", "focal_attention", "head_scan"),
+    ("cat", "Two cats face each other. One cat hisses at a camera while sitting beside the other cat.", "focal_hissing", "stand_hold"),
+    ("deer", "A deer lowers its head to feed.", "focal_foraging", "ground_pick"),
+    ("deer", "A deer stands still.", "focal_standing", "stand_hold"),
+    ("deer", "Two deer stand together while one deer feeds alone.", "focal_foraging", "ground_pick"),
+    ("deer", "Two deer stand together while only one deer stands alert.", "focal_standing", "stand_hold"),
 ])
-def test_explicit_same_species_interactions_map_to_bounded_approximations(animal, caption, behavior, primitive):
+def test_explicit_species_behaviors_map_to_bounded_approximations(animal, caption, behavior, primitive):
     match, reason = classify_interaction(caption, animal)
-    assert reason == "caption_interaction_match"
+    assert reason == "caption_behavior_match"
     assert match[0:2] == (behavior, primitive)
     assert match[2] <= 8000 and match[3]
 
@@ -43,17 +56,14 @@ def test_explicit_same_species_interactions_map_to_bounded_approximations(animal
     ("cat", "Two dogs hiss at each other."),
     ("cat", "Two cats hiss at another dog."),
     ("cat", "Two cats hiss at the other dog."),
-    ("cat", "Two cats stand nearby. One cat jumps at a feather toy."),
     ("cat", "Two cats bat at a toy independently."),
     ("cat", "Two cats playfully pounce at each other."),
     ("cat", "Two cats chase each other but this is not play."),
     ("cat", "Two cats chase each other, possibly playfully."),
     ("cat", "Two cats play with each other by jumping and pouncing."),
     ("cat", "Two cats climb a scratching post together."),
-    ("cat", "Two cats sit near a feather toy. One watches it."),
     ("cat", "Two cats sit nearby. One does not look up."),
     ("cat", "Two cats sit nearby. One may walk across the room."),
-    ("cat", "Two cats face each other. One cat hisses at a camera while sitting beside the other cat."),
     ("cat", "Two cats appear to look at each other."),
     ("cat", "Two cats seem to be hissing at each other."),
     ("cat", "Two cats fight and bite each other."),
@@ -67,18 +77,20 @@ def test_explicit_same_species_interactions_map_to_bounded_approximations(animal
     ("cat", "Two cats may greet each other."),
     ("cat", "Two cats are possibly playing with each other."),
     ("cat", "There are not two cats playing with each other."),
-    ("cat", "A solitary cat is hissing."),
-    ("cat", "A cat sits without another cat nearby. The cat looks up."),
-    ("cat", "A cat sits beside an empty chair, and no other cat is present. The cat looks up."),
-    ("deer", "A deer lowers its head to feed."),
     ("deer", "Two cats greet each other."),
     ("deer", "Two deer are not grazing together."),
-    ("deer", "Two deer stand together while one deer feeds alone."),
-    ("deer", "Two deer stand together while only one deer stands alert."),
+    ("deer", "A deer does not feed."),
+    ("deer", "A deer may walk across the clearing."),
+    ("cat", "A cat is visible."),
+    ("cat", "A cat does not stand."),
+    ("cat", "A cat jumps at a feather toy."),
+    ("cat", "A dog is walking."),
+    ("deer", "No deer is visible. A dog walks across the frame."),
+    ("deer", "A deer is near a feeding station."),
 ])
-def test_solitary_wrong_partner_unsupported_and_negated_evidence_stays_ineligible(animal, caption):
+def test_wrong_species_unsupported_and_negated_evidence_stays_ineligible(animal, caption):
     match, reason = classify_interaction(caption, animal)
-    assert match is None and reason != "caption_interaction_match"
+    assert match is None and reason != "caption_behavior_match"
 
 
 def test_search_uses_each_ranked_caption_even_if_it_differs_from_encounter_hint():
@@ -105,14 +117,15 @@ def test_search_uses_each_ranked_caption_even_if_it_differs_from_encounter_hint(
     assert "s3://" not in rendered and "test-secret" not in rendered
 
 
-def test_missing_or_duplicate_top_three_slots_are_not_filled_from_rank_four():
+def test_compatible_rank_four_enables_actions_after_invalid_or_duplicate_hits():
     eligible = {**ROW, "source": "s3://test-segments/four.mp4", "reasoning_content": "Two deer graze together."}
-    rows = [ROW, ROW, {"source": "https://invalid.test"}, eligible]
+    unsupported = {**ROW, "reasoning_content": "A deer jumps over a fence."}
+    rows = [unsupported, unsupported, {"source": "https://invalid.test"}, eligible]
     assert [s.rank for s in normalize_segments(rows)] == [1, 4]
     client, _, _ = make_client(Upstream(rows))
     with client:
         result = search(client)
-    assert result["status"] == "no_supported_imitation"
+    assert result["status"] == "ok"
     assert result["candidates"][0]["action"] is None
     assert result["candidates"][1]["rank"] == 4 and result["candidates"][1]["action"]
 
@@ -123,21 +136,24 @@ def test_retreat_is_not_silently_replaced_with_a_hissing_pause():
     assert match is None and reason == "unsupported_retreat"
 
 
-def test_caption_action_is_bound_to_exact_provenance_and_legacy_review_is_not_promoted():
+def test_caption_action_is_bound_to_exact_provenance_and_exact_legacy_review_remains_valid():
     row = {**ROW, "reasoning_content": "Two deer graze together."}
     segment = Segment.parse(row)
     manifest = Manifest([reviewed(row)])
-    action = manifest.annotate_interaction(segment, "deer", "deer")
+    action = Manifest().annotate_interaction(segment, "deer", "deer")
     assert action["action_basis"] == "video_caption" and action["review_status"] == "unreviewed"
     assert action["action"]["evidence_id"] != "ref-01"
     assert action["action"] == Manifest().annotate_interaction(segment, "deer", "deer")["action"]
     changed = Segment.parse({**row, "segment_end_sec": 6})
     assert Manifest().annotate_interaction(changed, "deer", "deer")["action"] != action["action"]
     assert manifest.annotate_interaction(changed, "deer", "deer")["action"] is None
-    assert Manifest([reviewed()]).annotate_interaction(Segment.parse(ROW), "deer", "deer")["action"] is None
+    reviewed_action = Manifest([reviewed()]).annotate_interaction(Segment.parse(ROW), "deer", "deer")
+    assert reviewed_action["action_basis"] == "reviewed" and reviewed_action["review_status"] == "reviewed"
+    assert reviewed_action["action"]["evidence_id"] == "ref-01"
+    assert reviewed_action["interaction_partner"] is None
 
 
-@pytest.mark.parametrize("override", [{"animal": "cat"}, {"interaction_partner": "cat"}, {"behavior": "jumping"}])
+@pytest.mark.parametrize("override", [{"animal": "cat"}, {"behavior": "jumping"}])
 def test_contradictory_review_cannot_be_bypassed_by_a_matching_caption(override):
     row = {**ROW, "reasoning_content": "Two deer graze together."}
     manifest = Manifest([reviewed(row, **override)])
@@ -161,3 +177,30 @@ def test_broadening_keeps_cat_pair_and_authorized_search_scope():
     assert response.json()["query"] == sent["query"] == "Two cats interacting with each other"
     assert sent["tags"] == [] and sent["include_public"] is True
     assert all(s["role"] == "focal_animal" and s["animal"] == s["interaction_partner"] for s in catalog)
+
+
+def test_all_retrieved_candidates_are_available_for_first_three_compatible_selection():
+    rows = [{**ROW, "source": f"s3://test-segments/rank-{rank}.mp4",
+             "reasoning_content": "A deer jumps over a fence."} for rank in range(1, 16)]
+    for rank, caption in [(4, "A deer grazes."), (7, "A deer walks."),
+                          (13, "A deer stands still."), (15, "A deer looks around.")]:
+        rows[rank - 1]["reasoning_content"] = caption
+    client, _, _ = make_client(Upstream(rows))
+    with client:
+        result = search(client)
+    compatible = [item for item in result["candidates"] if item["action"]]
+    assert result["status"] == "ok" and len(result["candidates"]) == 15
+    assert [item["rank"] for item in compatible] == [4, 7, 13, 15]
+    assert [item["rank"] for item in compatible[:3]] == [4, 7, 13]
+
+
+@pytest.mark.parametrize("caption", [
+    "A cat sits without another cat nearby. The cat looks up.",
+    "A cat sits beside an empty chair, and no other cat is present. The cat looks up.",
+])
+def test_solitary_motion_is_eligible_without_inventing_a_partner(caption):
+    assert not has_species_pair(caption, "cat")
+    row = {**ROW, "reasoning_content": caption}
+    item = Manifest().annotate_interaction(Segment.parse(row), "cat", "cat")
+    assert item["action"]["primitive"] == "head_scan" and item["interaction_partner"] is None
+    assert item["eligibility_reason"] == "caption_behavior_match"

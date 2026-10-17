@@ -1,7 +1,7 @@
 """Conservative, deterministic interpretations of existing video-model captions.
 
-This is not a video model or a visual review. A confirmed same-species pair clip
-can support a partner-directed or clearly labeled focal action. Unsupported
+This is not a video model or a visual review. A clip must identify the selected
+species and a supported behavior; a second animal is optional. Unsupported
 wording stays playable but never becomes a motion. Scenario names and search
 text are not inputs, so a hit cannot acquire requested behavior by association.
 """
@@ -32,7 +32,10 @@ def _positive(pattern: str, text: str, *, reject_inside: re.Pattern | None = Non
     return False, rejected
 
 
-def _pair(text: str, animal: str) -> bool:
+def has_species_pair(text: str, animal: str) -> bool:
+    if animal not in {"cat", "deer"}:
+        return False
+    text = text.casefold().replace("’", "'")
     noun = r"(?:cats?|kittens?)" if animal == "cat" else r"deer"
     plural = r"(?:cats|kittens)" if animal == "cat" else r"deer"
     # The broad 'cat ... another cat' form must not turn an explicitly absent
@@ -53,10 +56,12 @@ def _pair(text: str, animal: str) -> bool:
 
 def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]:
     if animal not in {"cat", "deer"}:
-        return None, "unsupported_species_pair"
+        return None, "unsupported_species"
     text = re.sub(r"\s+", " ", caption.casefold().replace("’", "'")).strip()
-    if not _pair(text, animal):
-        return None, "species_pair_not_established"
+    species = r"\b(?:cats?|kittens?)\b" if animal == "cat" else r"\bdeer\b"
+    if not _positive(species, text)[0]:
+        return None, "species_not_established"
+    paired = has_species_pair(text, animal)
     noun = r"(?:cat|kitten)" if animal == "cat" else "deer"
     # Pronouns are accepted only after the caption has explicitly established
     # two animals of the requested species. A dog/person target does not match.
@@ -69,7 +74,7 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
     # to a companion when the same caption also describes a toy or another
     # salient object. Explicit animal targets remain usable in those clips.
     attention_partner = partner
-    if not AMBIGUOUS_OBJECT.search(text):
+    if paired and not AMBIGUOUS_OBJECT.search(text):
         attention_partner = rf"(?:{partner}|it|its\s+(?:actions|movements)|them|their\s+(?:actions|movements))"
     directed = rf"\b(?:at|towards?|to|with|from|beside|alongside|behind|past)\s+{partner}\b"
     collective = r"\b(?:together|side by side|both|in unison|as a (?:group|herd)|each other|one another)\b"
@@ -120,13 +125,13 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
          "directed_verb", "The caption describes the animals moving their heads to attend to a shared object; the duck makes an attentive head turn. This copies shared object attention, not a greeting or attention to each other."),
         ("object_attention", "head_scan", 2400,
          rf"\b(?:looks?|looking|watch(?:es|ing)?|observ(?:es?|ing))(?:\s+(?:up|down|directly))?\s+(?:at\s+)?{attention_object}\b",
-         "directed_verb", "The caption describes a focal animal attending to an object in a same-species pair clip; the duck approximates that attention with a head turn. This does not imply attention to the other animal."),
+         "directed_verb", "The caption describes the animal attending to an object; the duck approximates that attention with a head turn. This does not imply attention to another animal."),
         ("focal_head_movement", "head_scan", 2400,
          r"\b(?:(?:turns?|turning|moves?|moving|tilts?|tilting|raises?|raising)\s+(?:(?:its|their|the)\s+)?heads?|(?:looks?|looking)\s+(?:up|down|around))\b",
-         "directed_verb", "The caption describes a focal animal moving its head in a same-species pair clip; the duck approximates that visible head movement. The caption does not establish that it is directed at its companion."),
+         "directed_verb", "The caption describes the animal moving its head; the duck approximates that visible head movement. This does not imply an interaction with another animal."),
         ("focal_walking", "short_walk", 2000,
          r"\b(?:walk(?:s|ing)?|stroll(?:s|ing)?|trot(?:s|ting)?|mov(?:es?|ing)\s+(?:forward|across|towards?\s+(?:the\s+)?(?:left|right)|to\s+the\s+(?:left|right)))\b",
-         "directed_verb", "The caption describes a focal animal walking in a same-species pair clip; the duck makes a short walk. This does not imply the animal was approaching or following its companion."),
+         "directed_verb", "The caption describes the animal walking; the duck makes a short walk. This does not imply the animal was approaching or following a companion."),
         ("co_feeding", "ground_pick", 8000,
          collective_predicate(feeding, group_subject_allowed=False),
          "directed_verb", "The caption describes the animals feeding together; the duck makes a beak dip beside its companion."),
@@ -134,11 +139,22 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
          collective_predicate(alert),
          "directed_verb", "The caption describes the animals pausing together; the duck holds a still alert pose."),
         ("focal_foraging", "ground_pick", 8000,
-         r"\b(?:graz(?:e|es|ing)|forag(?:e|es|ing)|eat(?:s|ing)?\s+(?:the\s+)?(?:grass|leaves|food))\b",
-         "directed_verb", "The caption describes a focal animal foraging in a same-species pair clip; the duck approximates it with a beak dip. The other animal's presence does not imply co-feeding."),
+         r"\b(?:graz(?:e|es|ing)|forag(?:e|es|ing)|feed(?:s|ing)?|eat(?:s|ing)?)\b(?!\s+(?:station|area|site|time|bowl)\b)",
+         "directed_verb", "The caption describes the animal feeding or foraging; the duck approximates it with a beak dip. This does not imply co-feeding with another animal."),
+        ("focal_attention", "head_scan", 2400,
+         r"\b(?:watch(?:es|ing)?|observ(?:es?|ing)|looks?\s+(?:at|towards?|ahead)|looking\s+(?:at|towards?|ahead))\b",
+         "directed_verb", "The caption describes the animal watching or looking; the duck makes an attentive head-turn approximation. No companion interaction is assumed."),
+        ("focal_standing", "stand_hold", 3000,
+         r"\b(?:stand(?:s|ing)?|remains?\s+(?:still|stationary)|freez(?:e|es|ing)|froze)\b(?!\s+(?:up|on\s+(?:its\s+)?hind)\b)",
+         "directed_verb", "The caption describes the animal standing or pausing; the duck holds a steady standing pose. No interaction is assumed."),
+        ("focal_hissing", "stand_hold", 3000,
+         r"\bhiss(?:es|ing)?\b", "directed_verb",
+         "The caption describes the cat hissing; a steady boundary pause approximates its posture. The duck does not produce a hiss or assume another cat is present."),
     ]
     for behavior, primitive, duration, predicate, requirement, explanation in rules:
-        if behavior == "hissing_boundary" and animal != "cat":
+        if behavior in {"hissing_boundary", "focal_hissing"} and animal != "cat":
+            continue
+        if not paired and behavior in {"orienting_to_partner", "hissing_boundary", "following", "social_approach", "social_play", "watching_partner", "shared_attention", "co_feeding", "group_alert"}:
             continue
         for phrase in phrases:
             # A clip can contain several unrelated actors. Do not attribute a
@@ -165,9 +181,7 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
                     # Generic play cannot conceal a clip whose only described
                     # movement is unsupported jumping, contact, or object play.
                     continue
-            return (behavior, primitive, duration, explanation), "caption_interaction_match"
+            return (behavior, primitive, duration, explanation), "caption_behavior_match"
     if had_negation:
-        return None, "negated_or_uncertain_interaction"
-    if re.search(directed, text) or re.search(collective, text):
-        return None, "unsupported_interaction_behavior"
-    return None, "directed_interaction_not_established"
+        return None, "negated_or_uncertain_behavior"
+    return None, "unsupported_behavior"

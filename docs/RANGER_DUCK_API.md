@@ -90,7 +90,7 @@ Illustrative response with a caption-inferred interaction:
       "review_reason": null,
       "similarity": 0.72,
       "review_status": "unreviewed",
-      "eligibility_reason": "caption_interaction_match",
+      "eligibility_reason": "caption_behavior_match",
       "action_basis": "video_caption",
       "action_reason": "The caption describes two deer grazing together; one ground-pick cycle approximates feeding beside a companion.",
       "inferred_behavior": "co_feeding",
@@ -117,25 +117,27 @@ Illustrative response with a caption-inferred interaction:
 
 This is an illustrative contract example, not real archive evidence or a measured result. Opaque IDs have no meaningful format for the frontend.
 
-Response `status` is `ok` when at least one candidate at original rank 1–3 supports imitation, `no_supported_imitation` when clips exist but none of those three is eligible, or `no_results` when there are no usable segment candidates. All three are successful HTTP responses.
+Response `status` is `ok` when any returned candidate supports imitation, `no_supported_imitation` when clips exist but none is eligible, or `no_results` when there are no usable segment candidates. All three are successful HTTP responses.
 
 Candidate rules:
 
 - `rank` is the original one-based upstream segment rank. Invalid or duplicate sources can leave gaps; no parent-diversity reranking or promotion occurs.
 - `review_status` is `reviewed`, `unreviewed`, or `stale`. A non-null `action` can have `action_basis: "reviewed"` or `"video_caption"`. Caption inference never changes the status to reviewed.
 - `action_reason` explains the observed role and approximation. `inferred_behavior` describes caption-derived behavior; `reviewed_behavior` is reserved for a valid visual review. `animal` and `interaction_partner` identify the supported pair when available.
-- A caption-inferred action requires the selected species pair, a supported directed, collective, or explicitly described focal action in that pair clip, and complete source/parent/interval metadata. Shared or parallel activity is labeled as such, never relabeled as the queried greeting or hiss. Solitary animals, ambiguous actor/target claims, negated statements, and unsupported actions do not authorize motion.
-- An exact reviewed entry must also confirm the interaction partner and evidence. A solitary-animal review is insufficient. Stale, invalid or contradictory reviews block caption fallback.
+- A caption-inferred action requires the selected species, an explicitly supported behavior and complete source/parent/interval metadata. Single-animal footage is eligible. The query asks for interactions, but the returned action does not require one. Shared, solitary and social behavior must retain their actual labels; ambiguous actors, negated statements and unsupported movements remain ineligible.
+- An exact current review can authorize a supported solitary or social behavior. Pair evidence is optional. Stale, invalid or contradictory reviews block caption fallback.
 - `similarity` is a retrieval score, not a probability. `dataset` and interval times may be null for incomplete upstream data; such a result may still be playable without authorizing movement.
 - `caption_hash` hashes the exact upstream caption before display redaction. `review_reason` is a reviewer's actual recorded note, or null. Do not invent a review.
-- `eligibility_reason` is a machine-readable explanation such as `caption_interaction_match`, `reviewed_match`, `reference_changed`, `incomplete_metadata`, or `interaction_not_supported`. Clients tolerate additional reasons.
+- `eligibility_reason` is a machine-readable explanation such as `caption_behavior_match`, `reviewed_match`, `reference_changed`, `incomplete_metadata`, or `interaction_not_supported`. Clients tolerate additional reasons.
 - Supported `primitive` values are `ground_pick` (8000 ms ceiling), `short_walk` (2000), `stand_hold` (3000), and `head_scan` (2400). Retreat-only evidence is unsupported because backward walking was not reliable in physics checks.
 - `max_duration_ms` bounds the controller command; success requires observed execution and settling. It is not a promised completion time.
 - `warnings` contains human-readable non-secret messages. No SQL, vectors, VSS tokens, or private storage URIs are returned.
 
-The frontend uses exactly original ranks 1–3. Each eligible reference is selected and played muted automatically, then its action runs to observed completion before the next slot. Unsupported or missing slots remain visible with a skip reason. Rank 4 is never substituted. After the sequence, wait for the same duck body to settle and repeat the evidence without resetting physics or sending another search. If no slot is eligible, remain still and show why.
+The frontend filters all returned candidates by compatibility, sorts by original `rank`, and uses up to three eligible actions. Queue positions are 1–3; source rank stays visible for provenance. Incompatible clips do not occupy a card or loop slot, and a later source rank can fill a queue position. If fewer than three qualify, show the actual count.
 
-Stop/Resume pauses or restarts this sequence; Reset, a new encounter, a replacement search, hidden-tab pause, and page teardown cancel current motion. A visibility-only pause automatically resumes when the tab returns; manual Stop or reference inspection stays paused. Selecting a reference manually pauses automatic motion for inspection. Ignore responses whose encounter ID is no longer current.
+The animal stays at a fixed position outside the box. The duck roams while waiting and between passes, approaches the animal before an evidence action, settles, then performs it. Navigation is distinct from the reference-derived motion and does not overlap it. Preserve the same duck body and physics clock throughout; repeat the same queue without new searches or resets.
+
+Stop/Resume controls both navigation and the action sequence. Reset, changed encounters, replacement searches, hidden-tab pause and teardown cancel motion. A visibility-only pause automatically resumes on return; manual Stop or reference inspection stays paused. Ignore responses whose encounter ID is no longer current.
 
 ## Video
 
@@ -167,9 +169,9 @@ Expected cases include 422 `invalid_request`, 404 `unknown_scenario`, 503 `live_
 
 1. Load health and the encounter catalog. Await health before sending any searches to establish the session cookie.
 2. Start the selected scene and create a new encounter ID.
-3. Send the search request when the scripted animal enters the encounter zone.
+3. Send the search request when the fixed-animal encounter is ready; the animal does not translate into the box.
 4. Display results, measured time, and a selected reference video on the same page.
-5. Automatically run supported original ranks 1–3 in order through the simulator adapter, displaying evidence basis, rank, cycle, and actual execution status. Preserve the duck body, pose and physics clock across clips and cycles; repeat without searching again.
+5. Select the first three compatible actions, display their source ranks, and loop through approach, evidence action and roaming phases. Preserve physics across clips and cycles; repeat without another search.
 6. On Reset, abort the pending fetch, invalidate the encounter ID, stop the motion, and clear the previous evidence selection.
 
 Frontend cancellation does not guarantee the upstream request stops, so the ID check is mandatory. The backend performs no simulator actions and creates no live model-training jobs.

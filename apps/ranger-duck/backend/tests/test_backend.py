@@ -108,14 +108,16 @@ def test_no_configuration_is_runnable_and_reports_it():
         assert upstream.requests == []
 
 
-def test_unreviewed_live_result_is_playable_without_an_action_or_private_fields():
+def test_unreviewed_solitary_behavior_is_actionable_without_private_fields():
     client, upstream, _ = make_client()
     with client:
         result = search(client)
         assert result["encounter_id"] == PAYLOAD["encounter_id"]
-        assert result["mode"] == "live" and result["status"] == "no_supported_imitation"
+        assert result["mode"] == "live" and result["status"] == "ok"
         item = result["candidates"][0]
-        assert item["action"] is None and item["review_status"] == "unreviewed"
+        assert item["action"]["primitive"] == "ground_pick" and item["review_status"] == "unreviewed"
+        assert item["action_basis"] == "video_caption" and item["eligibility_reason"] == "caption_behavior_match"
+        assert item["animal"] == "deer" and item["interaction_partner"] is None
         assert item["provenance"]["segment_start_sec"] == 0
         assert item["provenance"]["dataset"] is None
         rendered = json.dumps(result)
@@ -254,7 +256,8 @@ def test_normalization_deduplicates_without_changing_upstream_rank_or_parent_ord
         assert items[0]["provenance"]["parent_id"] == items[1]["provenance"]["parent_id"]
         assert items[1]["provenance"]["parent_id"] != items[2]["provenance"]["parent_id"]
         assert [item["rank"] for item in items] == [1, 3, 4]
-        assert all(item["action"] is None for item in items)
+        assert items[1]["action"]["evidence_id"] == "ref-01"
+        assert all(item["action"] is not None for item in items)
 
 
 def test_search_budget_reaches_browser_and_upstream_without_extending_other_reads():

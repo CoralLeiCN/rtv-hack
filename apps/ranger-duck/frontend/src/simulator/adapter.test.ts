@@ -158,3 +158,71 @@ describe('evidence primitive execution', () => {
     await rejection;
   });
 });
+
+describe('separate continuous navigation', () => {
+  it('roams without an evidence action and Stop clears all navigation commands', () => {
+    const { adapter, runtime } = fixture();
+    adapter.roam();
+    expect(adapter.navigationStatus()).toBe('roaming');
+    expect(adapter.source.command[0]).toBeGreaterThan(0);
+    adapter.stop();
+    expect(adapter.navigationStatus()).toBe('idle');
+    expect([...adapter.source.command]).toEqual([0, 0, 0]);
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+  });
+
+  it('requires observed approach position, facing, and stable balance', async () => {
+    const { adapter, runtime, advance } = fixture();
+    adapter.roam();
+    const result = adapter.approach();
+    advance(2000);
+    expect(adapter.navigationStatus()).toBe('approaching');
+    const q = runtime.data.qpos as Float64Array;
+    q[0] = 0.32; q[1] = 0;
+    q[3] = Math.cos(Math.PI / 4); q[6] = Math.sin(Math.PI / 4);
+    advance(1000);
+    expect(adapter.navigationStatus()).toBe('approaching');
+    q[3] = 1; q[6] = 0;
+    advance(100);
+    expect(adapter.navigationStatus()).toBe('settling');
+    expect([...adapter.source.command]).toEqual([0, 0, 0]);
+    advance(300);
+    await result;
+    expect(adapter.navigationStatus()).toBe('idle');
+    expect(adapter.status()).toBe('ready');
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+  });
+
+  it('cancels approach and blocks evidence movements during navigation', async () => {
+    const { adapter } = fixture();
+    const approach = adapter.approach();
+    const rejection = expect(approach).rejects.toThrow('cancelled');
+    await expect(adapter.perform({ primitive: 'head_scan', evidenceId: 'clip-1' })).rejects.toThrow('ready pose');
+    adapter.stop();
+    await rejection;
+    expect([...adapter.source.command]).toEqual([0, 0, 0]);
+  });
+
+  it('stops locomotion at the yellow-box safety margin even without render frames', () => {
+    const { adapter, runtime, advance } = fixture();
+    adapter.roam();
+    (runtime.data.qpos as Float64Array)[0] = 0.57;
+    expect([...adapter.source.command]).toEqual([0, 0, 0]);
+    advance(20);
+    expect(adapter.navigationStatus()).toBe('idle');
+    expect(adapter.status()).toBe('failed');
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+  });
+
+  it('preparation stops roaming and settles without recentering physics', async () => {
+    const { adapter, runtime, advance } = fixture();
+    adapter.roam();
+    const result = adapter.prepareCycle();
+    expect(adapter.navigationStatus()).toBe('settling');
+    expect([...adapter.source.command]).toEqual([0, 0, 0]);
+    advance(500); advance(300);
+    await result;
+    expect(adapter.navigationStatus()).toBe('idle');
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+  });
+});

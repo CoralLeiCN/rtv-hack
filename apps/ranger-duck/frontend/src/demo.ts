@@ -1,7 +1,7 @@
 import type { Candidate, Primitive, SearchResult } from './api';
 
 export type Stage = 'idle' | 'encounter' | 'searching' | 'ready' | 'imitating' | 'complete' | 'paused' | 'nomatch' | 'failed';
-export const STAGES = ['Encounter', 'Searching', 'Top three ready', 'Auto imitation', 'Repeat'];
+export const STAGES = ['Encounter', 'Searching', 'Actions ready', 'Auto imitation', 'Roam & repeat'];
 export const STAGE_INDEX: Record<Stage, number> = { idle: -1, encounter: 0, searching: 1, ready: 2, imitating: 3, complete: 4, paused: 3, nomatch: 1, failed: 1 };
 
 export function searchDeadlineMs(backendBudget: unknown): number {
@@ -15,24 +15,26 @@ export function isEligible(candidate: Candidate | null | undefined): candidate i
   if (!candidate?.action || typeof candidate.action.evidence_id !== 'string' || !candidate.action.evidence_id.trim()) return false;
   if (!['ground_pick', 'short_walk', 'stand_hold', 'head_scan'].includes(candidate.action.primitive)) return false;
   if (!Number.isFinite(candidate.action.max_duration_ms) || candidate.action.max_duration_ms <= 0) return false;
-  return (candidate.action_basis === 'video_caption' && candidate.eligibility_reason === 'caption_interaction_match') ||
+  return (candidate.action_basis === 'video_caption' && ['caption_behavior_match', 'caption_interaction_match'].includes(candidate.eligibility_reason)) ||
     ((candidate.action_basis === 'reviewed' || candidate.action_basis == null) && candidate.review_status === 'reviewed' && candidate.eligibility_reason === 'reviewed_match');
 }
-// The automatic sequence is exactly the first three ranked results. A later
-// eligible result must never silently replace an unsupported top-three entry.
-export function visibleCandidates(candidates: Candidate[]): { candidate: Candidate; rank: number }[] {
-  return candidates.map((candidate, i) => ({ candidate, rank: candidate.rank ?? i + 1 }))
-    .filter(({ rank }) => Number.isInteger(rank) && rank >= 1 && rank <= 3)
-    .sort((left, right) => left.rank - right.rank)
-    .filter((entry, index, list) => list.findIndex(item => item.rank === entry.rank) === index);
+// Filter the entire ranked response before taking the first three compatible
+// actions. Keep original archive rank separate from its position in this queue.
+export function visibleCandidates(candidates: Candidate[]): { candidate: Candidate; rank: number; sourceRank: number }[] {
+  return candidates.map((candidate, i) => ({ candidate, sourceRank: candidate.rank ?? i + 1 }))
+    .filter(({ candidate, sourceRank }) => isEligible(candidate) && Number.isInteger(sourceRank) && sourceRank >= 1)
+    .sort((left, right) => left.sourceRank - right.sourceRank)
+    .filter((entry, index, list) => list.findIndex(item => item.sourceRank === entry.sourceRank || item.candidate.clip_id === entry.candidate.clip_id) === index)
+    .slice(0, 3)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
 }
 
-export type LoopPhase = 'preparing' | 'waiting' | 'running' | 'completed' | 'skipped' | 'cycle_complete';
+export type LoopPhase = 'preparing' | 'approaching' | 'waiting' | 'running' | 'completed' | 'roaming' | 'cycle_complete';
 export function motionLabel(primitive: Primitive): string {
   return { stand_hold: 'Holding a steady stance', head_scan: 'Looking around', short_walk: 'Walking / turning within the arena', ground_pick: 'Dipping toward the ground' }[primitive];
 }
 export function loopPhaseLabel(phase: LoopPhase): string {
-  return { preparing: 'waiting for balance', waiting: 'waiting for balance', running: 'active', completed: 'action complete', skipped: 'skipped', cycle_complete: 'continuing to the next pass' }[phase];
+  return { preparing: 'waiting for balance', approaching: 'approaching the animal', waiting: 'waiting for balance', running: 'active', completed: 'action complete', roaming: 'roaming between cycles', cycle_complete: 'continuing to the next pass' }[phase];
 }
 export function behaviorLabel(value: string | null | undefined): string {
   if (!value) return 'Supported behavior';
@@ -42,13 +44,9 @@ export function behaviorLabel(value: string | null | undefined): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 export interface LoopProgress { cycle: number; rank: number | null; phase: LoopPhase; candidate: Candidate | null; }
-export interface SequenceSlot { rank: number; candidate: Candidate | null; supported: boolean; }
+export interface SequenceSlot { rank: number; sourceRank: number; candidate: Candidate; supported: boolean; }
 export function sequenceSlots(candidates: Candidate[]): SequenceSlot[] {
-  const ranked = visibleCandidates(candidates);
-  return [1, 2, 3].map(rank => {
-    const candidate = ranked.find(item => item.rank === rank)?.candidate ?? null;
-    return { rank, candidate, supported: isEligible(candidate) };
-  });
+  return visibleCandidates(candidates).map(entry => ({ ...entry, supported: true }));
 }
 function cancelled(): DOMException { return new DOMException('The automatic sequence was stopped.', 'AbortError'); }
 function checkSignal(signal: AbortSignal): void { if (signal.aborted) throw cancelled(); }
@@ -85,12 +83,15 @@ export async function runReferenceLoop(options: {
   candidates: Candidate[];
   signal: AbortSignal;
   prepareCycle: () => Promise<void>;
+  approach: () => Promise<void>;
+  roam: () => void;
   status: () => string;
   perform: (action: NonNullable<Candidate['action']>) => Promise<void>;
   onProgress: (progress: LoopProgress) => void;
   firstCycle?: number;
   transitionMs?: number;
   readinessTimeoutMs?: number;
+  roamingMs?: number;
 }): Promise<void> {
   const { signal } = options;
   const slots = sequenceSlots(options.candidates);
@@ -104,11 +105,11 @@ export async function runReferenceLoop(options: {
     await waitUntilReady(options.status, signal, options.readinessTimeoutMs ?? 20000);
     for (const slot of slots) {
       checkSignal(signal);
-      if (!slot.supported || !isEligible(slot.candidate)) {
-        options.onProgress({ cycle, rank: slot.rank, phase: 'skipped', candidate: slot.candidate });
-        await waitFor(options.transitionMs ?? 450, signal);
-        continue;
-      }
+      if (!isEligible(slot.candidate)) continue;
+      options.onProgress({ cycle, rank: slot.rank, phase: 'approaching', candidate: slot.candidate });
+      checkSignal(signal);
+      await interruptible(options.approach(), signal);
+      checkSignal(signal);
       options.onProgress({ cycle, rank: slot.rank, phase: 'waiting', candidate: slot.candidate });
       await waitUntilReady(options.status, signal, options.readinessTimeoutMs ?? 20000);
       checkSignal(signal);
@@ -119,8 +120,12 @@ export async function runReferenceLoop(options: {
       options.onProgress({ cycle, rank: slot.rank, phase: 'completed', candidate: slot.candidate });
       await waitFor(options.transitionMs ?? 450, signal);
     }
+    checkSignal(signal);
+    options.onProgress({ cycle, rank: null, phase: 'roaming', candidate: null });
+    checkSignal(signal);
+    options.roam();
+    await waitFor(options.roamingMs ?? 2400, signal);
     options.onProgress({ cycle, rank: null, phase: 'cycle_complete', candidate: null });
-    await waitFor(options.transitionMs ?? 450, signal);
     cycle += 1;
   }
 }

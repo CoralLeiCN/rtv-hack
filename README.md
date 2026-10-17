@@ -78,10 +78,10 @@ sequenceDiagram
    fields.
 5. **Keep movement tied to segment evidence.** The saved prototype required a
    human-reviewed reference before enabling Copy. The current demo instead
-   derives supported interaction actions from the returned video-model captions,
-   requiring the selected species pair and complete provenance. It automatically
-   plays and imitates supported results in ranks 1–3, with unsupported slots
-   visibly skipped. Agent integration must preserve those checks and distinguish
+   derives supported actions from the returned video-model captions, requiring
+   the selected species and complete provenance. Single-animal behavior is
+   eligible. It filters incompatible results, then automatically plays and
+   imitates the first three compatible actions in retrieval order. Agent integration must preserve those checks and distinguish
    inferred actions from human review; a reranking explanation alone cannot
    authorize movement. See the [interaction evidence rules](docs/RANGER_DUCK_INTERACTIONS.md).
 
@@ -117,7 +117,7 @@ The integration will extend the existing `/demo-api/search` route:
 | Search controls | Add Direct / Agent selection and an editable prompt prefilled from the encounter. Keep Live / Replay as a separate choice. |
 | Request | Add `search_strategy: "direct" \| "agent"` and `prompt`, preserving `encounter_id`, `scenario_id`, `mode`, and `broaden`. These new fields are not accepted by the current API yet. |
 | Response | Return executed queries, retrieval counts, ranking details, and each candidate's relevance reason. Preserve review status, provenance, and action fields. |
-| Result cards and loop | Preserve the agent's ranking and display “Why this matches” separately from interaction evidence, human review, and retrieval similarity. Feed validated ranks 1–3 into the existing automatic loop. |
+| Result cards and loop | Preserve the agent's ranking and display “Why this matches” separately from interaction evidence, human review, and retrieval similarity. Filter validated results for compatible actions, then feed the first three into the loop while displaying original source ranks. |
 | Availability and timing | Advertise agent readiness and its timeout through health; let the browser wait for that budget plus connection grace. Reconcile the prototype deadline with the current VSS search budget. |
 | Cancellation | Reuse the existing abort and request-generation handling when an encounter, prompt, or strategy changes. |
 | Replay | Include strategy and prompt in the replay key, alongside encounter scope. Save ranking and reasons; recheck current interaction eligibility and review status on replay without another Codex call. |

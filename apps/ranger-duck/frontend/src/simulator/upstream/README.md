@@ -12,9 +12,10 @@ Ranger Duck retains upstream MuJoCo XML preparation, the 61-value observation,
 14-joint policy output, 50 Hz inference, 200 Hz physics stepping, beak-dip
 phase machine, standing/walking controllers, fall detection, and recovery.
 Its React wrapper drives `gameApi.frame` and installs a single controller
-source for evidence-selected actions. One cat or deer is a scripted visual
-actor in the same Three scene, with no MuJoCo collision body. It faces and
-interacts with the duck's live position. Its poses do not select duck movements.
+source for evidence-selected actions and separately labelled navigation. One cat or deer is a scripted visual
+actor in the same Three scene, with no MuJoCo collision body. Its root stays fixed at x=1.05, z=-0.05, outside the yellow robot area.
+It may turn to face the duck and change its body pose, but never translates.
+Its poses do not select duck movements.
 The cat's `SCRIPTED HISS` cue is a visual label;
 there is no recorded or learned hissing audio.
 
@@ -40,7 +41,17 @@ automatic sequence. It preserves the robot's position, physics time, animal
 scene, and controller. Repeated walking uses the same velocity/turn commands
 to follow a bounded path. Only an explicit Reset/new encounter resets the
 robot; policy fall recovery retains its upstream emergency handling. Stop
-cancels pending preparation or movement while balance physics continues.
+cancels pending preparation, navigation or movement while balance physics continues.
+
+`roam()` follows interior waypoints using upstream forward/turn commands.
+`approach()` cancels roaming, drives toward the interaction point (MuJoCo
+x=0.38, y=0), then resolves only after observed arrival, facing and balance.
+It has a 25-second deadline; failure stops its command instead of teleporting.
+`perform()` accepts only evidence-referenced primitives and rejects overlap with
+navigation. The UI explicitly labels roaming, approaching and settling separately
+from imitation. `onNavigation` reports these transitions. The command getter
+checks conservative body margins inside the yellow box even if render frames
+pause. Stop and tab visibility cancellation are owned by the parent React app.
 
 Run `python3 apps/ranger-duck/scripts/simulator-assets.py` from the repository
 root before starting/building the frontend. The 53 hash-checked public assets

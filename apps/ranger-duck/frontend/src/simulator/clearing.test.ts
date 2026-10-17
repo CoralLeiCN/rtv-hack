@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { createClearing } from './clearing';
+import { ANIMAL_ANCHOR, createClearing } from './clearing';
 
 vi.mock('./animals', async () => {
   const { Group } = await import('three');
@@ -27,7 +27,7 @@ describe('single animal encounter', () => {
     clearing.dispose();
   });
 
-  it('aims social play at the duck and follows its continuing position', () => {
+  it('keeps the animal fixed outside the box while facing the moving duck', () => {
     const scene = new THREE.Scene();
     const duck = { x: -0.6, z: 0, yaw: 0 };
     const clearing = createClearing(scene, () => duck);
@@ -38,8 +38,10 @@ describe('single animal encounter', () => {
     const before = cat.position.clone();
     duck.x = -0.2; duck.z = 0.25; duck.yaw = 0.6;
     for (let t = 5016; t <= 8500; t += 16) clearing.frame(t);
-    expect(cat.position.distanceTo(before)).toBeGreaterThan(0.2);
-    expect(cat.position.distanceTo(new THREE.Vector3(duck.x, 0, duck.z))).toBeLessThan(0.55);
+    expect(cat.position.equals(before)).toBe(true);
+    expect(cat.position.x).toBe(ANIMAL_ANCHOR.x);
+    expect(cat.position.x - 0.365).toBeGreaterThan(0.65);
+    expect(cat.position.z).toBe(ANIMAL_ANCHOR.z);
     const facing = new THREE.Vector3(-1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), cat.rotation.y);
     const towardDuck = new THREE.Vector3(duck.x, 0, duck.z).sub(cat.position).normalize();
     expect(facing.dot(towardDuck)).toBeGreaterThan(0.98);

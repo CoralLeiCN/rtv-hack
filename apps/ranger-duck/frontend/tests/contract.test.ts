@@ -21,16 +21,17 @@ describe('evidence authorization and asynchronous invalidation', () => {
     expect(isEligible({ ...reviewed(), review_status: 'stale' })).toBe(false);
     expect(isEligible(reviewed())).toBe(true);
   });
-  it('keeps the exact top three and never promotes a later eligible reference', () => {
-    const candidates = [candidate({ clip_id: '1' }), candidate({ clip_id: '2' }), candidate({ clip_id: '3' }), reviewed('4')];
-    expect(visibleCandidates(candidates).map(item => [item.candidate.clip_id, item.rank])).toEqual([['1', 1], ['2', 2], ['3', 3]]);
-    expect(sequenceSlots(candidates).every(slot => !slot.supported)).toBe(true);
-    const gaps = [{ ...reviewed('3'), rank: 3 }, { ...reviewed('4'), rank: 4 }];
-    expect(sequenceSlots(gaps).map(slot => [slot.rank, slot.candidate?.clip_id ?? null])).toEqual([[1, null], [2, null], [3, '3']]);
+  it('takes the first three compatible actions across all source ranks without empty slots', () => {
+    const candidates = [candidate({ clip_id: '1', rank: 1 }), { ...reviewed('2'), rank: 2 }, candidate({ clip_id: '3', rank: 3 }), { ...reviewed('4'), rank: 4 }, { ...reviewed('6'), rank: 6 }, { ...reviewed('7'), rank: 7 }];
+    expect(visibleCandidates(candidates).map(item => [item.candidate.clip_id, item.rank, item.sourceRank])).toEqual([['2', 1, 2], ['4', 2, 4], ['6', 3, 6]]);
+    expect(sequenceSlots([candidate(), { ...reviewed('4'), rank: 4 }]).map(slot => [slot.rank, slot.sourceRank])).toEqual([[1, 4]]);
+    expect(sequenceSlots([candidate()])).toEqual([]);
+    expect(visibleCandidates([{ ...reviewed('7'), rank: 7 }, { ...reviewed('2'), rank: 2 }]).map(item => item.sourceRank)).toEqual([2, 7]);
   });
   it('permits explicit caption-derived actions while rejecting unsupported or empty evidence', () => {
     const inferred = candidate({ action_basis: 'video_caption', eligibility_reason: 'caption_interaction_match', inferred_behavior: 'looking around', action: { primitive: 'head_scan', evidence_id: 'caption:1', max_duration_ms: 2400 } });
     expect(isEligible(inferred)).toBe(true);
+    expect(isEligible({ ...inferred, interaction_partner: null, eligibility_reason: 'caption_behavior_match' })).toBe(true);
     expect(inferred.review_status).toBe('unreviewed');
     expect(isEligible({ ...inferred, eligibility_reason: 'species_mismatch' })).toBe(false);
     expect(isEligible({ ...inferred, action: { ...inferred.action!, evidence_id: '' } })).toBe(false);
@@ -58,17 +59,22 @@ describe('evidence authorization and asynchronous invalidation', () => {
 });
 
 describe('automatic top-three loop', () => {
-  it('executes ranks in order, visibly skips gaps, awaits each cycle boundary, and never overlaps actions', async () => {
+  it('approaches for compatible actions in source order, roams each cycle, and never overlaps actions', async () => {
     vi.useFakeTimers();
     const controller = new AbortController();
     const order: string[] = [];
     const progress: LoopProgress[] = [];
     let active = 0;
     const prepareCycle = vi.fn().mockResolvedValue(undefined);
+    const approach = vi.fn().mockResolvedValue(undefined);
+    const roam = vi.fn();
     const task = runReferenceLoop({
-      candidates: [{ ...reviewed('one'), rank: 1, action: { primitive: 'stand_hold', evidence_id: 'one', max_duration_ms: 3000 } }, { ...reviewed('three'), rank: 3, action: { primitive: 'ground_pick', evidence_id: 'three', max_duration_ms: 8000 } }, { ...reviewed('four'), rank: 4 }],
+      candidates: [candidate({ rank: 1 }), { ...reviewed('two'), rank: 2, action: { primitive: 'stand_hold', evidence_id: 'two', max_duration_ms: 3000 } }, { ...reviewed('four'), rank: 4, action: { primitive: 'ground_pick', evidence_id: 'four', max_duration_ms: 8000 } }],
       signal: controller.signal,
       prepareCycle,
+      approach,
+      roam,
+      roamingMs: 1,
       status: () => 'ready',
       transitionMs: 1,
       perform: async action => {
@@ -85,16 +91,18 @@ describe('automatic top-three loop', () => {
     }).catch(error => error);
     await vi.advanceTimersByTimeAsync(100);
     expect((await task).name).toBe('AbortError');
-    expect(order).toEqual(['one', 'three', 'one', 'three']);
+    expect(order).toEqual(['two', 'four', 'two', 'four']);
     expect(prepareCycle).toHaveBeenCalledTimes(2);
-    expect(progress.filter(event => event.phase === 'skipped').map(event => event.rank)).toEqual([2, 2]);
+    expect(approach).toHaveBeenCalledTimes(4);
+    expect(roam).toHaveBeenCalledTimes(2);
+    expect(progress.filter(event => event.phase === 'running').map(event => event.rank)).toEqual([1, 2, 1, 2]);
   });
   it('stopping during an action prevents the next rank even if the old action resolves late', async () => {
     let finishAction!: () => void;
     const action = new Promise<void>(resolve => { finishAction = resolve; });
     const controller = new AbortController();
     const perform = vi.fn().mockReturnValue(action);
-    const task = runReferenceLoop({ candidates: [reviewed('1'), reviewed('2')], signal: controller.signal, prepareCycle: async () => {}, status: () => 'ready', perform, onProgress: () => {} }).catch(error => error);
+    const task = runReferenceLoop({ candidates: [reviewed('1'), reviewed('2')], signal: controller.signal, prepareCycle: async () => {}, approach: async () => {}, roam: () => {}, status: () => 'ready', perform, onProgress: () => {} }).catch(error => error);
     await vi.waitFor(() => expect(perform).toHaveBeenCalledTimes(1));
     controller.abort();
     expect((await task).name).toBe('AbortError');
@@ -107,10 +115,38 @@ describe('automatic top-three loop', () => {
     vi.useFakeTimers();
     const controller = new AbortController();
     const perform = vi.fn();
-    const task = runReferenceLoop({ candidates: [reviewed()], signal: controller.signal, prepareCycle: async () => {}, status: () => 'recovering', readinessTimeoutMs: 200, perform, onProgress: () => {} }).catch(error => error);
+    const task = runReferenceLoop({ candidates: [reviewed()], signal: controller.signal, prepareCycle: async () => {}, approach: async () => {}, roam: () => {}, status: () => 'recovering', readinessTimeoutMs: 200, perform, onProgress: () => {} }).catch(error => error);
     await vi.advanceTimersByTimeAsync(300);
     expect((await task).message).toContain('did not become ready');
     expect(perform).not.toHaveBeenCalled();
+  });
+  it('cancels an approach before imitation even when navigation resolves after Stop', async () => {
+    let finishApproach!: () => void;
+    const navigation = new Promise<void>(resolve => { finishApproach = resolve; });
+    const controller = new AbortController();
+    const approach = vi.fn().mockReturnValue(navigation);
+    const perform = vi.fn();
+    const roam = vi.fn();
+    const task = runReferenceLoop({ candidates: [reviewed()], signal: controller.signal, prepareCycle: async () => {}, approach, roam, status: () => 'ready', perform, onProgress: () => {} }).catch(error => error);
+    await vi.waitFor(() => expect(approach).toHaveBeenCalledTimes(1));
+    controller.abort();
+    finishApproach();
+    expect((await task).name).toBe('AbortError');
+    expect(perform).not.toHaveBeenCalled();
+    expect(roam).not.toHaveBeenCalled();
+  });
+  it('stops between-cycle roaming without beginning another approach', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const approach = vi.fn().mockResolvedValue(undefined);
+    const roam = vi.fn();
+    const task = runReferenceLoop({ candidates: [reviewed()], signal: controller.signal, prepareCycle: async () => {}, approach, roam, status: () => 'ready', perform: async () => {}, transitionMs: 1, roamingMs: 2400, onProgress: () => {} }).catch(error => error);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(roam).toHaveBeenCalledTimes(1);
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(3000);
+    expect((await task).name).toBe('AbortError');
+    expect(approach).toHaveBeenCalledTimes(1);
   });
   it('aborts before a stopped simulator rejects and never reports completion or advances rank', async () => {
     let rejectMotion!: (error: Error) => void;
@@ -118,7 +154,7 @@ describe('automatic top-three loop', () => {
     const controller = new AbortController();
     const progress: LoopProgress[] = [];
     const perform = vi.fn().mockReturnValue(motion);
-    const task = runReferenceLoop({ candidates: [reviewed('1'), reviewed('2')], signal: controller.signal, prepareCycle: async () => {}, status: () => 'ready', perform, onProgress: value => progress.push(value) }).catch(error => error);
+    const task = runReferenceLoop({ candidates: [reviewed('1'), reviewed('2')], signal: controller.signal, prepareCycle: async () => {}, approach: async () => {}, roam: () => {}, status: () => 'ready', perform, onProgress: value => progress.push(value) }).catch(error => error);
     await vi.waitFor(() => expect(perform).toHaveBeenCalledTimes(1));
     // Visibility pause and manual Stop both invalidate the sequence first.
     controller.abort();
@@ -128,10 +164,10 @@ describe('automatic top-three loop', () => {
     expect(progress.some(value => value.phase === 'completed' || value.rank === 2)).toBe(false);
     expect(perform).toHaveBeenCalledTimes(1);
   });
-  it('does not start a cycle when all original top-three ranks are unsupported', async () => {
+  it('does not navigate or start a cycle when the entire response has no compatible actions', async () => {
     const prepareCycle = vi.fn();
     const perform = vi.fn();
-    await runReferenceLoop({ candidates: [candidate(), { ...reviewed(), rank: 4 }], signal: new AbortController().signal, prepareCycle, status: () => 'ready', perform, onProgress: () => {} });
+    await runReferenceLoop({ candidates: [candidate(), candidate({ rank: 4 })], signal: new AbortController().signal, prepareCycle, approach: async () => {}, roam: () => {}, status: () => 'ready', perform, onProgress: () => {} });
     expect(prepareCycle).not.toHaveBeenCalled();
     expect(perform).not.toHaveBeenCalled();
   });

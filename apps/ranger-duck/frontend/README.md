@@ -41,22 +41,28 @@ under `public/simulator/` are verified against pinned SHA256 values and are not
 committed. See the simulator setup and attribution beside the asset script.
 
 Choose Cat or Deer and an interaction, then press Start. One animal of the
-selected species faces Microduck in the marked zone and triggers one archive
-search. The archive query still requests cat–cat or deer–deer footage; supported
-behavior in those references is approximated by the duck. The duck automatically
-performs the supported actions from original ranks 1, 2,
-and 3 in order, then repeats that sequence until Stop or Reset. Missing or
-unsupported ranks remain visibly skipped; rank 4 never replaces them. The
-current video is selected automatically and attempts muted, looping playback.
+selected species stays outside the marked box. Microduck roams during the
+archive search, then approaches the fixed animal before each evidence action.
+Queries remain interaction-specific, while an explicitly described supported
+behavior from a single animal can also authorize an approximation. The complete
+ranked response is filtered for compatible actions before choosing up to three.
+For example, source ranks 2, 4, and 7 can become actions 1, 2, and 3; each card
+preserves its original source rank. Unsupported references do not appear as
+cards or empty queue slots. Fewer than three compatible actions are shown as
+the actual count. The current video is selected automatically and attempts
+muted, looping playback.
 
 Duck physics continue across reference and cycle boundaries: no pose reset,
-scene reload, or new search occurs. Every action waits for the physics
-controller's observed readiness and completion. The active action and elapsed
-time remain visible, including an intentional standing hold. Stop, Reset,
+scene reload, or new search occurs. The duck roams between cycles and when no
+compatible action is found. Scripted navigation has its own visible status;
+it is not presented as a video-derived action. Every action waits for arrival,
+physics readiness, and the previous action's observed completion. The active
+action and elapsed time remain visible, including an intentional standing hold.
+Stop, Reset,
 scenario changes, or selecting a reference for inspection cancel the loop.
-Hiding the tab pauses motion and clears the active rank; returning resumes from
-rank 1 only when visibility caused that pause. Manual Stop stays stopped.
-Resume starts a fresh cycle at rank 1 using the same search evidence and duck
+Hiding the tab pauses both navigation and evidence motion and clears the active
+action; returning resumes only the loop or roaming that visibility paused.
+Manual Stop stays stopped. Resume starts a fresh cycle at action 1 using the same search evidence and duck
 pose. A stopped encounter/search can be started again. Stale responses cannot
 restart a newer encounter.
 

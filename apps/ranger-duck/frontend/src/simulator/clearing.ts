@@ -6,6 +6,7 @@ export type SceneEncounter = {
   interaction_partner?: string;
 };
 export type DuckScenePose = { x: number; z: number; yaw: number };
+export const ANIMAL_ANCHOR = { x: 1.05, z: -0.05 } as const;
 type Interaction = 'feeding' | 'following' | 'greeting' | 'boundary' | 'alert' | 'play';
 export function interactionFor(hint: string): Interaction {
   if (/hiss|defens|standoff|boundary/.test(hint)) return 'boundary';
@@ -31,7 +32,7 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
   group.add(patch);
   const zone = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.365, 48), new THREE.MeshBasicMaterial({ color: '#2ff0e6', side: THREE.DoubleSide, transparent: true, opacity: 0.75 }));
   zone.rotation.x = -Math.PI / 2;
-  zone.position.set(0.65, 0.004, -0.15);
+  zone.position.set(ANIMAL_ANCHOR.x, 0.004, ANIMAL_ANCHOR.z);
   group.add(zone);
   const duckZone = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(-0.85, 0.005, 0.7), new THREE.Vector3(0.65, 0.005, 0.7),
@@ -70,7 +71,6 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
   let primary: AnimalActor = actors.deer;
   let previous = 0;
   const hideActors = () => { for (const actor of Object.values(actors)) actor.root.visible = false; };
-  const target = new THREE.Vector3();
   return {
     start(input: SceneEncounter, now: number) {
       hideActors();
@@ -78,8 +78,8 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
       primary.root.visible = true;
       encounter = { ...input, behavior: interactionFor(input.behavior_hint), start: now, reached: false };
       primary.root.rotation.set(0, 0, 0);
-      primary.root.position.set(2.8, 0, -0.15);
-      primary.pose('walking', 0);
+      primary.root.position.set(ANIMAL_ANCHOR.x, 0, ANIMAL_ANCHOR.z);
+      primary.pose('alert', 0);
       previous = now;
     },
     reset() { encounter = null; hideActors(); },
@@ -94,52 +94,24 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
       const dt = Math.min(0.05, Math.max(0, (now - previous) / 1000));
       previous = now;
       const time = (now - encounter.start) / 1000;
-      const entrance = Math.min(1, time / 1.8);
+      // The animal's root stays at its outside-the-box anchor for the whole
+      // encounter. Only local body pose and facing react to the live duck.
+      const observed = time >= 1.8;
       const t = Math.max(0, time - 1.8);
       const cycle = t % 5.5;
-      let distance = 0.55;
-      let side = -0.05;
       let pose: Parameters<AnimalActor['pose']>[0] = 'alert';
       if (encounter.behavior === 'boundary') {
-        const warning = cycle > 1.2 && cycle < 3.8;
-        distance = warning ? 0.65 : 0.57;
-        pose = warning && encounter.animal === 'cat' ? 'hissing' : 'alert';
-      } else if (encounter.behavior === 'greeting') {
-        const approach = (1 - Math.cos(Math.min(cycle, 2) / 2 * Math.PI)) / 2;
-        distance = 0.53 - approach * 0.19;
-        pose = cycle < 2 ? 'walking' : 'greeting';
-      } else if (encounter.behavior === 'play') {
-        // Crouch and bat toward the duck, then pull back and invite it again.
-        const approach = (1 - Math.cos(cycle / 5.5 * Math.PI * 2)) / 2;
-        distance = 0.5 - approach * 0.14;
-        side = Math.sin(cycle / 5.5 * Math.PI * 2) * 0.06;
-        pose = cycle > 1.2 && cycle < 4.2 ? 'play' : 'walking';
-      } else if (encounter.behavior === 'feeding') {
-        distance = 0.5;
-        side = -0.15;
-        pose = 'feeding';
-      } else if (encounter.behavior === 'following') {
-        distance = -0.55;
-        side = -0.08;
-        pose = 'walking';
-      }
-      // MuJoCo yaw is Z-up; Three's ground plane is X/Z with reversed Z.
-      const fx = Math.cos(duck.yaw), fz = -Math.sin(duck.yaw);
-      target.set(duck.x + fx * distance - fz * side, 0, duck.z + fz * distance + fx * side);
-      if (entrance < 1) {
-        const ease = entrance * entrance * (3 - 2 * entrance);
-        primary.root.position.set(THREE.MathUtils.lerp(2.8, target.x, ease), 0, THREE.MathUtils.lerp(-0.15, target.z, ease));
-        primary.pose('walking', time);
-      } else {
-        primary.root.position.lerp(target, 1 - Math.exp(-3 * dt));
-        primary.pose(pose, t);
-      }
+        pose = cycle > 1.2 && cycle < 3.8 && encounter.animal === 'cat' ? 'hissing' : 'alert';
+      } else if (encounter.behavior === 'greeting') pose = 'greeting';
+      else if (encounter.behavior === 'play') pose = cycle > 1.2 && cycle < 4.2 ? 'play' : 'greeting';
+      else if (encounter.behavior === 'feeding') pose = 'feeding';
+      // A following reference is a search hint; this fixed actor only watches.
+      primary.pose(pose, t);
       const dx = duck.x - primary.root.position.x, dz = duck.z - primary.root.position.z;
       const desiredYaw = Math.atan2(dz, -dx); // each animal model faces local -X
       const difference = Math.atan2(Math.sin(desiredYaw - primary.root.rotation.y), Math.cos(desiredYaw - primary.root.rotation.y));
       primary.root.rotation.y += difference * (1 - Math.exp(-6 * Math.max(dt, 0.016)));
-      zone.position.set(primary.root.position.x, 0.004, primary.root.position.z);
-      if (entrance >= 1 && !encounter.reached) { encounter.reached = true; return encounter.id; }
+      if (observed && !encounter.reached) { encounter.reached = true; return encounter.id; }
       return null;
     },
     dispose() {

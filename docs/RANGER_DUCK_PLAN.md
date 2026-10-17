@@ -1,6 +1,6 @@
 # Ranger Duck implementation plan
 
-Current scope, updated 17 October 2026: one page combines a scripted same-species animal encounter, live archive search, reference playback, and an automatic loop of video-induced Microduck movements. This supersedes the original manual-selection/Copy flow. The user selected cat–cat and deer–deer reference interactions.
+Current scope, updated 17 October 2026: one page combines one fixed animal outside the duck arena, a roaming physics-simulated duck, live archive search, and the three highest-ranked compatible video actions. This supersedes the original manual-selection/Copy flow. The user selected cat–cat and deer–deer reference interactions.
 
 The implementation follows the [design handoff](../apps/ranger-duck/design/README.md), with added species/interaction controls and automatic sequence status. See the [API contract](RANGER_DUCK_API.md), [behavior research](RANGER_DUCK_INTERACTIONS.md), and [startup instructions](../apps/ranger-duck/README.md).
 
@@ -8,12 +8,12 @@ The implementation follows the [design handoff](../apps/ranger-duck/design/READM
 
 | Stage | Input | Output |
 | --- | --- | --- |
-| Choose encounter | Cat or deer, plus one interaction | One scripted animal facing the duck in the shared scene |
+| Choose encounter | Cat or deer, plus one interaction | One stationary animal outside the box, facing the duck |
 | Start | Selected catalog entry | Encounter ID, focal animal, same-species partner, behavior hint |
 | Retrieve | A query describing that species pair and interaction | Actual ranked VSS segment results and measured latency |
 | Interpret evidence | Each returned segment's video-model caption and provenance | A supported bounded action, or a visible reason to skip |
-| Run sequence | Original search ranks 1–3 | Muted reference playback and one controller action at a time |
-| Repeat | The same three evidence slots | Continue from the same duck pose; no reset or new archive request |
+| Run sequence | First three compatible actions in retrieval order | Approach the fixed animal, play a reference and perform its action |
+| Repeat | The same compatible action queue | Roam between passes, then approach again; no reset or new search |
 | Stop or Reset | Presenter control or a changed encounter | Cancellation of the current sequence and movement |
 
 The encounter hint supplies the query only. It never directly supplies the duck action. Each action is an approximation of a behavior described in its own reference, with the copied role and limitations shown. Caption-derived actions are labeled as inferred rather than visually reviewed.
@@ -29,7 +29,7 @@ The encounter hint supplies the query only. It never directly supplies the duck 
 | Deer–deer | Follow companion | One deer follows another |
 | Deer–deer | Herd alert | One deer responds to another becoming alert |
 
-The [research note](RANGER_DUCK_INTERACTIONS.md) gives authoritative behavior sources and observable signals. The scene shows one scripted animal facing and responding to the duck; it has no MuJoCo collision body. The duck stands in for one animal from the same-species reference interaction. The duck remains a real MuJoCo body controlled by the pinned pretrained policies. No new training, physical robot control, live animal interaction, or camera recognition is part of this demo.
+The [research note](RANGER_DUCK_INTERACTIONS.md) gives authoritative behavior sources and observable signals. The scene shows one animal at a fixed position outside the yellow box. It may animate its posture and face the duck but does not translate. The duck roams inside the arena when no evidence action is running, approaches the animal before responding, and continues with the same physics body. Navigation is labeled separately from video-induced behavior. The scripted animal has no MuJoCo collision body. The duck remains a real MuJoCo body controlled by the pinned pretrained policies. No new training, physical robot control, live animal interaction, or camera recognition is part of this demo.
 
 ## Architecture
 
@@ -48,7 +48,7 @@ Credentials and raw storage identities stay on the backend. Video URLs use opaqu
 
 Queries name both animals and their relationship. Cat searches use the existing authenticated archive without a wildlife-only tag, since domestic cats may not carry it. Deer searches retain the observed wildlife tag. A broader search relaxes the interaction wording while retaining the selected species pair.
 
-Use the deployed VSS search API with `top_k: 15`, `llm_top_n: 1`, and the existing authorization scope. Preserve upstream rank when normalizing valid, distinct sources. Do not diversify by parent, promote a lower result into ranks 1–3, or manufacture a missing result.
+Use the deployed VSS search API with `top_k: 15`, `llm_top_n: 1`, and the existing authorization scope. Preserve upstream rank when normalizing valid, distinct sources. Filter out incompatible results, then choose the first three remaining actions in retrieval order. Preserve each source rank separately from its action-queue position; source rank 4 can become action 2 when earlier results are incompatible. Do not manufacture missing actions.
 
 The deployed endpoint has no advertised retrieval-only flag and requires synthesis for nonempty chunk results. A measured request took 0.24 seconds for embeddings, 7.75 seconds for database retrieval, 2.02 seconds for synthesis, and about 0.83 seconds for remaining work. Database retrieval runs parallel text/visual SQL similarity queries with fresh connections and overfetching. Raising a timeout does not make this path faster.
 
@@ -56,30 +56,32 @@ The backend search budget defaults to 30 seconds; health reports the configured 
 
 ## Evidence-derived actions
 
-Use the existing video-model caption to avoid an additional inference call for every result. Require complete source/parent/interval metadata, the correct species pair and an explicit supported action. Prefer directed interactions; a clear focal action within shared or parallel activity can also drive an honestly labeled approximation. For example, attention to a shared toy can drive a head scan, without claiming a greeting or hiss occurred. Reject solitary animals, wrong species, ambiguous/negated claims, and unsupported movements. A pair's mere presence does not authorize motion.
+Use the existing video-model caption to avoid another inference request. Require complete source/parent/interval metadata, the selected animal species and an explicit supported behavior. Single-animal footage is usable: interaction wording constrains the search query, not action eligibility. A solitary feeding deer, a walking cat, and shared attention can all supply actions. Describe the actual returned behavior without claiming the requested interaction occurred. Ambiguous or negated behavior, wrong species, incomplete metadata and unsupported movement remain ineligible.
 
 | Described behavior | Bounded approximation |
 | --- | --- |
-| Feeding beside another deer | One `ground_pick` cycle |
+| Feeding or foraging, alone or beside another animal | One `ground_pick` cycle |
 | Directed approach, following, supported play movement | `short_walk` |
-| Watching a partner | `head_scan`, labeled as an attentive head-turn approximation |
+| Watching a partner or object | `head_scan`, labeled as an attentive head-turn approximation |
 | Alert pause or stationary hissing boundary | `stand_hold` |
-| Turning the head toward the partner | `head_scan` |
+| Turning or raising the head | `head_scan` |
 
 The hissing scene is scripted. A pause is not an actual reproduced hiss. Backward walking did not produce reliable movement in physics checks, so retreat-only clips remain unsupported. Unsupported jumping, grooming, biting and pouncing do not become arbitrary duck movements.
 
-Each candidate exposes its action basis, inferred behavior, reason, evidence ID and maximum duration. Caption inference never becomes a visual review. Exact private manifests remain available for reviewed references, but an old solitary-deer review does not establish an interaction. Stale or contradictory reviews must not silently become inferred approvals.
+Each candidate exposes its action basis, inferred behavior, reason, evidence ID and maximum duration. Caption inference never becomes a visual review. Exact private manifests remain available for reviewed references, including solitary-animal behavior; a valid feeding review does not need to attest to a pair. Stale or contradictory reviews must not silently become inferred approvals.
 
 ## Automatic sequence
 
-After a successful search, take only original ranks 1–3. Automatically show each supported reference, attempt muted playback and await its actual controller completion before advancing. Keep unavailable slots visible with a skip reason. If all three are unsupported, show an explanation and stay still.
+After search, filter all returned candidates for supported actions, preserve retrieval order, and take up to three. Display action positions 1–3 with their original source ranks. Incompatible clips do not occupy a card or loop slot. Show the actual queue size if fewer than three actions qualify. If none qualify, keep the duck roaming and explain why no evidence action is available.
 
-Repeat the same evidence sequence until Stop, Reset, a species/scenario change, a replacement search, or page teardown. Stop/Resume does not trigger a new search. Pause while the tab is hidden and automatically resume on return only if visibility caused the pause. Manual Stop or reference inspection stays paused. Between cycles, wait for the existing body to settle, preserving its position, joints and physics clock. Only an explicit Reset or a new encounter resets the body; changing clips and repeating cycles never reload it.
+Before an evidence action, navigate toward the fixed animal, settle and then execute the bounded motion. Between passes, roam without resetting physics or sending another search. Navigation and evidence actions never run at the same time.
+
+Repeat until Stop, Reset, a changed scenario, replacement search or teardown. Stop also halts roaming and approach. Pause while hidden and resume on return only when visibility caused the pause. Manual Stop and reference inspection remain paused. Only explicit Reset or a new encounter resets the body; clip and cycle transitions preserve it.
 
 Never overlap movements. Reset and cancellation invalidate both pending searches and actions. Controller recovery, failed playback, missing evidence and timeouts have visible outcomes; they do not produce fabricated success.
 
 ## Verification
 
-Check query specificity and source rank preservation, caption inference and negation, review compatibility, replay/session scope, and range playback in backend tests. Check sequence order, skips, cancellation, pause/resume and stale result handling in frontend tests. Verify new primitives using actual MuJoCo physics, then run at least one live cat interaction sequence through the browser with no per-action clicks. Build the production frontend and check that development-only instrumentation is omitted.
+Check query specificity and source rank preservation, caption inference and negation, review compatibility, replay/session scope, and range playback in backend tests. Check compatible-action selection, preserved source ranks, navigation cancellation, pause/resume and stale result handling in frontend tests. Verify new primitives using actual MuJoCo physics, then run at least one live cat interaction sequence through the browser with no per-action clicks. Build the production frontend and check that development-only instrumentation is omitted.
 
-Archive availability remains an external input. The initial cat queries found real paired observation/head-turn clips, while the first deer co-foraging top three described solitary animals. A missing interaction must remain visible instead of being inferred from the requested scenario.
+Archive availability remains an external input. The initial cat queries found observation/head-turn clips, while deer co-foraging queries returned solitary deer. Both can supply supported actions under the current policy; the description must still reflect what the footage actually contains.

@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 from urllib.parse import urlsplit
 
-from .interaction import classify_interaction
+from .interaction import classify_interaction, has_species_pair
 
 MOTIONS = {
     "feeding": ("ground_pick", 8000),
@@ -173,23 +173,18 @@ class Manifest:
             "incomplete_metadata", "reference_changed", "species_mismatch", "unsupported_behavior"
         }:
             return result
-        if partner != animal:
-            return {**result, "eligibility_reason": "unsupported_species_pair"}
         reference = annotation.get("_reference")
-        if reference and reference.get("interaction_partner"):
-            if reference["interaction_partner"].strip().casefold() != partner:
-                return {**result, "eligibility_reason": "interaction_partner_mismatch"}
-            # A review must explicitly attest to this interaction, not only a pose.
-            evidence = reference.get("interaction_evidence")
-            if isinstance(evidence, str) and evidence.strip():
-                match, reason = classify_interaction(evidence, animal)
-                if not match:
-                    return {**result, "eligibility_reason": reason}
-                behavior, primitive, duration, explanation = match
-                return {**result, "eligibility_reason": "reviewed_match", "action_basis": "reviewed",
-                        "inferred_behavior": behavior, "action_reason": explanation,
-                        "interaction_partner": partner, "action": {"primitive": primitive,
-                        "evidence_id": reference["evidence_id"], "max_duration_ms": duration}}
+        if reference and annotation["action"]:
+            # The user permits solitary behavior evidence. An exact existing
+            # pose review therefore remains valid without a partner assertion.
+            explanations = {
+                "feeding": "The exact human review identifies feeding; the duck approximates it with a beak dip.",
+                "walking": "The exact human review identifies walking; the duck makes a short walk.",
+                "standing": "The exact human review identifies standing; the duck holds a steady pose.",
+            }
+            return {**result, "action": annotation["action"], "action_basis": "reviewed",
+                    "action_reason": explanations[reference["behavior"]],
+                    "interaction_partner": safe_text(reference.get("interaction_partner"), 100) or None}
         match, reason = classify_interaction(segment.caption, animal)
         if not match:
             return {**result, "eligibility_reason": reason}
@@ -197,10 +192,10 @@ class Manifest:
         binding = json.dumps([segment.source, segment.parent, segment.start, segment.end,
                               caption_hash(segment.caption)], separators=(",", ":"))
         evidence_id = "caption-" + hashlib.sha256(binding.encode()).hexdigest()[:32]
-        # A previous pose review does not become an interaction review implicitly.
-        return {**result, "review_status": "unreviewed", "eligibility_reason": "caption_interaction_match",
+        return {**result, "review_status": "unreviewed", "eligibility_reason": "caption_behavior_match",
                 "action_basis": "video_caption", "inferred_behavior": behavior,
-                "action_reason": explanation, "interaction_partner": partner,
+                "animal": animal, "action_reason": explanation,
+                "interaction_partner": animal if has_species_pair(segment.caption, animal) else None,
                 "action": {"primitive": primitive, "evidence_id": evidence_id, "max_duration_ms": duration}}
 
 
