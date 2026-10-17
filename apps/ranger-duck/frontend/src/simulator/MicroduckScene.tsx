@@ -32,7 +32,13 @@ type Props = {
   onEncounterReady?(id: string): void;
 };
 type DebugRuntime = Runtime & {
-  controls: { target: THREE.Vector3; update(): void };
+  controls: {
+    target: THREE.Vector3;
+    maxDistance: number;
+    update(): void;
+    addEventListener(type: 'start', listener: () => void): void;
+    removeEventListener(type: 'start', listener: () => void): void;
+  };
   chaseCam: boolean;
 };
 
@@ -79,6 +85,8 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
     let previous = performance.now();
     let ready = false;
     let booted = false;
+    let cameraAdjusted = false;
+    const cameraInteraction = () => { cameraAdjusted = true; };
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -99,8 +107,31 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
     scene.background = new THREE.Color('#101b17');
     scene.fog = new THREE.Fog('#101b17', 3.5, 8);
     const camera = new THREE.PerspectiveCamera(39, 1, 0.02, 30);
-    camera.position.set(0.75, 0.65, 1.35);
-    camera.lookAt(-0.2, 0.16, -0.05);
+    const cameraTarget = new THREE.Vector3(0.35, 0.18, 0);
+    const viewDirection = new THREE.Vector3(0.8, 1.65, 2.5).normalize();
+    const frameClearing = () => {
+      // Include the full yellow arena, cyan encounter circle and standing
+      // actors. Fit both axes so a shorter or narrower canvas stays complete.
+      camera.position.copy(cameraTarget).add(viewDirection);
+      camera.lookAt(cameraTarget);
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+      const halfVertical = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * 0.84;
+      const halfHorizontal = halfVertical * camera.aspect;
+      let distance = 0;
+      for (const x of [-0.95, 1.65]) for (const y of [0, 0.65]) for (const z of [-0.8, 0.8]) {
+        const point = new THREE.Vector3(x, y, z).sub(cameraTarget);
+        distance = Math.max(distance, point.dot(viewDirection) + Math.max(Math.abs(point.dot(right)) / halfHorizontal, Math.abs(point.dot(up)) / halfVertical));
+      }
+      camera.position.copy(cameraTarget).addScaledVector(viewDirection, distance);
+      camera.lookAt(cameraTarget);
+      if (booted) {
+        const controls = (window as unknown as { rl: DebugRuntime }).rl.controls;
+        controls.target.copy(cameraTarget);
+        controls.update();
+      }
+    };
+    frameClearing();
     const ambient = new THREE.HemisphereLight('#f2ecdd', '#324328', 1.8);
     scene.add(ambient);
     const sun = new THREE.DirectionalLight('#fff2d1', 2.5);
@@ -129,6 +160,7 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      if (!cameraAdjusted) frameClearing();
     });
     resize.observe(element);
     status.current = 'loading';
@@ -143,9 +175,9 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       booted = true;
       const rl = runtime();
       rl.chaseCam = false;
-      rl.controls.target.set(-0.2, 0.16, -0.05);
-      camera.position.set(0.75, 0.65, 1.35);
-      rl.controls.update();
+      rl.controls.maxDistance = 10;
+      frameClearing();
+      rl.controls.addEventListener('start', cameraInteraction);
       adapter.current = new DuckAdapter(rl, changed, () => performance.now(), next => callbacks.current.onNavigation?.(next));
       // Development-only smoke-test hook; omitted from production bundles.
       if (import.meta.env.DEV) (window as unknown as { __rangerDuck?: DuckAdapter }).__rangerDuck = adapter.current;
@@ -166,12 +198,7 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
         const navigation = adapter.current?.navigationStatus();
         clearing.current?.setActivity(navigation === 'roaming' ? 'patrol' : navigation === 'approaching' || navigation === 'settling' || adapter.current?.status() === 'busy' ? 'interact' : 'hold');
         const rl = runtime();
-        // Follow the continuous encounter gently without changing physics.
-        const q = rl.data.qpos;
-        const focus = clearing.current?.focus();
-        const shift = new THREE.Vector3(focus?.x ?? q[0] + 0.2, 0.16, focus?.z ?? -q[1]).sub(rl.controls.target).multiplyScalar(1 - Math.exp(-dt * 1.5));
-        rl.controls.target.add(shift);
-        camera.position.add(shift);
+        // Keep the shared clearing framed; orbit/zoom remains user controlled.
         if (!rl.inputLocked && !rl.respawnActive && !rl.recovery) {
           if (!ready) { ready = true; changed('ready'); callbacks.current.onReady?.(); }
           if (pendingEncounter.current) {
@@ -201,6 +228,7 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       if (import.meta.env.DEV) delete (window as unknown as { __rangerScene?: ReturnType<typeof createClearing> }).__rangerScene;
       clearing.current?.dispose();
       clearing.current = null;
+      if (booted) runtime().controls.removeEventListener('start', cameraInteraction);
       if (booted) disposeGame();
       environment.dispose();
       renderer.dispose();
