@@ -8,12 +8,12 @@ The implementation follows the [design handoff](../apps/ranger-duck/design/READM
 
 | Stage | Input | Output |
 | --- | --- | --- |
-| Choose encounter | Cat or deer, plus one interaction | A scripted pair of animals in the shared scene |
+| Choose encounter | Cat or deer, plus one interaction | One scripted animal facing the duck in the shared scene |
 | Start | Selected catalog entry | Encounter ID, focal animal, same-species partner, behavior hint |
 | Retrieve | A query describing that species pair and interaction | Actual ranked VSS segment results and measured latency |
 | Interpret evidence | Each returned segment's video-model caption and provenance | A supported bounded action, or a visible reason to skip |
 | Run sequence | Original search ranks 1–3 | Muted reference playback and one controller action at a time |
-| Repeat | The same three evidence slots | Another cycle after recentering; no new archive request |
+| Repeat | The same three evidence slots | Continue from the same duck pose; no reset or new archive request |
 | Stop or Reset | Presenter control or a changed encounter | Cancellation of the current sequence and movement |
 
 The encounter hint supplies the query only. It never directly supplies the duck action. Each action is an approximation of a behavior described in its own reference, with the copied role and limitations shown. Caption-derived actions are labeled as inferred rather than visually reviewed.
@@ -29,7 +29,7 @@ The encounter hint supplies the query only. It never directly supplies the duck 
 | Deer–deer | Follow companion | One deer follows another |
 | Deer–deer | Herd alert | One deer responds to another becoming alert |
 
-The [research note](RANGER_DUCK_INTERACTIONS.md) gives authoritative behavior sources and observable signals. The scene shows two scripted actors; they have no MuJoCo collision bodies. The duck remains a real MuJoCo body controlled by the pinned pretrained policies. No new training, physical robot control, live animal interaction, or camera recognition is part of this demo.
+The [research note](RANGER_DUCK_INTERACTIONS.md) gives authoritative behavior sources and observable signals. The scene shows one scripted animal facing and responding to the duck; it has no MuJoCo collision body. The duck stands in for one animal from the same-species reference interaction. The duck remains a real MuJoCo body controlled by the pinned pretrained policies. No new training, physical robot control, live animal interaction, or camera recognition is part of this demo.
 
 ## Architecture
 
@@ -56,13 +56,14 @@ The backend search budget defaults to 30 seconds; health reports the configured 
 
 ## Evidence-derived actions
 
-Use the existing video-model caption to avoid an additional inference call for every result. Require complete source/parent/interval metadata, the correct species pair and an explicit supported interaction. Reject solitary animals, wrong species, ambiguous/negated claims, and unsupported movements. A pair's mere presence does not establish a directed interaction.
+Use the existing video-model caption to avoid an additional inference call for every result. Require complete source/parent/interval metadata, the correct species pair and an explicit supported action. Prefer directed interactions; a clear focal action within shared or parallel activity can also drive an honestly labeled approximation. For example, attention to a shared toy can drive a head scan, without claiming a greeting or hiss occurred. Reject solitary animals, wrong species, ambiguous/negated claims, and unsupported movements. A pair's mere presence does not authorize motion.
 
 | Described behavior | Bounded approximation |
 | --- | --- |
 | Feeding beside another deer | One `ground_pick` cycle |
 | Directed approach, following, supported play movement | `short_walk` |
-| Watching a partner, alert pause or hissing boundary without described movement | `stand_hold` |
+| Watching a partner | `head_scan`, labeled as an attentive head-turn approximation |
+| Alert pause or stationary hissing boundary | `stand_hold` |
 | Turning the head toward the partner | `head_scan` |
 
 The hissing scene is scripted. A pause is not an actual reproduced hiss. Backward walking did not produce reliable movement in physics checks, so retreat-only clips remain unsupported. Unsupported jumping, grooming, biting and pouncing do not become arbitrary duck movements.
@@ -73,7 +74,7 @@ Each candidate exposes its action basis, inferred behavior, reason, evidence ID 
 
 After a successful search, take only original ranks 1–3. Automatically show each supported reference, attempt muted playback and await its actual controller completion before advancing. Keep unavailable slots visible with a skip reason. If all three are unsupported, show an explanation and stay still.
 
-Repeat the same evidence sequence until Stop, Reset, a species/scenario change, a replacement search, or page teardown. Stop/Resume does not trigger a new search. Pause when the tab is hidden. Recenter between cycles through the simulator adapter while preserving the animal scene and without firing another encounter event.
+Repeat the same evidence sequence until Stop, Reset, a species/scenario change, a replacement search, or page teardown. Stop/Resume does not trigger a new search. Pause while the tab is hidden and automatically resume on return only if visibility caused the pause. Manual Stop or reference inspection stays paused. Between cycles, wait for the existing body to settle, preserving its position, joints and physics clock. Only an explicit Reset or a new encounter resets the body; changing clips and repeating cycles never reload it.
 
 Never overlap movements. Reset and cancellation invalidate both pending searches and actions. Controller recovery, failed playback, missing evidence and timeouts have visible outcomes; they do not produce fabricated success.
 

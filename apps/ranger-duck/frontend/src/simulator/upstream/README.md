@@ -12,9 +12,10 @@ Ranger Duck retains upstream MuJoCo XML preparation, the 61-value observation,
 14-joint policy output, 50 Hz inference, 200 Hz physics stepping, beak-dip
 phase machine, standing/walking controllers, fall detection, and recovery.
 Its React wrapper drives `gameApi.frame` and installs a single controller
-source for evidence-selected actions. Cat and deer pairs are scripted visual
-actors in the same Three scene, with no MuJoCo collision bodies. Their poses
-do not select duck movements. The cat's `SCRIPTED HISS` cue is a visual label;
+source for evidence-selected actions. One cat or deer is a scripted visual
+actor in the same Three scene, with no MuJoCo collision body. It faces and
+interacts with the duck's live position. Its poses do not select duck movements.
+The cat's `SCRIPTED HISS` cue is a visual label;
 there is no recorded or learned hissing audio.
 
 Local changes to the upstream source:
@@ -34,10 +35,12 @@ The scan uses the existing policy's head target and requires observed joint
 motion and a neutral return. Reverse motion is unsupported: browser checks of
 small reverse commands did not produce a usable retreat with this policy.
 
-`prepareCycle()` resets the robot to its spawn pose and waits for unlocked,
-upright physics before the next automatic sequence. It preserves the animal
-scene and does not trigger another encounter event or search. Stop cancels
-pending preparation or movement while balance physics continues.
+`prepareCycle()` waits for unlocked, upright, settled physics before the next
+automatic sequence. It preserves the robot's position, physics time, animal
+scene, and controller. Repeated walking uses the same velocity/turn commands
+to follow a bounded path. Only an explicit Reset/new encounter resets the
+robot; policy fall recovery retains its upstream emergency handling. Stop
+cancels pending preparation or movement while balance physics continues.
 
 Run `python3 apps/ranger-duck/scripts/simulator-assets.py` from the repository
 root before starting/building the frontend. The 53 hash-checked public assets

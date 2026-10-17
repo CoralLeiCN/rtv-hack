@@ -33,6 +33,7 @@ export class DuckAdapter {
   private preparation: Preparation | null = null;
   private vector = new Float32Array(3);
   private commandUntil = 0;
+  private walkWaypoint = 0;
   private disposed = false;
   readonly source: {
     id: string; connected: boolean; readonly command: Float32Array; axes: object;
@@ -52,6 +53,7 @@ export class DuckAdapter {
           self.runtime.headTarget[2] = elapsed < action.duration ? Math.sin(elapsed / action.duration * Math.PI * 2) * 0.3 : 0;
         }
         if (self.clock() >= self.commandUntil || Math.abs(q[0]) >= 1.15 || Math.abs(q[1]) >= 1.15 || self.runtime.recovery) self.vector.fill(0);
+        else if (action?.primitive === 'short_walk') self.steerWalk();
         return self.vector;
       },
       isActive: () => true,
@@ -61,6 +63,29 @@ export class DuckAdapter {
   }
 
   status() { return this.state; }
+  private yaw() {
+    const q = this.runtime.data.qpos;
+    return Math.atan2(2 * (q[3] * q[6] + q[4] * q[5]), 1 - 2 * (q[5] ** 2 + q[6] ** 2));
+  }
+  private steerWalk() {
+    // Continuous, bounded path through the existing velocity controller.
+    // Waypoint progress persists between videos/cycles; nothing teleports.
+    const points = [[0.35, 0], [0.35, 0.45], [-0.55, 0.45], [-0.55, -0.45], [0.35, -0.45]];
+    const q = this.runtime.data.qpos;
+    let target = points[this.walkWaypoint];
+    if (Math.hypot(target[0] - q[0], target[1] - q[1]) < 0.12) {
+      this.walkWaypoint = (this.walkWaypoint + 1) % points.length;
+      target = points[this.walkWaypoint];
+    }
+    if (Math.max(Math.abs(q[0]), Math.abs(q[1])) > 0.85) target = [-0.1, 0];
+    const desired = Math.atan2(target[1] - q[1], target[0] - q[0]);
+    const error = Math.atan2(Math.sin(desired - this.yaw()), Math.cos(desired - this.yaw()));
+    // The pinned policy needs its walking command to produce a useful turn;
+    // angular-only commands remain in the standing deadband.
+    this.vector[0] = 0.25;
+    this.vector[1] = 0;
+    this.vector[2] = Math.max(-1, Math.min(1, error * 2.2));
+  }
   private setStatus(next: DuckStatus) {
     if (next !== this.state) { this.state = next; this.changed(next); }
   }
@@ -101,8 +126,8 @@ export class DuckAdapter {
       if (primitive === 'short_walk') {
         // The pinned walking policy stays in its standing deadband at 0.12.
         // Use upstream's standard 0.25 m/s forward command, bounded to 2 s.
-        this.vector[0] = 0.25;
         this.commandUntil = this.clock() + duration;
+        this.steerWalk();
       }
     });
   }
@@ -113,7 +138,7 @@ export class DuckAdapter {
     const runtime = this.runtime;
     if (this.preparation) {
       const preparation = this.preparation;
-      const stable = !runtime.recovery && !runtime.inputLocked && !runtime.respawnActive && runtime.mode === 'walk' && runtime.data.time > 0.2 && this.upright() && Math.hypot(runtime.data.qvel[0], runtime.data.qvel[1]) < 0.1;
+      const stable = !runtime.recovery && !runtime.inputLocked && !runtime.respawnActive && runtime.mode === 'walk' && runtime.data.time > 0.2 && this.upright() && Math.hypot(runtime.data.qvel[0], runtime.data.qvel[1]) < 0.1 && Math.abs(runtime.data.qvel[5]) < 0.5;
       if (stable) preparation.stableSince ??= this.clock();
       else preparation.stableSince = null;
       if (preparation.stableSince !== null && this.clock() - preparation.stableSince >= 200) {
@@ -155,8 +180,9 @@ export class DuckAdapter {
       finished = action.entered && action.maxPhase >= 0.6 && runtime.mode === 'walk';
       if (!action.entered && elapsed > 1200) { this.fail('The controller did not accept the beak dip.'); return; }
     } else if (action.primitive === 'short_walk') {
-      const distance = (q[0] - action.x) * Math.cos(action.heading) + (q[1] - action.y) * Math.sin(action.heading);
-      action.entered ||= distance > 0.015;
+      const distance = Math.hypot(q[0] - action.x, q[1] - action.y);
+      const turn = Math.abs(Math.atan2(Math.sin(this.yaw() - action.heading), Math.cos(this.yaw() - action.heading)));
+      action.entered ||= distance > 0.015 || turn > 0.15;
       if (elapsed >= action.duration) this.clearCommand();
       finished = action.entered && elapsed >= action.duration && simElapsed > 100 && runtime.mode === 'walk';
     } else if (action.primitive === 'head_scan') {
@@ -172,7 +198,7 @@ export class DuckAdapter {
       finished = action.entered && simElapsed >= action.duration && runtime.mode === 'walk';
     }
     const speed = Math.hypot(runtime.data.qvel[0], runtime.data.qvel[1]);
-    if (finished && this.upright() && speed < 0.1) action.stableSince ??= this.clock();
+    if (finished && this.upright() && speed < 0.1 && Math.abs(runtime.data.qvel[5]) < 0.5) action.stableSince ??= this.clock();
     else action.stableSince = null;
     if (action.stableSince !== null && this.clock() - action.stableSince >= 300) {
       this.pending = null;
@@ -195,11 +221,11 @@ export class DuckAdapter {
     this.source.onAction?.('walk');
     this.setStatus(this.runtime.recovery || this.runtime.inputLocked || this.runtime.mode !== 'walk' ? 'recovering' : 'ready');
   }
-  reset() { this.stop(); this.runtime.resetSim(); this.setStatus('recovering'); }
-  /** Recenter between loops without changing scene actors or firing a search. */
+  reset() { this.stop(); this.walkWaypoint = 0; this.runtime.resetSim(); this.setStatus('recovering'); }
+  /** Wait for balance between loops, preserving position, time and controller. */
   prepareCycle(): Promise<void> {
     if (this.disposed) return Promise.reject(new Error('Simulator is unavailable.'));
-    this.reset();
+    this.stop();
     return new Promise((resolve, reject) => {
       this.preparation = {
         stableSince: null, resolve, reject,

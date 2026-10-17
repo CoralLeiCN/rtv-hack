@@ -78,11 +78,10 @@ describe('evidence primitive execution', () => {
     expect([...adapter.source.command]).toEqual([0, 0, 0]);
   });
 
-  it('requires an observed forward displacement for walking', async () => {
+  it('requires observed locomotion for walking instead of a timer', async () => {
     const { adapter, runtime, advance } = fixture();
     const result = adapter.perform({ primitive: 'short_walk', evidenceId: 'clip-1' });
     expect(adapter.source.command[0]).toBeGreaterThan(0);
-    (runtime.data.qpos as Float64Array)[0] = -0.65;
     advance(2050);
     expect(adapter.status()).toBe('busy');
     (runtime.data.qpos as Float64Array)[0] = -0.52;
@@ -120,17 +119,34 @@ describe('evidence primitive execution', () => {
     await rejection;
   });
 
-  it('prepares a new cycle only after reset unlock and observed stable physics', async () => {
+  it('prepares a new cycle without resetting or changing the live pose', async () => {
     const { adapter, runtime, advance } = fixture();
     runtime.inputLocked = true;
     const result = adapter.prepareCycle();
-    expect(runtime.resetSim).toHaveBeenCalledOnce();
+    const position = Array.from(runtime.data.qpos);
+    expect(runtime.resetSim).not.toHaveBeenCalled();
     advance(1000);
     expect(adapter.status()).toBe('recovering');
     runtime.inputLocked = false;
     advance(100); advance(250);
     await result;
     expect(adapter.status()).toBe('ready');
+    expect(Array.from(runtime.data.qpos)).toEqual(position);
+    expect(runtime.data.time).toBeGreaterThan(1);
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+  });
+
+  it('steers before reaching the stage edge without resetting physics', async () => {
+    const { adapter, runtime } = fixture();
+    const q = runtime.data.qpos as Float64Array;
+    q[0] = 0.32;
+    const result = adapter.perform({ primitive: 'short_walk', evidenceId: 'clip-1' });
+    expect(adapter.source.command[0]).toBeGreaterThan(0);
+    expect(adapter.source.command[2]).toBeGreaterThan(0);
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+    const rejection = expect(result).rejects.toThrow('cancelled');
+    adapter.stop();
+    await rejection;
   });
 
   it('cancels cycle preparation on Stop and rejects overlapping actions', async () => {

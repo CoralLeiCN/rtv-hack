@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Candidate } from '../api';
-import { eligibilityNote, isEligible, mmss, segmentTime, type Stage } from '../demo';
+import { behaviorLabel, eligibilityNote, isEligible, mmss, motionLabel, segmentTime, type Stage } from '../demo';
 
 function PlayIcon({ playing = false }: { playing?: boolean }) {
   return <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">{playing
@@ -11,6 +11,7 @@ function PlayIcon({ playing = false }: { playing?: boolean }) {
 export function ReferenceCard({ candidate, rank, selected, sequenceState, onSelect }: { candidate: Candidate; rank: number; selected: boolean; sequenceState?: string; onSelect: () => void }) {
   const p = candidate.provenance;
   const inferred = candidate.action_basis === 'video_caption';
+  const supported = isEligible(candidate);
   return <button className={`card ${selected ? 'sel' : ''}`} onClick={onSelect} aria-pressed={selected} title="Pause the loop and inspect this reference">
     <div className="ir reference-thumb" aria-hidden="true">
       <span className="mono thumb-cam">REF</span>
@@ -19,18 +20,21 @@ export function ReferenceCard({ candidate, rank, selected, sequenceState, onSele
     </div>
     <div className="reference-copy">
       <div className="badge-row"><span className={`badge ${inferred ? 'inferred' : candidate.review_status === 'reviewed' ? 'rev' : 'unrev'}`}>
-        {inferred ? 'Caption-inferred' : candidate.review_status === 'reviewed' ? `Reviewed · ${candidate.reviewed_behavior ?? 'behavior'}` : candidate.review_status === 'stale' ? 'Review outdated' : 'No supported action'}
+        {inferred ? 'Caption-inferred' : candidate.review_status === 'reviewed' ? `Reviewed · ${behaviorLabel(candidate.reviewed_behavior)}` : candidate.review_status === 'stale' ? 'Review outdated' : 'No supported action'}
       </span><span className="mono similarity">sim {candidate.similarity == null ? '—' : candidate.similarity.toFixed(2)}</span>{sequenceState && <span className={`mono rank-state ${sequenceState}`}>{sequenceState}</span>}</div>
       <div className="clamp2 caption">{candidate.caption || 'No model caption available.'}</div>
+      {!supported && <div className="clamp2 skip-reason" title={eligibilityNote(candidate)}>{eligibilityNote(candidate)}</div>}
       <div className="mono source-summary">{p.source_label} · {segmentTime(p.segment_start_sec)}–{segmentTime(p.segment_end_sec)}</div>
     </div>
   </button>;
 }
 
-export function ReferencePanel({ candidate, stage, autoPlaying, sequenceLabel, onRetry, actionError }: {
+export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, actionElapsedMs, sequenceLabel, onRetry, actionError }: {
   candidate: Candidate;
   stage: Stage;
   autoPlaying: boolean;
+  actionActive: boolean;
+  actionElapsedMs: number;
   sequenceLabel: string;
   onRetry: () => void;
   actionError: string | null;
@@ -93,7 +97,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, sequenceLabel, o
     video.current.load();
     await togglePlay();
   };
-  const primitiveLabel = candidate.action?.primitive === 'head_scan' ? 'Bounded head movement' : candidate.action?.primitive === 'ground_pick' ? 'One complete beak-dip cycle' : candidate.action?.primitive === 'short_walk' ? 'Short forward movement' : 'Neutral standing hold';
+  const primitiveLabel = candidate.action?.primitive === 'head_scan' ? 'Bounded head movement' : candidate.action?.primitive === 'ground_pick' ? 'One complete beak-dip cycle' : candidate.action?.primitive === 'short_walk' ? 'Bounded walk / turn' : 'Intentional steady standing hold';
   const evidenceNote = inferred
     ? 'Caption-inferred approximation using a pretrained duck movement. This label has not been visually reviewed.'
     : 'Visually reviewed evidence mapped to a pretrained duck movement.';
@@ -124,10 +128,13 @@ export function ReferencePanel({ candidate, stage, autoPlaying, sequenceLabel, o
     <div className="behavior-panel">
       <div className="badge-row spread"><span className="label">Video behavior → duck move</span><span className={`badge ${eligible ? inferred ? 'inferred' : 'rev' : 'hot'}`}>{eligible ? inferred ? 'Caption-inferred' : 'Reviewed' : 'Skipped'}</span></div>
       {eligible ? <div className="behavior-mapping">
-        <div><span className="label secondary">{inferred ? 'Inferred from caption' : 'Reviewed in footage'}</span><span className="behavior-name">{behavior ?? 'Supported interaction'}</span><span className="body-note">{actionReason ?? 'Mapped from the returned video evidence.'}</span></div>
+        <div><span className="label secondary">{inferred ? 'Inferred from caption' : 'Reviewed in footage'}</span><span className="behavior-name">{behaviorLabel(behavior)}</span><span className="body-note">{actionReason ?? 'Mapped from the returned video evidence.'}</span></div>
         <div className="allowed-primitive"><span className="label secondary">Duck approximation</span><span className="mono primitive">{candidate.action!.primitive}</span><span className="body-note">{primitiveLabel} · {(candidate.action!.max_duration_ms / 1000).toFixed(1).replace(/\.0$/, '')} s motion window</span></div>
       </div> : <div className="ineligible-note">{eligibilityNote(candidate)}</div>}
-      <div className={`automatic-action display ${autoPlaying ? 'active' : ''}`}>{autoPlaying ? 'Automatic loop running' : stage === 'paused' ? 'Loop stopped' : 'No supported action'}</div>
+      <div className={`automatic-action display ${actionActive ? 'active' : ''}`}>
+        <span>{actionActive && eligible ? motionLabel(candidate.action.primitive) : autoPlaying ? 'Continuing the reference loop' : stage === 'paused' ? 'Loop stopped' : eligible ? 'Action queued' : 'Rank skipped'}</span>
+        {actionActive && <span className="mono action-elapsed"><span className="dot live" aria-hidden="true" />Active · {(actionElapsedMs / 1000).toFixed(1)} s elapsed</span>}
+      </div>
       {actionError && <div className="action-error" role="alert">{actionError}</div>}
       <div className="mono copy-note">{eligible ? evidenceNote : 'This rank stays in place and is skipped. Lower-ranked results are not promoted.'} {autoPlaying ? 'Use Stop to pause.' : sequenceLabel}</div>
       <button className="seg details-toggle" onClick={() => setDetailsOpen(value => !value)} aria-expanded={detailsOpen}>{detailsOpen ? 'Hide evidence details' : 'Evidence details'}</button>

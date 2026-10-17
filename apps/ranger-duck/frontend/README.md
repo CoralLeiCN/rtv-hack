@@ -2,7 +2,8 @@
 
 React, TypeScript, and Vite implementation of the interface in `../design/`.
 The shared scene uses the pinned upstream Microduck MuJoCo and ONNX runtime;
-the cats or deer are scripted Three.js actors. No new policy is trained.
+one cat or deer is a scripted Three.js actor facing the duck. No new policy is
+trained.
 
 Use Node 22.12 or newer. From this directory:
 
@@ -39,19 +40,25 @@ directory. Run the asset command before building: generated runtime binaries
 under `public/simulator/` are verified against pinned SHA256 values and are not
 committed. See the simulator setup and attribution beside the asset script.
 
-Choose Cat or Deer and an interaction, then press Start. Two animals of the
-selected species meet in the marked zone and trigger one archive search. The
-duck automatically performs the supported actions from original ranks 1, 2,
+Choose Cat or Deer and an interaction, then press Start. One animal of the
+selected species faces Microduck in the marked zone and triggers one archive
+search. The archive query still requests cat–cat or deer–deer footage; supported
+behavior in those references is approximated by the duck. The duck automatically
+performs the supported actions from original ranks 1, 2,
 and 3 in order, then repeats that sequence until Stop or Reset. Missing or
 unsupported ranks remain visibly skipped; rank 4 never replaces them. The
 current video is selected automatically and attempts muted, looping playback.
 
-The duck recenters at each cycle boundary without resetting the animal scene
-or issuing another search. Every action waits for the physics controller's
-observed readiness and completion. Stop, Reset, scenario changes, tab hiding,
-or selecting a reference for inspection cancel the loop. Resume starts a fresh
-cycle at rank 1 using the same search evidence. A stopped encounter/search can
-be started again. Stale responses cannot restart a newer encounter.
+Duck physics continue across reference and cycle boundaries: no pose reset,
+scene reload, or new search occurs. Every action waits for the physics
+controller's observed readiness and completion. The active action and elapsed
+time remain visible, including an intentional standing hold. Stop, Reset,
+scenario changes, or selecting a reference for inspection cancel the loop.
+Hiding the tab pauses motion and clears the active rank; returning resumes from
+rank 1 only when visibility caused that pause. Manual Stop stays stopped.
+Resume starts a fresh cycle at rank 1 using the same search evidence and duck
+pose. A stopped encounter/search can be started again. Stale responses cannot
+restart a newer encounter.
 
 Replay is explicit and uses a successful live result from the current backend
 session for the same scenario and search scope. Its footage still streams from

@@ -78,8 +78,8 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
     scene.background = new THREE.Color('#101b17');
     scene.fog = new THREE.Fog('#101b17', 3.5, 8);
     const camera = new THREE.PerspectiveCamera(39, 1, 0.02, 30);
-    camera.position.set(1.45, 0.82, 1.7);
-    camera.lookAt(0.2, 0.2, -0.15);
+    camera.position.set(0.75, 0.65, 1.35);
+    camera.lookAt(-0.2, 0.16, -0.05);
     const ambient = new THREE.HemisphereLight('#f2ecdd', '#324328', 1.8);
     scene.add(ambient);
     const sun = new THREE.DirectionalLight('#fff2d1', 2.5);
@@ -95,7 +95,12 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
     scene.environmentIntensity = 0.45;
     room.dispose();
     pmrem.dispose();
-    clearing.current = createClearing(scene);
+    clearing.current = createClearing(scene, () => {
+      const rl = (window as unknown as { rl?: DebugRuntime }).rl;
+      if (!booted || !rl) return { x: -0.6, z: 0, yaw: 0 };
+      const q = rl.data.qpos;
+      return { x: q[0], z: -q[1], yaw: Math.atan2(2 * (q[3] * q[6] + q[4] * q[5]), 1 - 2 * (q[5] ** 2 + q[6] ** 2)) };
+    });
     if (import.meta.env.DEV) (window as unknown as { __rangerScene?: ReturnType<typeof createClearing> }).__rangerScene = clearing.current;
     const resize = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
@@ -117,8 +122,8 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       booted = true;
       const rl = runtime();
       rl.chaseCam = false;
-      rl.controls.target.set(0.2, 0.18, -0.15);
-      camera.position.set(1.45, 0.82, 1.7);
+      rl.controls.target.set(-0.2, 0.16, -0.05);
+      camera.position.set(0.75, 0.65, 1.35);
       rl.controls.update();
       adapter.current = new DuckAdapter(rl, changed);
       // Development-only smoke-test hook; omitted from production bundles.
@@ -138,6 +143,12 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       if (booted) {
         adapter.current?.tick(callbacks.current.searching);
         const rl = runtime();
+        // Follow the continuous encounter gently without changing physics.
+        const q = rl.data.qpos;
+        const focus = clearing.current?.focus();
+        const shift = new THREE.Vector3(focus?.x ?? q[0] + 0.2, 0.16, focus?.z ?? -q[1]).sub(rl.controls.target).multiplyScalar(1 - Math.exp(-dt * 1.5));
+        rl.controls.target.add(shift);
+        camera.position.add(shift);
         if (!rl.inputLocked && !rl.respawnActive && !rl.recovery) {
           if (!ready) { ready = true; changed('ready'); callbacks.current.onReady?.(); }
           if (pendingEncounter.current) {
@@ -153,13 +164,10 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
-    const hidden = () => { if (document.hidden) adapter.current?.stop(); };
-    document.addEventListener('visibilitychange', hidden);
     return () => {
       disposed = true;
       cancelAnimationFrame(raf);
       resize.disconnect();
-      document.removeEventListener('visibilitychange', hidden);
       adapter.current?.dispose();
       adapter.current = null;
       if (import.meta.env.DEV) delete (window as unknown as { __rangerDuck?: DuckAdapter }).__rangerDuck;

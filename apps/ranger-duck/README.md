@@ -31,11 +31,11 @@ The default backend target is `http://127.0.0.1:8000`. Open the Local URL printe
 ## Demo flow
 
 1. Wait for the simulator and backend catalog. Choose Cat or Deer, then an interaction.
-2. Press Start. Two scripted animals enter the scene and trigger one live interaction search.
+2. Press Start. One scripted animal enters, faces the duck, and triggers one live interaction search. The duck takes the partner role from the same-species reference footage.
 3. The demo automatically visits original result ranks 1–3, plays each supported reference muted, and performs its video-induced movement. No Copy click is needed.
-4. The same sequence repeats. Stop pauses it, Resume starts a fresh cycle, and Reset clears the encounter. Changing species or interaction cancels the previous sequence.
+4. The same sequence repeats with the same duck body and pose continuing between clips and cycles; physics is not reset. Stop pauses it, Resume starts a fresh cycle, and Reset clears the encounter. Changing species or interaction cancels the previous sequence.
 
-The backend derives actions from the returned clips' existing video-model captions and labels them as inferred. Each needs the correct species pair, a supported interaction and complete provenance. Unsupported ranks are visibly skipped; lower-ranked clips are not substituted. If none of the top three qualifies, the duck remains still.
+The backend derives actions from the returned clips' existing video-model captions and labels them as inferred. Each needs the correct species pair, a supported action in the caption and complete provenance. Shared or parallel activity is labeled separately from a direct social interaction. Unsupported ranks are visibly skipped; lower-ranked clips are not substituted. If none of the top three qualifies, the duck remains still.
 
 Cat encounters cover hissing boundaries, greetings and social play; deer encounters cover co-foraging, following and group alert. A scripted hissing pose does not claim the retrieved clip contains a hiss. The movement explanation shows what the returned caption actually supports. See the [behavior research and limitations](../../docs/RANGER_DUCK_INTERACTIONS.md).
 

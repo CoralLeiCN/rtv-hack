@@ -1,4 +1,4 @@
-import type { Candidate, SearchResult } from './api';
+import type { Candidate, Primitive, SearchResult } from './api';
 
 export type Stage = 'idle' | 'encounter' | 'searching' | 'ready' | 'imitating' | 'complete' | 'paused' | 'nomatch' | 'failed';
 export const STAGES = ['Encounter', 'Searching', 'Top three ready', 'Auto imitation', 'Repeat'];
@@ -28,6 +28,19 @@ export function visibleCandidates(candidates: Candidate[]): { candidate: Candida
 }
 
 export type LoopPhase = 'preparing' | 'waiting' | 'running' | 'completed' | 'skipped' | 'cycle_complete';
+export function motionLabel(primitive: Primitive): string {
+  return { stand_hold: 'Holding a steady stance', head_scan: 'Looking around', short_walk: 'Walking / turning within the arena', ground_pick: 'Dipping toward the ground' }[primitive];
+}
+export function loopPhaseLabel(phase: LoopPhase): string {
+  return { preparing: 'waiting for balance', waiting: 'waiting for balance', running: 'active', completed: 'action complete', skipped: 'skipped', cycle_complete: 'continuing to the next pass' }[phase];
+}
+export function behaviorLabel(value: string | null | undefined): string {
+  if (!value) return 'Supported behavior';
+  const labels: Record<string, string> = { watching_partner: 'Watching companion', orienting_to_partner: 'Turning toward companion', shared_attention: 'Shared attention', object_attention: 'Watching an object', focal_head_movement: 'Head movement', focal_walking: 'Walking', focal_foraging: 'Foraging' };
+  if (labels[value]) return labels[value];
+  const words = value.replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 export interface LoopProgress { cycle: number; rank: number | null; phase: LoopPhase; candidate: Candidate | null; }
 export interface SequenceSlot { rank: number; candidate: Candidate | null; supported: boolean; }
 export function sequenceSlots(candidates: Candidate[]): SequenceSlot[] {
@@ -137,7 +150,7 @@ export function eligibilityNote(candidate: Candidate): string {
   const reasons: Record<string, string> = {
     not_reviewed: 'This result has no supported evidence-based action. It is skipped in the automatic loop.',
     species_pair_not_established: 'The caption does not establish two animals of the selected species. This rank is skipped.',
-    directed_interaction_not_established: 'The caption does not establish a supported interaction between the two animals. This rank is skipped.',
+    directed_interaction_not_established: 'The caption does not describe a supported action for an animal in this pair. This rank is skipped.',
     negated_or_uncertain_interaction: 'The caption denies the interaction or describes it as uncertain. This rank is skipped.',
     unsupported_interaction_behavior: 'The described interaction has no supported duck movement. This rank is skipped.',
     unsupported_retreat: 'The clip describes moving away, but the duck controller cannot reliably walk backward. This rank is skipped.',

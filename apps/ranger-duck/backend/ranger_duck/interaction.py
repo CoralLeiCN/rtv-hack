@@ -1,21 +1,26 @@
 """Conservative, deterministic interpretations of existing video-model captions.
 
-This is not a video model or a visual review. Unsupported wording stays playable
-as evidence but never becomes a motion. Scenario names and search text are not
-inputs, so a retrieval hit cannot acquire the requested behavior by association.
+This is not a video model or a visual review. A confirmed same-species pair clip
+can support a partner-directed or clearly labeled focal action. Unsupported
+wording stays playable but never becomes a motion. Scenario names and search
+text are not inputs, so a hit cannot acquire requested behavior by association.
 """
 import re
 
 Motion = tuple[str, str, int, str]
 NEGATIVE = re.compile(r"\b(?:no|not|never|neither|cannot|can't|doesn't|don't|isn't|aren't|wasn't|weren't|without)\b")
 UNCERTAIN = re.compile(r"\b(?:may|might|could|possibly|perhaps|probably|unclear|uncertain|seems?|appears?)\b")
-ADJECTIVE = r"(?:domestic|adult|young|small|large|black|white|gray|grey|brown|tabby|spotted|red|wild|striped)"
+ADJECTIVE = r"(?:domestic|adult|young|small|large|black|white|gray|grey|brown|tabby|spotted|red|wild|striped|silver|golden|cream|orange|ginger)"
+AMBIGUOUS_OBJECT = re.compile(r"\b(?:toys?|balls?|feathers?|objects?|cameras?|food|bowls?|strings?|lasers?|hands?|posts?|mirrors?)\b")
 
 
-def _positive(pattern: str, text: str) -> tuple[bool, bool]:
+def _positive(pattern: str, text: str, *, reject_inside: re.Pattern | None = None) -> tuple[bool, bool]:
     """Check the local predicate, retaining whether a candidate was negated."""
     rejected = False
     for match in re.finditer(pattern, text):
+        if reject_inside and reject_inside.search(match.group()):
+            rejected = True
+            continue
         prefix = " ".join(text[:match.start()].split()[-6:])
         # A contrast starts a new claim: 'not hissing, but backing away'.
         prefix = re.split(r"\bbut\b|[;,]", prefix)[-1]
@@ -30,14 +35,20 @@ def _positive(pattern: str, text: str) -> tuple[bool, bool]:
 def _pair(text: str, animal: str) -> bool:
     noun = r"(?:cats?|kittens?)" if animal == "cat" else r"deer"
     plural = r"(?:cats|kittens)" if animal == "cat" else r"deer"
+    # The broad 'cat ... another cat' form must not turn an explicitly absent
+    # companion into a pair. Negation of a verb ('does not chase another cat')
+    # is separate from denying the second animal's presence.
+    denied_companion = re.compile(
+        rf"\b(?:no|without|not)\s+(?:any\s+)?(?:another|other|second|companion)\s+(?:{ADJECTIVE}\s+){{0,2}}{noun}\b"
+    )
     patterns = [
         rf"\b(?:two|three|four|five|six|2|3|4|several|multiple|both)\s+(?:{ADJECTIVE}\s+){{0,2}}{plural}\b",
         rf"\b(?:pair|group|herd)\s+of\s+(?:{ADJECTIVE}\s+){{0,2}}{plural}\b",
-        rf"\b{noun}\b[^.!?]{{0,100}}\b(?:another|other|second|companion)\s+{noun}\b",
-        rf"\b{plural}\b[^.!?]{{0,80}}\b(?:each other|one another)\b",
+        rf"\b{noun}\b[^.!?]{{0,100}}\b(?:another|other|second|companion)\s+(?:{ADJECTIVE}\s+){{0,2}}{noun}\b",
+        rf"\b{plural}\b[^.!?]{{0,160}}\b(?:each other|one another)\b",
         rf"\b(?:a|one)\s+(?:{ADJECTIVE}\s+){{0,2}}{noun}\b[^.!?]{{0,180}}\b(?:a|another|second)\s+(?:{ADJECTIVE}\s+){{0,2}}{noun}\b",
     ]
-    return any(_positive(pattern, text)[0] for pattern in patterns)
+    return any(_positive(pattern, text, reject_inside=denied_companion)[0] for pattern in patterns)
 
 
 def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]:
@@ -52,7 +63,14 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
     partner = (rf"(?:each other|one another|(?:a |the |its |their )?(?:other|second|companion)\s+{noun}"
                rf"|another\s+(?:{ADJECTIVE}\s+){{0,2}}{noun}"
                rf"|(?:a|the)\s+(?:{ADJECTIVE}\s+){{0,2}}{noun}"
-               r"|the other(?: one)?(?=[,;:.!?]|$|\s+(?:and|while|as|before|after|that)\b))")
+               rf"|(?:the\s+)?{ADJECTIVE}\s+one"
+               r"|the other(?: one)?(?=[,;:.!?]|$|'s\b|\s+(?:and|while|as|before|after|that)\b))")
+    # 'It' is useful in captions that name two animals, but cannot safely refer
+    # to a companion when the same caption also describes a toy or another
+    # salient object. Explicit animal targets remain usable in those clips.
+    attention_partner = partner
+    if not AMBIGUOUS_OBJECT.search(text):
+        attention_partner = rf"(?:{partner}|it|its\s+(?:actions|movements)|them|their\s+(?:actions|movements))"
     directed = rf"\b(?:at|towards?|to|with|from|beside|alongside|behind|past)\s+{partner}\b"
     collective = r"\b(?:together|side by side|both|in unison|as a (?:group|herd)|each other|one another)\b"
     direction_modifier = r"(?:\s+(?:directly|briefly|slowly|calmly|curiously|back|to|look|looking)){0,4}"
@@ -60,7 +78,8 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
     auxiliary = r"(?:\s+(?:are|were|remain|continue|quietly|calmly|slowly|still)){0,3}\s+"
     feeding = r"(?:graz(?:e|es|ing)|feed(?:s|ing)?|forag(?:e|es|ing)|eat(?:s|ing)?)"
     alert = r"(?:alert|freez(?:e|es|ing)|froze|stand(?:s|ing)?\s+(?:still|motionless))"
-    shared = r"(?:together|side by side|in unison|beside each other|alongside each other|near each other)"
+    shared = r"(?:together|side by side|in unison|(?:beside|alongside|near|next to)\s+(?:each other|one another))"
+    attention_object = r"(?:the|a|an)\s+(?:(?:red|blue|small|moving|feather|hanging)\s+){0,3}(?:toy|ball|feather|string|laser|object)"
     def collective_predicate(verb: str, group_subject_allowed: bool = True) -> str:
         together = rf"{verb}\s+(?:(?:quietly|calmly|slowly)\s+)?{shared}"
         return rf"\b(?:{group_subject}{auxiliary}{verb}|{together})\b" if group_subject_allowed else rf"\b{together}\b"
@@ -76,13 +95,13 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
     # about interpreting one clip; result ranking itself is never changed.
     rules: list[tuple[str, str, int, str, str, str]] = [
         ("orienting_to_partner", "head_scan", 2400,
-         rf"\b(?:looks?|looking|(?:turns?|turning)\s+(?:(?:its|their|the)\s+)?head){direction_modifier}\s+(?:towards?|at)\s+{partner}\b",
+         rf"\b(?:looks?|looking|(?:turns?|turning)\s+(?:(?:its|their|the)\s+)?head){direction_modifier}\s+(?:towards?|at)\s+{attention_partner}\b",
          "directed_verb", "The caption describes orienting toward the other animal; the duck makes a small head scan."),
         ("hissing_boundary", "stand_hold", 3000,
          rf"\bhiss(?:es|ing)?(?:\s+(?:directly|loudly|briefly|softly)){{0,2}}\s+(?:at|towards?)\s+{partner}\b", "directed_verb",
          "The caption describes a hiss directed at the other cat; a still boundary pause approximates it. The duck does not produce a hiss."),
         ("following", "short_walk", 2000,
-         rf"\bfollow(?:s|ing)?\s+{partner}\b", "directed_verb",
+         rf"\b(?:follow(?:s|ing)?|(?:walk(?:s|ing)?|mov(?:es?|ing))\s+(?:behind|after))\s+{partner}\b", "directed_verb",
          "The caption describes following the other animal; the duck makes a short forward walk."),
         ("social_approach", "short_walk", 2000,
          rf"\b(?:approach(?:es|ing)?|sniff(?:s|ing)?|greet(?:s|ing)?|nuzzl(?:es?|ing)|rub(?:s|bing)\s+against)\s+{partner}\b",
@@ -90,15 +109,33 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
         ("social_play", "short_walk", 2000,
          rf"\b(?:chas(?:es?|ing)|playfully\s+follow(?:s|ing)?)\s+{partner}\b",
          "play", "The caption describes movement during play with the other animal; a short walk approximates it, without jumping or contact."),
-        ("watching_partner", "stand_hold", 3000,
-         rf"\b(?:watch(?:es|ing)?|observ(?:es?|ing))\s+{partner}\b",
-         "directed_verb", "The caption describes one animal watching its companion; the duck copies that observing animal with a still pause."),
+        ("social_play", "short_walk", 2000,
+         rf"\bplay(?:s|ing)?\s+(?:with\s+{partner}|together)\b",
+         "general_play", "The caption explicitly describes the animals playing with each other; the duck uses a short walk as a simplified play movement, not an exact replay of their poses."),
+        ("watching_partner", "head_scan", 2400,
+         rf"\b(?:watch(?:es|ing)?|observ(?:es?|ing))\s+{attention_partner}\b",
+         "directed_verb", "The caption describes one animal watching its companion; the duck makes an attentive head turn as an approximation of that attention, rather than remaining motionless."),
+        ("shared_attention", "head_scan", 2400,
+         rf"\b(?:turn(?:s|ing)?|mov(?:es?|ing)|tilt(?:s|ing)?)\s+their\s+(?:bodies\s+and\s+)?heads\s+(?:to\s+)?(?:follow|watch|look\s+at)\s+{attention_object}\b",
+         "directed_verb", "The caption describes the animals moving their heads to attend to a shared object; the duck makes an attentive head turn. This copies shared object attention, not a greeting or attention to each other."),
+        ("object_attention", "head_scan", 2400,
+         rf"\b(?:looks?|looking|watch(?:es|ing)?|observ(?:es?|ing))(?:\s+(?:up|down|directly))?\s+(?:at\s+)?{attention_object}\b",
+         "directed_verb", "The caption describes a focal animal attending to an object in a same-species pair clip; the duck approximates that attention with a head turn. This does not imply attention to the other animal."),
+        ("focal_head_movement", "head_scan", 2400,
+         r"\b(?:(?:turns?|turning|moves?|moving|tilts?|tilting|raises?|raising)\s+(?:(?:its|their|the)\s+)?heads?|(?:looks?|looking)\s+(?:up|down|around))\b",
+         "directed_verb", "The caption describes a focal animal moving its head in a same-species pair clip; the duck approximates that visible head movement. The caption does not establish that it is directed at its companion."),
+        ("focal_walking", "short_walk", 2000,
+         r"\b(?:walk(?:s|ing)?|stroll(?:s|ing)?|trot(?:s|ting)?|mov(?:es?|ing)\s+(?:forward|across|towards?\s+(?:the\s+)?(?:left|right)|to\s+the\s+(?:left|right)))\b",
+         "directed_verb", "The caption describes a focal animal walking in a same-species pair clip; the duck makes a short walk. This does not imply the animal was approaching or following its companion."),
         ("co_feeding", "ground_pick", 8000,
          collective_predicate(feeding, group_subject_allowed=False),
          "directed_verb", "The caption describes the animals feeding together; the duck makes a beak dip beside its companion."),
         ("group_alert", "stand_hold", 3000,
          collective_predicate(alert),
          "directed_verb", "The caption describes the animals pausing together; the duck holds a still alert pose."),
+        ("focal_foraging", "ground_pick", 8000,
+         r"\b(?:graz(?:e|es|ing)|forag(?:e|es|ing)|eat(?:s|ing)?\s+(?:the\s+)?(?:grass|leaves|food))\b",
+         "directed_verb", "The caption describes a focal animal foraging in a same-species pair clip; the duck approximates it with a beak dip. The other animal's presence does not imply co-feeding."),
     ]
     for behavior, primitive, duration, predicate, requirement, explanation in rules:
         if behavior == "hissing_boundary" and animal != "cat":
@@ -116,10 +153,17 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
                 continue
             # Chasing alone is not proof of social play; require the caption's
             # affirmative play qualifier. Generic fighting remains unsupported.
-            if requirement == "play":
+            if requirement in {"play", "general_play"}:
                 play, rejected_play = _positive(r"\b(?:play|plays|playing|playful|playfully)\b", phrase)
                 had_negation |= rejected_play
                 if not play or re.search(r"\b(?:aggressively|fight(?:s|ing)?|bit(?:e|es|ing))\b", phrase):
+                    continue
+                if requirement == "general_play" and (
+                    AMBIGUOUS_OBJECT.search(phrase) or re.search(
+                        r"\b(?:jump(?:s|ing)?|pounc(?:es?|ing)|climb(?:s|ing)?|wrestl(?:es?|ing)|swat(?:s|ting)?|fight(?:s|ing)?|bit(?:e|es|ing))\b", text)
+                ):
+                    # Generic play cannot conceal a clip whose only described
+                    # movement is unsupported jumping, contact, or object play.
                     continue
             return (behavior, primitive, duration, explanation), "caption_interaction_match"
     if had_negation:

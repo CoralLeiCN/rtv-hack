@@ -1,6 +1,6 @@
 # Ranger Duck interaction reference
 
-The user selected same-species reference interactions: domestic cat–cat and deer–deer. The simulated duck copies a bounded approximation of a behavior described in each retrieved clip. The animal scene is scripted; retrieved footage, its video-model caption, and the duck controller remain separate sources of information.
+The user selected same-species reference interactions: domestic cat–cat and deer–deer. The simulated duck copies a bounded approximation of a behavior described in each retrieved clip. The scene has one scripted animal facing the duck; retrieved footage, its video-model caption, and the duck controller remain separate sources of information.
 
 ## Cat encounters
 
@@ -8,7 +8,7 @@ The user selected same-species reference interactions: domestic cat–cat and de
 | --- | --- | --- | --- |
 | Hissing boundary | A cat hisses toward another approaching cat | Directed hiss, ears held back, tense posture; distinguish the hissing cat from the responding cat | A pause for a described stationary boundary display; retreat-only evidence is unsupported |
 | Friendly greeting | Two cats approach and greet one another | Tail-up approach, nose touching, sniffing or rubbing directed toward the other cat | A short approach, or a head turn toward the partner |
-| Social play | Two cats engage with each other | Reciprocal movement, taking turns, pauses, and attention to the other cat | A short walk, head turn, or observing pause; no jumping, biting, or pouncing controller |
+| Social play | Two cats engage with each other | Reciprocal movement, taking turns, pauses, and attention to the other cat | A short walk or attentive head turn; no jumping, biting, or pouncing controller |
 
 Hissing is a vocal signal in an antagonistic context; holding still does not reproduce its sound. The scene can show a scripted hissing pose, but the duck's pause is a movement approximation. An archive result must not be labeled as hissing merely because the user chose Hissing.
 
@@ -26,14 +26,14 @@ These scenarios reflect social and alert contexts described by the [Missouri Dep
 
 ## Evidence and automatic execution
 
-The backend derives each action from that segment's existing video-model caption, not the query or scripted encounter. It requires the selected species pair, an actual supported interaction, and complete source/timing metadata. Solitary animals, uncertain interaction claims, wrong species, negated behaviors, and unsupported movements do not authorize an action.
+The backend derives each action from that segment's existing video-model caption, not the query or scripted encounter. It requires the selected species pair, an explicitly described supported action, and complete source/timing metadata. A supported focal movement within shared or parallel activity can be approximated without claiming a direct greeting or hiss occurred. Solitary animals, uncertain interaction claims, wrong species, negated behaviors, and unsupported movements do not authorize an action.
 
 Caption-derived actions are labeled `video_caption`, with the inferred behavior and its movement approximation shown. They are not visual reviews and do not turn `review_status` into `reviewed`. A previous review of a solitary feeding deer cannot establish a deer–deer interaction.
 
-The frontend uses original search ranks 1–3 in order. It automatically selects each supported reference, attempts muted playback, performs one bounded motion, and advances. Unusable slots remain visible with a skip reason; rank 4 is not silently substituted for rank 2. The same three slots repeat until Stop, Reset, or another encounter is selected. Recentring between cycles preserves the animal scene and does not send another search request.
+The frontend uses original search ranks 1–3 in order. It automatically selects each supported reference, attempts muted playback, performs one bounded motion, and advances. Unusable slots remain visible with a skip reason; rank 4 is not silently substituted for rank 2. The same three slots repeat until Stop, Reset, or another encounter is selected. Between cycles the existing duck settles in place. Its body, position and physics clock persist; no clip transition or cycle causes a reset or another search.
 
 ## Archive observations, 17 October
 
-Live cat interaction queries returned real clips with two cats observing one another, turning toward one another, and playing around a toy. The initial top-three Hissing results did not explicitly describe a hiss. A directed head turn or observing pause can still be derived from those captions, with its actual label shown.
+Live cat interaction queries returned real clips with two cats observing one another, turning toward one another, and playing around a toy. The initial top-three Hissing results did not explicitly describe a hiss. An explicit head turn or an attentive head-turn approximation can still be derived from those captions, with its actual label shown. The latter represents the watching animal and is not a claim that the footage contains that exact duck motion.
 
 The initial deer co-foraging query returned solitary-deer captions in its top three. Those are useful search results to watch but do not establish a deer–deer interaction. A query is not evidence that the requested event occurred.

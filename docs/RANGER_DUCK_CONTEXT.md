@@ -4,12 +4,12 @@ This context supports the [approved plan](RANGER_DUCK_PLAN.md) and [frontend int
 
 ## Current product decisions
 
-- One page contains a scripted pair of animals, the MuJoCo duck, live search results, reference playback, and automatic movement status.
+- One page contains one scripted animal interacting with the MuJoCo duck, live search results, reference playback, and automatic movement status.
 - The user selected cat–cat and deer–deer interactions. Cat scenarios are Hissing, Greeting, and Social play; deer scenarios are Forage together, Follow companion, and Herd alert.
 - An encounter supplies a species-pair query. A returned segment's existing video-model caption supplies a possible movement; the query itself never authorizes movement.
 - Use original upstream ranks 1–3, skip unsupported or missing slots visibly, and repeat supported actions automatically without another search. No per-action Copy click is required. Stop/Resume, Reset, changed scenarios, and hidden-tab cancellation remain available.
 - Supported movements are `ground_pick`, `short_walk`, `stand_hold`, and the physics-verified `head_scan`. Backward-walk attempts did not produce meaningful displacement; retreat-only evidence is unsupported.
-- Caption-inferred actions remain visibly unreviewed. They require complete provenance, the correct pair, and a supported interaction. An optional exact visual review can also authorize a matching interaction; stale or solitary-animal reviews cannot.
+- Caption-inferred actions remain visibly unreviewed. They require complete provenance, the correct species pair in the reference, and an explicitly described supported action. An optional exact visual review can also authorize a matching interaction; stale or solitary-animal reviews cannot.
 - Replay is explicit, session-scoped, expires, and still needs VSS connectivity for video. Broader search relaxes behavior while keeping the same species pair.
 - The animal actors are scripted and non-colliding. New training, physical robot deployment, camera recognition, and actual animal interaction are outside scope.
 
@@ -75,10 +75,18 @@ The first user run exposed intermittent Feeding search failures around 10.3 seco
 
 ## Same-species automatic sequence update
 
-The new catalog and automatic sequence replace the earlier Copy control. Original retrieval ranks are preserved, including gaps after invalid or duplicate sources. Cat queries search the authenticated archive without the wildlife tag; deer queries retain it. Exact caption text, source, parent and interval bind each inferred action. Two animal actors illustrate each interaction while the duck uses the existing physics controller.
+The new catalog and automatic sequence replace the earlier Copy control. Original retrieval ranks are preserved, including gaps after invalid or duplicate sources. Cat queries search the authenticated archive without the wildlife tag; deer queries retain it. Exact caption text, source, parent and interval bind each inferred action. The initial implementation used two animal actors; the user then requested one animal facing the duck, with the duck occupying the partner role. Cycle resets are removed so the same physics body persists through all video transitions.
 
 Initial live cat queries found paired observation and directed head-turn captions, but no explicit hiss in the first hissing top three. The deer co-foraging top three described solitary deer and must be skipped. These are archive observations, not guarantees about future results. The research note records the behavior sources and the current API describes the action-basis fields.
 
 Integrated browser verification: a live Cat/Hissing encounter returned 15 candidates in 9.88 seconds. Original rank 1 drove a caption-inferred observing pause, rank 2 a directed head scan, and unsupported rank 3 was skipped. The page completed two automatic cycles without per-action clicks; Stop returned the duck to ready, and Resume began a fresh cycle without a new search. Actual reference video played through the session-scoped proxy. The initial results did not describe a hiss, and the UI displayed their actual inferred behaviors.
 
 Final interaction verification: 96 backend tests and 26 frontend/adapter tests pass; the production build succeeds. Real browser physics checks completed head scan, short walk, ground pick, standing, and another walk across resets with zero recoveries. The head yaw covered 0.509 radians and returned to neutral. Development QA hooks are omitted from production. Deer/Forage returned 15 references in 10.43 seconds, with all top-three solitary results visibly skipped.
+
+## Single-animal and continuous-loop corrections
+
+The user requested exactly one simulated animal interacting with the duck, with no repeated duck reloads. The scene now treats the duck as the partner represented by the reference footage. The archive queries remain cat–cat and deer–deer. `prepareCycle` now waits for balance instead of calling `resetSim`, preserving the same body and physics clock between clips and cycles.
+
+The idle report had three contributors: watching a companion mapped to a motionless hold, strict directed-interaction wording rejected clear focal attention in multi-animal clips, and hiding the page paused the loop without automatic resume. Watching now drives an explicitly labeled attentive head-turn approximation. Clear shared or focal actions in a confirmed same-species pair clip can drive supported motions without being mislabeled as a greeting or hiss. Visibility-only pauses resume on return; intentional Stop and reference inspection remain paused.
+
+Verification of these corrections: 109 backend tests and 30 frontend/adapter tests pass; the production build succeeds. Real browser physics completed 14 consecutive bounded walking actions with no resets or recoveries. The physics clock advanced continuously from 1.54 to 39.86 seconds and X/Y stayed within ±0.633 m, below the 1.15 m boundary. Cycle preparation settles in about 0.2 seconds without replacing the duck. Exact live Social-play captions map companion observation and shared toy attention to head scans; the climbing-only reference remains skipped.

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, getEncounters, getHealth, searchArchive, type Encounter, type Health, type SearchMode, type SearchResult } from './api';
-import { responseIsCurrent, searchDeadlineMs, runReferenceLoop, sequenceSlots, STAGE_INDEX, STAGES, visibleCandidates, type LoopProgress, type Stage } from './demo';
+import { responseIsCurrent, searchDeadlineMs, runReferenceLoop, sequenceSlots, motionLabel, loopPhaseLabel, STAGE_INDEX, STAGES, visibleCandidates, type LoopProgress, type Stage } from './demo';
 import { ReferenceCard, ReferencePanel } from './components/ReferencePanel';
 import { MicroduckScene, type MicroduckSceneHandle } from './simulator/MicroduckScene';
 
 type Rehearsal = 'nomatch' | 'timeout' | null;
+type ActiveLoop = { response: SearchResult; cycle: number };
 const idLabel = (number: number) => `encounter-${String(number).padStart(3, '0')}`;
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
   const [loopProgress, setLoopProgress] = useState<LoopProgress | null>(null);
   const [loopNote, setLoopNote] = useState<string | null>(null);
   const [rankStates, setRankStates] = useState<Record<number, string>>({});
+  const [actionStartedAt, setActionStartedAt] = useState<number | null>(null);
   const [rehearsal, setRehearsal] = useState<Rehearsal>(null);
   const [replayKeys, setReplayKeys] = useState<Set<string>>(new Set());
   const [clock, setClock] = useState(new Date());
@@ -39,6 +41,8 @@ export default function App() {
   const actionGeneration = useRef(0);
   const pending = useRef<AbortController | null>(null);
   const loopController = useRef<AbortController | null>(null);
+  const activeLoop = useRef<ActiveLoop | null>(null);
+  const visibilityResume = useRef<ActiveLoop | null>(null);
   const currentStage = useRef<Stage>('idle');
   const scenario = scenarios.find(item => item.id === scenarioId) ?? null;
   const selected = result?.candidates.find(item => item.clip_id === selectedId) ?? null;
@@ -68,29 +72,39 @@ export default function App() {
   const stopMotion = useCallback(() => {
     loopController.current?.abort();
     loopController.current = null;
+    activeLoop.current = null;
     actionGeneration.current += 1;
     duck.current?.stop();
     setLoopRunning(false);
+    setActionStartedAt(null);
   }, []);
 
-  const pauseLoop = useCallback((message = 'Stopped. Resume starts a fresh cycle from rank 1.') => {
+  const pauseLoop = useCallback((message = 'Stopped. Resume continues from rank 1 without resetting the duck.') => {
+    visibilityResume.current = null;
     pending.current?.abort();
     pending.current = null;
     requestGeneration.current += 1;
     stopMotion();
     setLoopNote(message);
+    setActionError(null);
+    setRankStates(previous => Object.fromEntries(Object.entries(previous).map(([rank, value]) => [rank, ['running', 'waiting'].includes(value) ? 'paused' : value])));
     if (currentStage.current !== 'idle') setCurrentStage('paused');
   }, [stopMotion, setCurrentStage]);
 
-  useEffect(() => {
-    const hidden = () => {
-      if (document.hidden && currentStage.current !== 'idle') pauseLoop('Paused because this tab was hidden. Resume when you are ready.');
-    };
-    document.addEventListener('visibilitychange', hidden);
-    return () => document.removeEventListener('visibilitychange', hidden);
-  }, [pauseLoop]);
+  const pauseForVisibility = useCallback(() => {
+    // Abort the sequence before stopping physics so intentional cancellation
+    // cannot become a stale movement failure or leave a running rank behind.
+    if (activeLoop.current) visibilityResume.current = { ...activeLoop.current, cycle: activeLoop.current.cycle + 1 };
+    if (!visibilityResume.current) return;
+    stopMotion();
+    setActionError(null);
+    setRankStates(previous => Object.fromEntries(Object.entries(previous).map(([rank, value]) => [rank, ['running', 'waiting'].includes(value) ? 'paused' : value])));
+    setLoopNote('Paused while this tab is hidden. The loop resumes when you return.');
+    setCurrentStage('paused');
+  }, [stopMotion, setCurrentStage]);
 
   const invalidate = useCallback(() => {
+    visibilityResume.current = null;
     pending.current?.abort();
     pending.current = null;
     requestGeneration.current += 1;
@@ -111,6 +125,7 @@ export default function App() {
 
   const startLoop = useCallback((response: SearchResult, firstCycle = 1) => {
     if (response.encounter_id !== activeEncounter.current || !duck.current) return;
+    visibilityResume.current = null;
     stopMotion();
     setSelectedId(visibleCandidates(response.candidates)[0]?.candidate.clip_id ?? null);
     if (!sequenceSlots(response.candidates).some(slot => slot.supported)) {
@@ -119,12 +134,14 @@ export default function App() {
       return;
     }
     if (document.hidden) {
-      setLoopNote('Paused because this tab is hidden. Resume when you are ready.');
+      visibilityResume.current = { response, cycle: firstCycle };
+      setLoopNote('Paused while this tab is hidden. The loop resumes when you return.');
       setCurrentStage('paused');
       return;
     }
     const controller = new AbortController();
     loopController.current = controller;
+    activeLoop.current = { response, cycle: firstCycle };
     const generation = ++actionGeneration.current;
     const isCurrent = () => !controller.signal.aborted && generation === actionGeneration.current && response.encounter_id === activeEncounter.current;
     setLoopRunning(true);
@@ -139,7 +156,9 @@ export default function App() {
       perform: action => duck.current!.perform({ primitive: action.primitive, evidenceId: action.evidence_id, maxDurationMs: action.max_duration_ms }),
       onProgress: progress => {
         if (!isCurrent()) return;
+        activeLoop.current = { response, cycle: progress.cycle };
         setLoopProgress(progress);
+        setActionStartedAt(progress.phase === 'running' ? Date.now() : null);
         if (progress.rank != null) setSelectedId(progress.candidate?.clip_id ?? null);
         if (progress.phase === 'preparing') setRankStates({});
         if (progress.rank != null) setRankStates(previous => ({ ...previous, [progress.rank!]: progress.phase }));
@@ -147,14 +166,27 @@ export default function App() {
       },
     }).catch(error => {
       if (!isCurrent()) return;
+      if (document.hidden) { pauseForVisibility(); return; }
       stopMotion();
+      setRankStates(previous => Object.fromEntries(Object.entries(previous).map(([rank, value]) => [rank, ['running', 'waiting'].includes(value) ? 'failed' : value])));
       setActionError(error instanceof Error ? error.message : 'The controller could not continue. Reset before resuming.');
       setLoopNote('The loop stopped before another action could begin.');
       setCurrentStage('paused');
     }).finally(() => {
       if (loopController.current === controller) { loopController.current = null; setLoopRunning(false); }
     });
-  }, [stopMotion, setCurrentStage]);
+  }, [stopMotion, setCurrentStage, pauseForVisibility]);
+
+  useEffect(() => {
+    const visibilityChanged = () => {
+      if (document.hidden) { pauseForVisibility(); return; }
+      const queued = visibilityResume.current;
+      visibilityResume.current = null;
+      if (queued && queued.response.encounter_id === activeEncounter.current) startLoop(queued.response, queued.cycle);
+    };
+    document.addEventListener('visibilitychange', visibilityChanged);
+    return () => document.removeEventListener('visibilitychange', visibilityChanged);
+  }, [pauseForVisibility, startLoop]);
 
   const reset = useCallback(() => {
     invalidate();
@@ -210,7 +242,7 @@ export default function App() {
     const id = invalidate();
     setRehearsal(null);
     setCurrentStage('encounter');
-    duck.current?.startEncounter({ id, animal: scenario.animal === 'cat' ? 'cat' : 'deer', interaction_partner: scenario.interaction_partner ?? scenario.animal, behavior_hint: scenario.behavior_hint });
+    duck.current?.startEncounter({ id, animal: scenario.animal === 'cat' ? 'cat' : 'deer', interaction_partner: 'microduck', behavior_hint: scenario.behavior_hint });
   };
   const chooseScenario = (id: string) => { if (id !== scenarioId) { reset(); setScenarioId(id); setMode('live'); } };
   const chooseSpecies = (animal: string) => { const first = scenarios.find(item => item.animal === animal); if (first) chooseScenario(first.id); };
@@ -250,8 +282,8 @@ export default function App() {
   const slots = sequenceSlots(result?.candidates ?? []);
   const canResume = !!result && result.encounter_id === activeEncounter.current && slots.some(slot => slot.supported) && simulatorReady;
   const canStop = loopRunning || stage === 'encounter' || stage === 'searching';
-  const loopLabel = loopRunning && loopProgress ? `Cycle ${loopProgress.cycle} · ${loopProgress.rank ? `rank ${loopProgress.rank}/3 · ` : ''}${loopProgress.phase.replace('_', ' ')}${loopProgress.candidate?.action && loopProgress.phase !== 'skipped' ? ` · ${loopProgress.candidate.action.primitive}` : ''}` : loopNote ?? 'Top-three actions run automatically after search.';
-  const eventJson = scenario && stage !== 'idle' ? JSON.stringify({ encounter_id: encounterId, scenario_id: scenario.id, input_mode: 'scripted_scene', animal: scenario.animal, interaction_partner: scenario.interaction_partner ?? scenario.animal, interaction: scenario.interaction ?? scenario.behavior_hint }, null, 2) : '{ awaiting Start }';
+  const loopLabel = loopRunning && loopProgress ? `Cycle ${loopProgress.cycle} · ${loopProgress.rank ? `rank ${loopProgress.rank}/3 · ` : ''}${loopPhaseLabel(loopProgress.phase)}${loopProgress.candidate?.action && loopProgress.phase === 'running' ? ` · ${motionLabel(loopProgress.candidate.action.primitive)}` : ''}` : loopNote ?? 'Top-three actions run automatically after search.';
+  const eventJson = scenario && stage !== 'idle' ? JSON.stringify({ encounter_id: encounterId, scenario_id: scenario.id, input_mode: 'scripted_scene', animal: scenario.animal, scene_partner: 'microduck', archive_interaction_partner: scenario.interaction_partner ?? scenario.animal, interaction: scenario.interaction ?? scenario.behavior_hint }, null, 2) : '{ awaiting Start }';
 
   return <div className="app-shell">
     <header className="app-header">
@@ -271,7 +303,7 @@ export default function App() {
           <div className="sticker mono duck-status"><span className="label">duck.status()</span><span>{duckStatus}</span></div>
           {simulatorError && <div className="sim-error alert" role="alert"><strong className="display">Simulator unavailable</strong><span>{simulatorError}</span><span className="small">Load the pinned simulator assets and reload this page.</span></div>}
         </div>
-        <div className="encounter-details"><div className="encounter-description"><div className="label">Encounter event · supplied by the simulation</div><div className="scene-caption">{stage === 'idle' ? scenario ? `Press Start. Two ${scenario.animal === 'cat' ? 'cats' : 'deer'} meet in the clearing. The top three video actions then loop automatically.` : 'Connecting to the encounter catalog.' : scenario?.description}</div><div className="body-note">Scripted animal pair · pretrained Microduck movements · video-guided loop</div></div><pre className="mono encounter-json">{eventJson}</pre></div>
+        <div className="encounter-details"><div className="encounter-description"><div className="label">Encounter event · supplied by the simulation</div><div className="scene-caption">{stage === 'idle' ? scenario ? `Press Start. One ${scenario.animal} faces Microduck. The duck responds using the top three archive references.` : 'Connecting to the encounter catalog.' : scenario ? `A ${scenario.animal} faces Microduck in a scripted ${scenario.label.toLowerCase()} encounter.` : ''}</div><div className="body-note">One scripted animal · continuous duck physics · video-guided loop</div></div><pre className="mono encounter-json">{eventJson}</pre></div>
         {bootstrapError && <div className="alert compact" role="alert"><span>{bootstrapError}</span><button className="seg" onClick={() => setBootAttempt(value => value + 1)}>Reconnect backend</button></div>}
         {health && !health.live_configured && <div className="setup-note mono">Live archive credentials are not configured on this backend. The simulator can load; live searches will report setup required.</div>}
         {health && health.reviewed_reference_count === 0 && <div className="setup-note mono">Caption-inferred actions are labeled separately from visually reviewed evidence.</div>}
@@ -285,7 +317,7 @@ export default function App() {
         </div></div>
         {result && <div className={`sequence-status mono ${loopRunning ? 'running' : ''}`} role="status">{loopLabel}</div>}
         {result?.warnings.length ? <div className="search-warnings mono">{result.warnings.map((warning, index) => <div key={index}>{warning}</div>)}</div> : null}
-        {selected ? <ReferencePanel key={`${result?.search_id}:${selected.clip_id}`} candidate={selected} stage={stage} autoPlaying={loopRunning} sequenceLabel={loopLabel} onRetry={() => retry('live')} actionError={actionError} /> : results.length ? <div className="empty">{loopLabel}</div> : null}
+        {selected ? <ReferencePanel key={`${result?.search_id}:${selected.clip_id}`} candidate={selected} stage={stage} autoPlaying={loopRunning} actionActive={loopRunning && loopProgress?.phase === 'running' && loopProgress.candidate?.clip_id === selected.clip_id} actionElapsedMs={actionStartedAt == null ? 0 : Math.max(0, clock.getTime() - actionStartedAt)} sequenceLabel={loopLabel} onRetry={() => retry('live')} actionError={actionError} /> : results.length ? <div className="empty">{loopLabel}</div> : null}
       </aside>
     </main>
     <footer className="stage-footer"><ol className="stage-list" aria-label="Demo progress">{STAGES.map((label, index) => <li key={label} className={`step ${index === 1 && (stage === 'nomatch' || stage === 'failed') ? 'bad' : index < currentIndex ? 'done' : index === currentIndex ? 'cur' : ''}`} aria-current={index === currentIndex ? 'step' : undefined}><span className="mono step-number">{String(index + 1).padStart(2, '0')}</span>{label}</li>)}</ol><div className="rehearsal-controls"><span className="label secondary">Rehearse UI</span><button className="seg" onClick={() => rehearse('nomatch')}>No match</button><button className="seg" onClick={() => rehearse('timeout')}>Timeout</button><span className="mono end-tape">End of tape · be kind, rewind</span></div></footer>

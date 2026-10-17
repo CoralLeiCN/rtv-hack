@@ -25,22 +25,22 @@ from .vss import VSSClient
 
 SCENARIOS = {
     "deer-feeding": {"id": "deer-feeding", "label": "Forage together", "animal": "deer", "behavior_hint": "feeding",
-        "interaction": "co-feeding", "description": "Two deer forage together; the duck imitates the focal animal beside its companion.",
+        "interaction": "co-feeding", "description": "A deer meets the duck, which copies one animal's role from deer–deer foraging footage.",
         "query": "Two deer interacting while grazing together side by side, one deer lowering its head to feed beside the other deer"},
     "deer-walking": {"id": "deer-walking", "label": "Follow companion", "animal": "deer", "behavior_hint": "following",
-        "interaction": "following a companion", "description": "One deer follows another deer; the duck imitates the following animal.",
+        "interaction": "following a companion", "description": "A deer meets the duck, which copies the following animal from deer–deer footage.",
         "query": "Two deer interacting, one deer walking behind and following another deer"},
     "deer-standing": {"id": "deer-standing", "label": "Herd alert", "animal": "deer", "behavior_hint": "alert",
-        "interaction": "shared alert pause", "description": "Two deer pause alert together; the duck imitates the focal animal's still response.",
+        "interaction": "shared alert pause", "description": "A deer meets the duck, which copies an alert response from deer–deer footage.",
         "query": "Two deer interacting, both deer stop together and stand still alert beside each other"},
     "cat-hissing": {"id": "cat-hissing", "label": "Hissing", "animal": "cat", "behavior_hint": "hissing",
-        "interaction": "directed hiss and boundary response", "description": "One cat hisses at another cat; the duck imitates a supported focal animal response.",
+        "interaction": "directed hiss and boundary response", "description": "A cat meets the duck, which copies a supported response from cat–cat footage.",
         "query": "Two domestic cats interacting, one cat hissing at another cat and the other cat backing away"},
     "cat-greeting": {"id": "cat-greeting", "label": "Greeting", "animal": "cat", "behavior_hint": "greeting",
-        "interaction": "social approach and greeting", "description": "One cat approaches and greets another cat; the duck imitates the focal animal's approach.",
+        "interaction": "social approach and greeting", "description": "A cat meets the duck, which copies one animal's greeting from cat–cat footage.",
         "query": "Two domestic cats interacting, one cat approaching another cat and sniffing the other cat in a greeting"},
     "cat-play": {"id": "cat-play", "label": "Social play", "animal": "cat", "behavior_hint": "play",
-        "interaction": "play with a companion", "description": "Two cats play together; the duck imitates supported movement from the focal animal.",
+        "interaction": "play with a companion", "description": "A cat meets the duck, which copies one animal's play movement from cat–cat footage.",
         "query": "Two domestic cats interacting and playing with each other, one cat playfully following or chasing the other cat"},
 }
 for scenario in SCENARIOS.values():

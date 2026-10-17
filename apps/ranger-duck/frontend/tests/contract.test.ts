@@ -58,7 +58,7 @@ describe('evidence authorization and asynchronous invalidation', () => {
 });
 
 describe('automatic top-three loop', () => {
-  it('executes ranks in order, visibly skips gaps, recenters each cycle, and never overlaps actions', async () => {
+  it('executes ranks in order, visibly skips gaps, awaits each cycle boundary, and never overlaps actions', async () => {
     vi.useFakeTimers();
     const controller = new AbortController();
     const order: string[] = [];
@@ -111,6 +111,22 @@ describe('automatic top-three loop', () => {
     await vi.advanceTimersByTimeAsync(300);
     expect((await task).message).toContain('did not become ready');
     expect(perform).not.toHaveBeenCalled();
+  });
+  it('aborts before a stopped simulator rejects and never reports completion or advances rank', async () => {
+    let rejectMotion!: (error: Error) => void;
+    const motion = new Promise<void>((_, reject) => { rejectMotion = reject; });
+    const controller = new AbortController();
+    const progress: LoopProgress[] = [];
+    const perform = vi.fn().mockReturnValue(motion);
+    const task = runReferenceLoop({ candidates: [reviewed('1'), reviewed('2')], signal: controller.signal, prepareCycle: async () => {}, status: () => 'ready', perform, onProgress: value => progress.push(value) }).catch(error => error);
+    await vi.waitFor(() => expect(perform).toHaveBeenCalledTimes(1));
+    // Visibility pause and manual Stop both invalidate the sequence first.
+    controller.abort();
+    rejectMotion(new Error('Movement cancelled'));
+    expect((await task).name).toBe('AbortError');
+    await Promise.resolve();
+    expect(progress.some(value => value.phase === 'completed' || value.rank === 2)).toBe(false);
+    expect(perform).toHaveBeenCalledTimes(1);
   });
   it('does not start a cycle when all original top-three ranks are unsupported', async () => {
     const prepareCycle = vi.fn();
