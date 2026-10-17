@@ -6,7 +6,7 @@ function fixture() {
   const runtime: Runtime = {
     mode: 'walk', groundPickPhase: null, recovery: null, respawnActive: false, inputLocked: false,
     data: { qpos: new Float64Array([-0.6, 0, 0.2, 1, 0, 0, 0]), qvel: new Float64Array(6), time: 0 },
-    headTarget: new Float32Array(4), headYaw: 0,
+    headTarget: new Float32Array(4), headYaw: 0, headPitch: 0.39, sitFlag: 0,
     controller: { addSource: vi.fn() }, resetSim: vi.fn(),
   };
   const changed = vi.fn();
@@ -225,4 +225,78 @@ describe('separate continuous navigation', () => {
     expect(adapter.navigationStatus()).toBe('idle');
     expect(runtime.resetSim).not.toHaveBeenCalled();
   });
+});
+
+describe('observed posture and vertical head actions', () => {
+  it('requires real pitch travel and a return to the starting pitch for a nod', async () => {
+    const { adapter, runtime, advance } = fixture();
+    const result = adapter.perform({ primitive: 'head_nod', evidenceId: 'vertical-head-clip' });
+    advance(600);
+    expect(runtime.headTarget[1]).toBeGreaterThan(0.2);
+    expect(runtime.headTarget[2]).toBe(0);
+    runtime.headPitch = 0.65; advance(400);
+    runtime.headPitch = 0.15; advance(800);
+    advance(700);
+    expect(adapter.status()).toBe('busy');
+    runtime.headPitch = 0.39; advance(100); advance(350);
+    await result;
+    expect(adapter.status()).toBe('complete');
+    expect([...runtime.headTarget]).toEqual([0, 0, 0, 0]);
+  });
+
+  it('observes the seated body height and native stand-up before completion', async () => {
+    vi.useFakeTimers();
+    const { adapter, runtime, advance } = fixture();
+    adapter.source.onAction = vi.fn();
+    const result = adapter.perform({ primitive: 'sit_cycle', evidenceId: 'sitting-clip' });
+    expect(adapter.source.onAction).toHaveBeenCalledWith('sitToggle');
+    runtime.mode = 'sitstand'; runtime.sitFlag = 1;
+    advance(1000);
+    expect(adapter.status()).toBe('busy');
+    (runtime.data.qpos as Float64Array)[2] = 0.14; advance(500);
+    vi.advanceTimersByTime(3000);
+    expect(adapter.source.onAction).toHaveBeenCalledWith('walk');
+    advance(1600);
+    expect(adapter.status()).toBe('busy');
+    runtime.mode = 'walk'; runtime.sitFlag = 0;
+    (runtime.data.qpos as Float64Array)[2] = 0.2; advance(2100); advance(350);
+    await result;
+    expect(adapter.status()).toBe('complete');
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unsafe short sit window and cancels a sit without a stale return timer', async () => {
+    vi.useFakeTimers();
+    const { adapter, runtime } = fixture();
+    adapter.source.onAction = vi.fn();
+    await expect(adapter.perform({ primitive: 'sit_cycle', evidenceId: 'clip', maxDurationMs: 2000 })).rejects.toThrow('enough time');
+    const result = adapter.perform({ primitive: 'sit_cycle', evidenceId: 'clip' });
+    const rejection = expect(result).rejects.toThrow('cancelled');
+    adapter.stop();
+    await rejection;
+    expect(adapter.source.onAction).toHaveBeenLastCalledWith('walk');
+    const calls = vi.mocked(adapter.source.onAction).mock.calls.length;
+    vi.advanceTimersByTime(10000);
+    expect(adapter.source.onAction).toHaveBeenCalledTimes(calls);
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+  });
+});
+
+it('preserves the native sit-to-stand transition across repeated Stop/preparation calls', async () => {
+  const { adapter, runtime, advance } = fixture();
+  adapter.source.onAction = vi.fn(action => {
+    if (action === 'sitToggle') { runtime.mode = 'sitstand'; runtime.sitFlag = 1; }
+    if (action === 'walk') runtime.sitFlag = 0;
+  });
+  const result = adapter.perform({ primitive: 'sit_cycle', evidenceId: 'sitting-clip' });
+  const rejection = expect(result).rejects.toThrow('cancelled');
+  adapter.stop();
+  await rejection;
+  adapter.stop();
+  const preparation = adapter.prepareCycle();
+  expect(vi.mocked(adapter.source.onAction).mock.calls.filter(([action]) => action === 'walk')).toHaveLength(1);
+  expect(runtime.mode).toBe('sitstand');
+  runtime.mode = 'walk'; advance(2200); advance(300);
+  await preparation;
+  expect(runtime.resetSim).not.toHaveBeenCalled();
 });

@@ -27,13 +27,18 @@ Local changes to the upstream source:
 - Multiplayer, alternate/custom policy loading, arcade props and audio are disabled.
 - The ball stays parked out of sight. No additional model downloads occur at runtime.
 - Explicit disposal stops inference and frees runtime resources on unmount.
-- Actual MuJoCo head yaw is exposed for verified completion of a bounded scan.
+- Actual MuJoCo head yaw/pitch are exposed for verified completion of bounded scans/nods.
 
 The source deliberately preserves the established physics/controller logic.
 Unused upstream action handlers remain private to the game; the public app
-adapter allows only `ground_pick`, `short_walk`, `stand_hold`, and `head_scan`.
-The scan uses the existing policy's head target and requires observed joint
-motion and a neutral return. Reverse motion is unsupported: browser checks of
+adapter allows `ground_pick`, `short_walk`, `stand_hold`, `head_scan`,
+`head_nod`, and `sit_cycle`. Scans/nods use the existing policy's head targets
+at ±0.3 radians and require observed joint travel and a neutral return.
+A sit cycle uses the bundled sit/stand policy, requires an observed lowered
+trunk and standing return, and has a 6000 ms motion window. Stop requests the
+native two-second stand-up once; repeated cancellation preserves that hand-back.
+Head nods require vertical head-motion evidence; sitting requires explicit
+sitting evidence. Neither is inferred from the encounter hint. Reverse motion is unsupported: browser checks of
 small reverse commands did not produce a usable retreat with this policy.
 
 `prepareCycle()` waits for unlocked, upright, settled physics before the next

@@ -4,7 +4,32 @@ export type AnimalSpecies = 'cat' | 'deer';
 export type AnimalPose = 'standing' | 'walking' | 'feeding' | 'hissing' | 'greeting' | 'alert' | 'play';
 export interface AnimalActor {
   root: THREE.Group;
-  pose(kind: AnimalPose, time: number): void;
+  pose(kind: AnimalPose, time: number, dt?: number): void;
+}
+
+// Preserve the original animal geometry and articulated poses, while easing
+// between them without allocating new vectors on each animation frame.
+function poseSmoother(parts: THREE.Object3D[]) {
+  const previous = new Float64Array(parts.length * 9);
+  return {
+    capture() {
+      parts.forEach((part, i) => {
+        const j = i * 9;
+        previous[j] = part.position.x; previous[j + 1] = part.position.y; previous[j + 2] = part.position.z;
+        previous[j + 3] = part.rotation.x; previous[j + 4] = part.rotation.y; previous[j + 5] = part.rotation.z;
+        previous[j + 6] = part.scale.x; previous[j + 7] = part.scale.y; previous[j + 8] = part.scale.z;
+      });
+    },
+    apply(dt: number) {
+      const amount = 1 - Math.exp(-12 * Math.max(0, Math.min(dt, 0.05)));
+      parts.forEach((part, i) => {
+        const j = i * 9, mix = (n: number, target: number) => THREE.MathUtils.lerp(previous[j + n], target, amount);
+        part.position.set(mix(0, part.position.x), mix(1, part.position.y), mix(2, part.position.z));
+        part.rotation.set(mix(3, part.rotation.x), mix(4, part.rotation.y), mix(5, part.rotation.z));
+        part.scale.set(mix(6, part.scale.x), mix(7, part.scale.y), mix(8, part.scale.z));
+      });
+    },
+  };
 }
 
 export function createCat(secondary = false): AnimalActor {
@@ -86,15 +111,17 @@ export function createCat(secondary = false): AnimalActor {
   cue.scale.set(0.45, 0.1125, 1); cue.position.set(-0.04, 0.64, 0); cue.visible = false;
   root.add(cue);
   root.visible = false;
+  const smooth = poseSmoother([torso, body, ...legs, head, ...ears, jaw, tail]);
   return {
     root,
-    pose(kind, time) {
+    pose(kind, time, dt = 1 / 60) {
+      smooth.capture();
       const hissing = kind === 'hissing';
       const playful = kind === 'play';
       torso.position.y = hissing ? 0.265 : playful ? 0.19 : 0.22;
       body.scale.y = hissing ? 0.15 : 0.115;
       legs.forEach((leg, i) => {
-        leg.rotation.z = kind === 'walking' ? Math.sin(time * 9 + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.32 : 0;
+        leg.rotation.z = kind === 'walking' ? Math.sin(time + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.32 : 0;
         if (playful && i === 0) leg.rotation.z = -0.85 + Math.sin(time * 5) * 0.28;
       });
       head.rotation.z = kind === 'feeding' ? 0.9 : hissing ? -0.1 : playful ? 0.17 : 0;
@@ -106,6 +133,7 @@ export function createCat(secondary = false): AnimalActor {
       tail.rotation.z = kind === 'greeting' ? -0.3 : hissing ? 0.8 : 0.2;
       tail.rotation.x = hissing ? Math.sin(time * 9) * 0.12 : Math.sin(time * 2) * 0.25;
       cue.visible = hissing;
+      smooth.apply(dt);
     },
   };
 }
@@ -161,14 +189,15 @@ export function createDeer(secondary = false): AnimalActor {
   deer.scale.setScalar(0.72);
   deer.position.set(2.8, 0, -0.15);
   deer.visible = false;
-
-
+  const smooth = poseSmoother([...legs, neck]);
   return {
     root: deer,
-    pose(kind, time) {
-      legs.forEach((leg, i) => { leg.rotation.z = kind === 'walking' ? Math.sin(time * 7 + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.22 : 0; });
+    pose(kind, time, dt = 1 / 60) {
+      smooth.capture();
+      legs.forEach((leg, i) => { leg.rotation.z = kind === 'walking' ? Math.sin(time + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.22 : 0; });
       neck.rotation.z = kind === 'feeding' ? 2.1 + Math.sin(time * 1.8) * 0.055 : Math.sin(time * 0.8) * 0.025;
       neck.rotation.y = kind === 'alert' ? Math.sin(time * 1.7) * 0.16 : 0;
+      smooth.apply(dt);
     },
   };
 }

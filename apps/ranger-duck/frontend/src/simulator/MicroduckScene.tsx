@@ -39,15 +39,23 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
   const clearing = useRef<ReturnType<typeof createClearing> | null>(null);
   const status = useRef<DuckStatus>('loading');
   const pendingEncounter = useRef<SceneEncounter | null>(null);
+  const motionGeneration = useRef(0);
 
   useImperativeHandle(ref, () => ({
     perform: action => adapter.current?.perform(action) ?? Promise.reject(new Error('Simulator is still loading.')),
-    stop: () => adapter.current?.stop(),
+    stop: () => { motionGeneration.current += 1; clearing.current?.stop(); adapter.current?.stop(); },
     roam: () => adapter.current?.roam(),
-    approach: () => adapter.current?.approach() ?? Promise.reject(new Error('Simulator is still loading.')),
-    reset: () => { pendingEncounter.current = null; clearing.current?.reset(); adapter.current?.reset(); },
+    approach: async () => {
+      const generation = ++motionGeneration.current;
+      callbacks.current.onNavigation?.('settling');
+      await clearing.current?.prepareInteraction();
+      if (generation !== motionGeneration.current || !adapter.current) throw new DOMException('Approach cancelled.', 'AbortError');
+      await adapter.current.approach();
+    },
+    reset: () => { motionGeneration.current += 1; pendingEncounter.current = null; clearing.current?.reset(); adapter.current?.reset(); },
     prepareCycle: () => adapter.current?.prepareCycle() ?? Promise.reject(new Error('Simulator is still loading.')),
     startEncounter: encounter => {
+      motionGeneration.current += 1;
       pendingEncounter.current = encounter;
       clearing.current?.reset();
       adapter.current?.reset();
@@ -147,6 +155,8 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       api.frame?.(dt);
       if (booted) {
         adapter.current?.tick(callbacks.current.searching);
+        const navigation = adapter.current?.navigationStatus();
+        clearing.current?.setActivity(navigation === 'roaming' ? 'patrol' : navigation === 'approaching' || navigation === 'settling' || adapter.current?.status() === 'busy' ? 'interact' : 'hold');
         const rl = runtime();
         // Follow the continuous encounter gently without changing physics.
         const q = rl.data.qpos;
@@ -171,6 +181,7 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
     raf = requestAnimationFrame(frame);
     return () => {
       disposed = true;
+      motionGeneration.current += 1;
       cancelAnimationFrame(raf);
       resize.disconnect();
       adapter.current?.dispose();

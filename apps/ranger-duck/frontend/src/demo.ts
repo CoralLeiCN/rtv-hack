@@ -13,7 +13,7 @@ export function searchDeadlineMs(backendBudget: unknown): number {
 
 export function isEligible(candidate: Candidate | null | undefined): candidate is Candidate & { action: NonNullable<Candidate['action']> } {
   if (!candidate?.action || typeof candidate.action.evidence_id !== 'string' || !candidate.action.evidence_id.trim()) return false;
-  if (!['ground_pick', 'short_walk', 'stand_hold', 'head_scan'].includes(candidate.action.primitive)) return false;
+  if (!['ground_pick', 'short_walk', 'stand_hold', 'head_scan', 'head_nod', 'sit_cycle'].includes(candidate.action.primitive)) return false;
   if (!Number.isFinite(candidate.action.max_duration_ms) || candidate.action.max_duration_ms <= 0) return false;
   return (candidate.action_basis === 'video_caption' && ['caption_behavior_match', 'caption_interaction_match'].includes(candidate.eligibility_reason)) ||
     ((candidate.action_basis === 'reviewed' || candidate.action_basis == null) && candidate.review_status === 'reviewed' && candidate.eligibility_reason === 'reviewed_match');
@@ -31,7 +31,7 @@ export function visibleCandidates(candidates: Candidate[]): { candidate: Candida
 
 export type LoopPhase = 'preparing' | 'approaching' | 'waiting' | 'running' | 'completed' | 'roaming' | 'cycle_complete';
 export function motionLabel(primitive: Primitive): string {
-  return { stand_hold: 'Holding a steady stance', head_scan: 'Looking around', short_walk: 'Walking / turning within the arena', ground_pick: 'Dipping toward the ground' }[primitive];
+  return { sit_cycle: 'Sitting down and standing back up', head_nod: 'Nodding up and down', stand_hold: 'Holding a steady stance', head_scan: 'Looking around', short_walk: 'Walking / turning within the arena', ground_pick: 'Dipping toward the ground' }[primitive];
 }
 export function loopPhaseLabel(phase: LoopPhase): string {
   return { preparing: 'waiting for balance', approaching: 'approaching the animal', waiting: 'waiting for balance', running: 'active', completed: 'action complete', roaming: 'roaming between cycles', cycle_complete: 'continuing to the next pass' }[phase];

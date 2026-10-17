@@ -18,7 +18,7 @@ MuJoCo canvas, and replace the mock data with the `/demo-api` routes.
 
 ## Current interaction update
 
-The user subsequently requested Cat/Deer choices, same-species encounters, and automatic looping through the first three compatible video actions. The implementation retains this export's visual design but supersedes its manual Copy flow and reviewed-only gating. The scene uses one animal fixed outside the box. The duck roams, approaches it for actions, and keeps the same physics state across video loops. Single-animal footage is eligible; incompatible results are filtered before selecting the three actions. It shows inferred versus reviewed action basis, automatically advances supported references, and provides Stop/Resume and Reset. See the current plan and API contract linked above; the original HTML mockups remain historical design references.
+The user subsequently requested Cat/Deer choices, same-species encounters, and automatic looping through the first three compatible video actions. The implementation retains this export's visual design but supersedes its manual Copy flow and reviewed-only gating. One animal patrols outside the box and returns to its interaction mark before the duck approaches for actions. The original animal models remain in use. The duck keeps the same physics state across video loops. Single-animal footage is eligible; incompatible results are filtered before selecting the three actions, and supported active behavior takes priority within each caption. It shows inferred versus reviewed action basis, automatically advances supported references, and provides Stop/Resume and Reset. See the current plan and API contract linked above; the original HTML mockups remain historical design references.
 
 ## Design language
 

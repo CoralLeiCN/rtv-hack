@@ -2171,6 +2171,7 @@ async function boot({ scene, camera, renderer }) {
     },
     get headMode() { return headMode; },
     toggleHeadMode, headTarget, headSmooth,
+    get headPitch() { return data.qpos[qposAdr[6]]; }, // Actual pitch for verified nod completion.
     get headYaw() { return data.qpos[qposAdr[7]]; }, // Ranger Duck observes actual head-joint motion.
     get ballActive() { return ballActive; },
     get ballQposAdr() { return ballQposAdr; },

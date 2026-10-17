@@ -1,6 +1,6 @@
 # Ranger Duck interaction reference
 
-The user selected same-species reference interactions: domestic cat–cat and deer–deer. The simulated duck copies a bounded approximation of a behavior described in each retrieved clip. The scene has one animal fixed outside the arena and facing the duck; retrieved footage, its video-model caption, and the duck controller remain separate sources of information.
+The user selected same-species reference interactions: domestic cat–cat and deer–deer. The simulated duck copies a bounded approximation of a behavior described in each retrieved clip. One scripted animal patrols outside the arena and returns to face the duck for interactions; retrieved footage, its video-model caption, and the duck controller remain separate sources of information.
 
 ## Cat encounters
 
@@ -32,7 +32,9 @@ Caption-derived actions are labeled `video_caption`, with the inferred behavior 
 
 The frontend filters all retrieved candidates for compatible actions and takes the first three in retrieval order. It shows each action's position and original source rank. Unsupported results do not occupy a card or queue slot. If only one or two qualify, loop those available actions without inventing a third.
 
-The animal remains at its fixed position outside the yellow box. The duck roams between passes, approaches the animal before each action and then executes it. Navigation is not presented as behavior copied from a clip. Stop or Reset cancels all movement, and ordinary video/cycle changes preserve the duck body and physics clock.
+Within each caption, supported active behavior takes precedence over stillness, while matching the selected animal and retaining negation checks. Walking, beak dipping, head nodding, head scanning, sitting then standing, and a standing hold are available. The [motion inventory](RANGER_DUCK_ANIMATION.md) lists the precise priority, tested limits and other native capabilities that remain disabled.
+
+The animal patrols outside the yellow box while the duck roams, then returns to its interaction mark and settles before duck approach. The duck executes the evidence action after arriving. Navigation is not presented as behavior copied from a clip. Stop or Reset cancels all movement, and ordinary video/cycle changes preserve the duck body and physics clock.
 
 ## Archive observations, 17 October
 

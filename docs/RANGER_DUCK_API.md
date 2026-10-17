@@ -1,6 +1,6 @@
 # Ranger Duck frontend and backend contract
 
-Contract version 1, updated 17 October 2026 for same-species interactions and an automatic sequence. The frontend and backend implement these routes.
+Contract version 1, updated 17 October 2026 for six supported motions, caption activity priority and an automatic sequence. The frontend and backend implement these routes.
 
 Use relative `/demo-api/` URLs. For separate frontend development, proxy that prefix to the backend on `127.0.0.1:8000` through the frontend dev server. Forward cookies and Range headers. This preserves same-origin behavior and avoids exposing VSS credentials. Production may serve the built frontend through the same backend when a static directory is configured.
 
@@ -129,13 +129,15 @@ Candidate rules:
 - `similarity` is a retrieval score, not a probability. `dataset` and interval times may be null for incomplete upstream data; such a result may still be playable without authorizing movement.
 - `caption_hash` hashes the exact upstream caption before display redaction. `review_reason` is a reviewer's actual recorded note, or null. Do not invent a review.
 - `eligibility_reason` is a machine-readable explanation such as `caption_behavior_match`, `reviewed_match`, `reference_changed`, `incomplete_metadata`, or `interaction_not_supported`. Clients tolerate additional reasons.
-- Supported `primitive` values are `ground_pick` (8000 ms ceiling), `short_walk` (2000), `stand_hold` (3000), and `head_scan` (2400). Retreat-only evidence is unsupported because backward walking was not reliable in physics checks.
-- `max_duration_ms` bounds the controller command; success requires observed execution and settling. It is not a promised completion time.
+- Supported `primitive` values are `ground_pick` (8000 ms motion window), `short_walk` (2000), `head_nod` (2400), `head_scan` (2400), `sit_cycle` (6000), and `stand_hold` (3000). `head_nod` needs explicit vertical head movement; `sit_cycle` needs explicit sitting/seated evidence, not lying. Retreat-only evidence is unsupported because backward walking was not reliable in physics checks.
+- `max_duration_ms` bounds the controller command; success requires observed execution and settling. It is not a promised completion time. The adapter rejects a sit window below 5500 ms and preserves the native stand-up when canceled; it does not abruptly switch policies.
 - `warnings` contains human-readable non-secret messages. No SQL, vectors, VSS tokens, or private storage URIs are returned.
+
+Within each caption, supported actions are considered in this order: `short_walk`, `ground_pick`, `head_nod`, `head_scan`, `sit_cycle`, `stand_hold`. The classifier checks all caption phrases at each priority, preserving selected-species actor attribution, negation and uncertainty checks. This selects active observed behavior over a simultaneous static description; it does not override an exact current review or reorder retrieval results. See the [motion inventory](RANGER_DUCK_ANIMATION.md).
 
 The frontend filters all returned candidates by compatibility, sorts by original `rank`, and uses up to three eligible actions. Queue positions are 1–3; source rank stays visible for provenance. Incompatible clips do not occupy a card or loop slot, and a later source rank can fill a queue position. If fewer than three qualify, show the actual count.
 
-The animal stays at a fixed position outside the box. The duck roams while waiting and between passes, approaches the animal before an evidence action, settles, then performs it. Navigation is distinct from the reference-derived motion and does not overlap it. Preserve the same duck body and physics clock throughout; repeat the same queue without new searches or resets.
+One animal may patrol outside the east side of the yellow box while the duck roams. Before an evidence action, the animal returns to its interaction anchor and faces the duck; the browser waits for that observed settling, then the duck approaches, settles and performs the action. Navigation is distinct from the reference-derived motion and does not overlap it. Preserve the same duck body and physics clock throughout; repeat the same queue without new searches or resets.
 
 Stop/Resume controls both navigation and the action sequence. Reset, changed encounters, replacement searches, hidden-tab pause and teardown cancel motion. A visibility-only pause automatically resumes on return; manual Stop or reference inspection stays paused. Ignore responses whose encounter ID is no longer current.
 
@@ -169,7 +171,7 @@ Expected cases include 422 `invalid_request`, 404 `unknown_scenario`, 503 `live_
 
 1. Load health and the encounter catalog. Await health before sending any searches to establish the session cookie.
 2. Start the selected scene and create a new encounter ID.
-3. Send the search request when the fixed-animal encounter is ready; the animal does not translate into the box.
+3. Send the search request when the one-animal encounter is ready. The animal may patrol outside the box; it never enters the duck arena.
 4. Display results, measured time, and a selected reference video on the same page.
 5. Select the first three compatible actions, display their source ranks, and loop through approach, evidence action and roaming phases. Preserve physics across clips and cycles; repeat without another search.
 6. On Reset, abort the pending fetch, invalidate the encounter ID, stop the motion, and clear the previous evidence selection.

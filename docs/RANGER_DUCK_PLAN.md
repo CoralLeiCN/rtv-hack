@@ -1,18 +1,18 @@
 # Ranger Duck implementation plan
 
-Current scope, updated 17 October 2026: one page combines one fixed animal outside the duck arena, a roaming physics-simulated duck, live archive search, and the three highest-ranked compatible video actions. This supersedes the original manual-selection/Copy flow. The user selected cat–cat and deer–deer reference interactions.
+Current scope, updated 17 October 2026: one page combines one animal permitted to patrol outside the duck arena, a roaming physics-simulated duck, live archive search, and the three highest-ranked compatible video actions. This supersedes the original manual-selection/Copy flow. The user selected cat–cat and deer–deer reference interactions.
 
-The implementation follows the [design handoff](../apps/ranger-duck/design/README.md), with added species/interaction controls and automatic sequence status. See the [API contract](RANGER_DUCK_API.md), [behavior research](RANGER_DUCK_INTERACTIONS.md), and [startup instructions](../apps/ranger-duck/README.md).
+The implementation follows the [design handoff](../apps/ranger-duck/design/README.md), with added species/interaction controls and automatic sequence status. See the [API contract](RANGER_DUCK_API.md), [behavior research](RANGER_DUCK_INTERACTIONS.md), and [startup instructions](../apps/ranger-duck/README.md), and [motion inventory](RANGER_DUCK_ANIMATION.md).
 
 ## Inputs and outputs
 
 | Stage | Input | Output |
 | --- | --- | --- |
-| Choose encounter | Cat or deer, plus one interaction | One stationary animal outside the box, facing the duck |
+| Choose encounter | Cat or deer, plus one interaction | One procedural animal outside the box, with bounded patrol and facing |
 | Start | Selected catalog entry | Encounter ID, focal animal, same-species partner, behavior hint |
 | Retrieve | A query describing that species pair and interaction | Actual ranked VSS segment results and measured latency |
 | Interpret evidence | Each returned segment's video-model caption and provenance | A supported bounded action, or a visible reason to skip |
-| Run sequence | First three compatible actions in retrieval order | Approach the fixed animal, play a reference and perform its action |
+| Run sequence | First three compatible actions in retrieval order | Wait for the animal to return to its anchor, approach it, play a reference and perform its action |
 | Repeat | The same compatible action queue | Roam between passes, then approach again; no reset or new search |
 | Stop or Reset | Presenter control or a changed encounter | Cancellation of the current sequence and movement |
 
@@ -29,7 +29,7 @@ The encounter hint supplies the query only. It never directly supplies the duck 
 | Deer–deer | Follow companion | One deer follows another |
 | Deer–deer | Herd alert | One deer responds to another becoming alert |
 
-The [research note](RANGER_DUCK_INTERACTIONS.md) gives authoritative behavior sources and observable signals. The scene shows one animal at a fixed position outside the yellow box. It may animate its posture and face the duck but does not translate. The duck roams inside the arena when no evidence action is running, approaches the animal before responding, and continues with the same physics body. Navigation is labeled separately from video-induced behavior. The scripted animal has no MuJoCo collision body. The duck remains a real MuJoCo body controlled by the pinned pretrained policies. No new training, physical robot control, live animal interaction, or camera recognition is part of this demo.
+The [research note](RANGER_DUCK_INTERACTIONS.md) gives authoritative behavior sources and observable signals. The scene shows one animal outside the yellow box. The latest user request permits a bounded east-side patrol while the duck roams. Before an evidence action, the animal returns to its interaction anchor and faces the duck. The original articulated procedural cat/deer remain; the requested model replacement was canceled. The duck roams inside the arena when no evidence action is running, approaches the animal before responding, and continues with the same physics body. Navigation is labeled separately from video-induced behavior. The scripted animal has no MuJoCo collision body. The duck remains a real MuJoCo body controlled by the pinned pretrained policies. No new training, physical robot control, live animal interaction, or camera recognition is part of this demo.
 
 ## Architecture
 
@@ -64,7 +64,11 @@ Use the existing video-model caption to avoid another inference request. Require
 | Directed approach, following, supported play movement | `short_walk` |
 | Watching a partner or object | `head_scan`, labeled as an attentive head-turn approximation |
 | Alert pause or stationary hissing boundary | `stand_hold` |
-| Turning or raising the head | `head_scan` |
+| Turning the head | `head_scan` |
+| Explicit nodding or vertical head raise/lower/dip | `head_nod` |
+| Explicit sitting or seated posture | `sit_cycle`, then a safe standing return |
+
+Within a caption, choose the most active supported observed behavior using `short_walk → ground_pick → head_nod → head_scan → sit_cycle → stand_hold`. Apply species/actor attribution, negation and uncertainty checks before accepting a match. Feeding outranks its associated head lowering, and walking outranks simultaneous standing. This does not reorder archive results or override a valid exact review. Motion windows are 2000/8000/2400/2400/6000/3000 ms respectively; observed controller completion and settling are still required. See the [complete capability inventory and test record](RANGER_DUCK_ANIMATION.md).
 
 The hissing scene is scripted. A pause is not an actual reproduced hiss. Backward walking did not produce reliable movement in physics checks, so retreat-only clips remain unsupported. Unsupported jumping, grooming, biting and pouncing do not become arbitrary duck movements.
 
@@ -74,9 +78,9 @@ Each candidate exposes its action basis, inferred behavior, reason, evidence ID 
 
 After search, filter all returned candidates for supported actions, preserve retrieval order, and take up to three. Display action positions 1–3 with their original source ranks. Incompatible clips do not occupy a card or loop slot. Show the actual queue size if fewer than three actions qualify. If none qualify, keep the duck roaming and explain why no evidence action is available.
 
-Before an evidence action, navigate toward the fixed animal, settle and then execute the bounded motion. Between passes, roam without resetting physics or sending another search. Navigation and evidence actions never run at the same time.
+Before an evidence action, wait for the animal to return to its anchor and face the duck, then navigate the duck toward it, settle and execute the bounded motion. Between passes, roam without resetting physics or sending another search. Navigation and evidence actions never run at the same time.
 
-Repeat until Stop, Reset, a changed scenario, replacement search or teardown. Stop also halts roaming and approach. Pause while hidden and resume on return only when visibility caused the pause. Manual Stop and reference inspection remain paused. Only explicit Reset or a new encounter resets the body; clip and cycle transitions preserve it.
+Repeat until Stop, Reset, a changed scenario, replacement search or teardown. Stop also halts roaming, animal patrol/return and duck approach. An in-progress sit uses its native standing return; repeated Stop calls preserve that transition. Pause while hidden and resume on return only when visibility caused the pause. Manual Stop and reference inspection remain paused. Only explicit Reset or a new encounter resets the body; clip and cycle transitions preserve it.
 
 Never overlap movements. Reset and cancellation invalidate both pending searches and actions. Controller recovery, failed playback, missing evidence and timeouts have visible outcomes; they do not produce fabricated success.
 

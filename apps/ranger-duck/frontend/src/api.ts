@@ -1,5 +1,5 @@
 export type SearchMode = 'live' | 'replay';
-export type Primitive = 'ground_pick' | 'short_walk' | 'stand_hold' | 'head_scan';
+export type Primitive = 'ground_pick' | 'short_walk' | 'stand_hold' | 'head_scan' | 'head_nod' | 'sit_cycle';
 
 export interface Health {
   status: string;

@@ -42,7 +42,8 @@ committed. See the simulator setup and attribution beside the asset script.
 
 Choose Cat or Deer and an interaction, then press Start. One animal of the
 selected species stays outside the marked box. Microduck roams during the
-archive search, then approaches the fixed animal before each evidence action.
+archive search while the animal patrols outside. The animal returns and settles
+at its interaction mark before Microduck approaches for each evidence action.
 Queries remain interaction-specific, while an explicitly described supported
 behavior from a single animal can also authorize an approximation. The complete
 ranked response is filtered for compatible actions before choosing up to three.
@@ -51,6 +52,12 @@ preserves its original source rank. Unsupported references do not appear as
 cards or empty queue slots. Fewer than three compatible actions are shown as
 the actual count. The current video is selected automatically and attempts
 muted, looping playback.
+
+Within each caption, supported active behavior takes priority over stillness.
+The six evidence actions are walking/turning, beak dipping, head nodding, head
+scanning, sitting then standing, and a standing hold. The complete native
+controller inventory and tested limits are in
+[the motion reference](../../../docs/RANGER_DUCK_ANIMATION.md).
 
 Duck physics continue across reference and cycle boundaries: no pose reset,
 scene reload, or new search occurs. The duck roams between cycles and when no

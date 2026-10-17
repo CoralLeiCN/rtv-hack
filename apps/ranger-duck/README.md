@@ -31,11 +31,15 @@ The default backend target is `http://127.0.0.1:8000`. Open the Local URL printe
 ## Demo flow
 
 1. Wait for the simulator and backend catalog. Choose Cat or Deer, then an interaction.
-2. Press Start. One animal appears at a fixed spot outside the box, faces the duck, and triggers one live interaction search. The duck roams while waiting.
-3. The demo filters all returned clips and chooses the first three compatible actions in retrieval order. The duck approaches the animal, plays each reference muted and performs its video-induced movement. No Copy click is needed.
+2. Press Start. One animal appears outside the box and triggers one live interaction search. The duck roams while waiting; the animal can patrol outside the east side of the box.
+3. The demo filters all returned clips and chooses the first three compatible actions in retrieval order. The animal returns to its anchor and faces the duck; the duck then approaches, plays each reference muted and performs its video-induced movement. No Copy click is needed.
 4. The sequence repeats, with roaming between passes and the same duck body continuing throughout; physics is not reset. Stop pauses it, Resume starts a fresh cycle, and Reset clears the encounter. Changing species or interaction cancels the previous sequence.
 
 The backend derives actions from the returned clips' existing video-model captions and labels them as inferred. Each needs the selected species, a supported caption behavior and complete provenance. Single-animal clips are usable; only the search query requires interaction wording. Incompatible clips are filtered out before selecting the top three actions, and original source ranks remain visible. If no action qualifies, the duck continues roaming without inventing an imitation.
+
+The six supported motions are bounded walking/turning, beak dip, head scan, vertical head nod, sit-and-stand, and standing hold. Within each clip, the classifier prefers supported active behavior in the order walk → pick → nod → scan → sit → hold; it preserves retrieval rank and exact current reviews. Sitting requires explicit sitting evidence, and a nod requires vertical head-motion evidence. Stop cancels the sequence while allowing a seated duck to stand safely. See the [complete motion inventory](../../docs/RANGER_DUCK_ANIMATION.md).
+
+The animal motor improves patrol, gait and interaction settling while retaining the original articulated procedural cat/deer. The requested animal-model replacement was canceled; no generated model or external animal asset setup is required.
 
 Cat encounters cover hissing boundaries, greetings and social play; deer encounters cover co-foraging, following and group alert. A scripted hissing pose does not claim the retrieved clip contains a hiss. The movement explanation shows what the returned caption actually supports. See the [behavior research and limitations](../../docs/RANGER_DUCK_INTERACTIONS.md).
 

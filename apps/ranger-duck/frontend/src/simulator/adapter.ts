@@ -1,6 +1,6 @@
 export type DuckStatus = 'loading' | 'ready' | 'busy' | 'recovering' | 'complete' | 'failed';
 export type NavigationStatus = 'idle' | 'roaming' | 'approaching' | 'settling';
-export type Primitive = 'ground_pick' | 'short_walk' | 'stand_hold' | 'head_scan';
+export type Primitive = 'ground_pick' | 'short_walk' | 'stand_hold' | 'head_scan' | 'head_nod' | 'sit_cycle';
 export type DuckAction = { primitive: string; evidenceId: string; maxDurationMs?: number };
 
 export interface Runtime {
@@ -12,6 +12,8 @@ export interface Runtime {
   data: { qpos: ArrayLike<number>; qvel: ArrayLike<number>; time: number };
   headTarget: Float32Array;
   headYaw: number;
+  headPitch: number;
+  sitFlag: number;
   controller: { addSource(source: object): void };
   resetSim(): void;
 }
@@ -19,7 +21,8 @@ export interface Runtime {
 type Pending = {
   primitive: Primitive; start: number; simStart: number; x: number; y: number;
   duration: number; entered: boolean; maxPhase: number; stableSince: number | null;
-  minHeadYaw: number; maxHeadYaw: number; heading: number;
+  minHead: number; maxHead: number; initialHead: number; initialHeight: number; heading: number;
+  postureTimer?: ReturnType<typeof setTimeout>;
   resolve(): void; reject(error: Error): void; deadline: ReturnType<typeof setTimeout>;
 };
 type Navigation = {
@@ -46,6 +49,7 @@ export class DuckAdapter {
   private commandUntil = 0;
   private walkWaypoint = 0;
   private disposed = false;
+  private standingFromSit = false;
   readonly source: {
     id: string; connected: boolean; readonly command: Float32Array; axes: object;
     isActive(): boolean; poll(): void; onAction?: (action: string) => void;
@@ -58,9 +62,9 @@ export class DuckAdapter {
       // Read by the physics loop even when browser animation frames pause.
       get command() {
         const action = self.pending;
-        if (action?.primitive === 'head_scan') {
+        if (action?.primitive === 'head_scan' || action?.primitive === 'head_nod') {
           const elapsed = self.clock() - action.start;
-          self.runtime.headTarget[2] = elapsed < action.duration ? Math.sin(elapsed / action.duration * Math.PI * 2) * 0.3 : 0;
+          self.runtime.headTarget[action.primitive === 'head_nod' ? 1 : 2] = elapsed < action.duration ? Math.sin(elapsed / action.duration * Math.PI * 2) * 0.3 : 0;
         }
         if (self.outsideGuard() || self.runtime.recovery || self.runtime.inputLocked || self.runtime.respawnActive) self.vector.fill(0);
         else if (self.navigation && !self.navigation.reached) {
@@ -164,19 +168,24 @@ export class DuckAdapter {
     const pending = this.pending;
     this.pending = null;
     this.clearCommand();
-    if (pending) { clearTimeout(pending.deadline); pending.reject(new Error(message)); }
+    if (pending) {
+      clearTimeout(pending.deadline); clearTimeout(pending.postureTimer);
+      if (pending.primitive === 'sit_cycle') this.returnToWalk();
+      pending.reject(new Error(message));
+    }
     this.setStatus(recovering ? 'recovering' : 'failed');
   }
 
   perform(action: DuckAction): Promise<void> {
     if (this.disposed) return Promise.reject(new Error('Simulator is unavailable.'));
     if (!action.evidenceId?.trim()) return Promise.reject(new Error('An evidence reference is required.'));
-    if (!['ground_pick', 'short_walk', 'stand_hold', 'head_scan'].includes(action.primitive)) return Promise.reject(new Error('This movement is not supported.'));
+    if (!['ground_pick', 'short_walk', 'stand_hold', 'head_scan', 'head_nod', 'sit_cycle'].includes(action.primitive)) return Promise.reject(new Error('This movement is not supported.'));
     if (this.pending || this.preparation || this.navigation || this.runtime.inputLocked || this.runtime.respawnActive || this.runtime.recovery || this.runtime.mode !== 'walk') return Promise.reject(new Error('Wait for the duck to return to its ready pose.'));
     const primitive = action.primitive as Primitive;
-    const bound = { short_walk: 2000, stand_hold: 3000, ground_pick: 8000, head_scan: 2400 }[primitive];
+    const bound = { short_walk: 2000, stand_hold: 3000, ground_pick: 8000, head_scan: 2400, head_nod: 2400, sit_cycle: 6000 }[primitive];
     const duration = Math.min(bound, Math.max(1, action.maxDurationMs ?? bound));
     if (primitive === 'ground_pick' && duration < 3000) return Promise.reject(new Error('The reference does not allow enough time for a complete beak dip.'));
+    if (primitive === 'sit_cycle' && duration < 5500) return Promise.reject(new Error('The reference does not allow enough time to sit and stand safely.'));
     this.clearCommand();
     this.setStatus('busy');
     return new Promise((resolve, reject) => {
@@ -184,11 +193,21 @@ export class DuckAdapter {
       this.pending = {
         primitive, start: this.clock(), simStart: this.runtime.data.time, x: q[0], y: q[1], duration,
         entered: false, maxPhase: 0, stableSince: null, resolve, reject,
-        minHeadYaw: this.runtime.headYaw, maxHeadYaw: this.runtime.headYaw,
+        minHead: primitive === 'head_nod' ? this.runtime.headPitch : this.runtime.headYaw,
+        maxHead: primitive === 'head_nod' ? this.runtime.headPitch : this.runtime.headYaw,
+        initialHead: primitive === 'head_nod' ? this.runtime.headPitch : this.runtime.headYaw, initialHeight: q[2],
         heading: Math.atan2(2 * (q[3] * q[6] + q[4] * q[5]), 1 - 2 * (q[5] ** 2 + q[6] ** 2)),
         deadline: setTimeout(() => this.fail('The movement did not complete within its time limit.'), primitive === 'ground_pick' ? duration : duration + 4000),
       };
       if (primitive === 'ground_pick') this.source.onAction?.('groundPick');
+      if (primitive === 'sit_cycle') {
+        this.source.onAction?.('sitToggle');
+        // Native sit/stand needs its own two-second hand-back. Schedule it
+        // independently of render frames, and never interrupt it with a reset.
+        this.pending.postureTimer = setTimeout(() => {
+          if (this.pending?.primitive === 'sit_cycle') this.returnToWalk();
+        }, duration - 3000);
+      }
       if (primitive === 'short_walk') {
         // The pinned walking policy stays in its standing deadband at 0.12.
         // Use upstream's standard 0.25 m/s forward command, bounded to 2 s.
@@ -202,6 +221,7 @@ export class DuckAdapter {
   tick(searching = false) {
     if (this.disposed) return;
     const runtime = this.runtime;
+    if (runtime.mode === 'walk') this.standingFromSit = false;
     if (this.preparation) {
       const preparation = this.preparation;
       const stable = this.stable();
@@ -278,14 +298,19 @@ export class DuckAdapter {
       action.entered ||= distance > 0.015 || turn > 0.15;
       if (elapsed >= action.duration) this.clearCommand();
       finished = action.entered && elapsed >= action.duration && simElapsed > 100 && runtime.mode === 'walk';
-    } else if (action.primitive === 'head_scan') {
-      // Head motion is supplied through the existing walking-policy command.
-      // Observe actual MuJoCo head yaw, not just the requested target.
-      runtime.headTarget[2] = elapsed < action.duration ? Math.sin(elapsed / action.duration * Math.PI * 2) * 0.3 : 0;
-      action.minHeadYaw = Math.min(action.minHeadYaw, runtime.headYaw);
-      action.maxHeadYaw = Math.max(action.maxHeadYaw, runtime.headYaw);
-      action.entered ||= action.maxHeadYaw - action.minHeadYaw > 0.18;
-      finished = action.entered && elapsed >= action.duration && Math.abs(runtime.headYaw) < 0.1 && runtime.mode === 'walk';
+    } else if (action.primitive === 'head_scan' || action.primitive === 'head_nod') {
+      // Require actual MuJoCo joint travel and return to the starting pose.
+      const nod = action.primitive === 'head_nod';
+      const angle = nod ? runtime.headPitch : runtime.headYaw;
+      runtime.headTarget[nod ? 1 : 2] = elapsed < action.duration ? Math.sin(elapsed / action.duration * Math.PI * 2) * 0.3 : 0;
+      action.minHead = Math.min(action.minHead, angle);
+      action.maxHead = Math.max(action.maxHead, angle);
+      action.entered ||= action.maxHead - action.minHead > 0.18;
+      finished = action.entered && elapsed >= action.duration && Math.abs(angle - action.initialHead) < 0.1 && runtime.mode === 'walk';
+    } else if (action.primitive === 'sit_cycle') {
+      action.entered ||= runtime.mode === 'sitstand' && runtime.sitFlag === 1 && q[2] < action.initialHeight - 0.025;
+      if (!action.entered && elapsed > 2400) { this.fail('The controller did not reach a seated pose.'); return; }
+      finished = action.entered && runtime.mode === 'walk' && q[2] > action.initialHeight - 0.015;
     } else {
       action.entered ||= simElapsed >= 100 && runtime.mode === 'walk' && this.upright();
       finished = action.entered && simElapsed >= action.duration && runtime.mode === 'walk';
@@ -296,12 +321,20 @@ export class DuckAdapter {
     if (action.stableSince !== null && this.clock() - action.stableSince >= 300) {
       this.pending = null;
       clearTimeout(action.deadline);
+      clearTimeout(action.postureTimer);
       this.clearCommand();
       this.setStatus('complete');
       action.resolve();
     }
   }
 
+  private returnToWalk() {
+    // A second native walk request during the two-second sit hand-back
+    // cancels that timer and switches policy too early. Preserve it.
+    if (this.runtime.mode === 'sitstand' && this.runtime.sitFlag === 0 && this.standingFromSit) return;
+    this.standingFromSit = this.runtime.mode === 'sitstand' && this.runtime.sitFlag === 1;
+    this.source.onAction?.('walk');
+  }
   stop() {
     this.cancelNavigation();
     const preparation = this.preparation;
@@ -310,9 +343,9 @@ export class DuckAdapter {
     const pending = this.pending;
     this.pending = null;
     this.clearCommand();
-    if (pending) { clearTimeout(pending.deadline); pending.reject(new Error('Movement cancelled.')); }
+    if (pending) { clearTimeout(pending.deadline); clearTimeout(pending.postureTimer); pending.reject(new Error('Movement cancelled.')); }
     // Existing policy transitions safely back to balance; physics keeps running.
-    this.source.onAction?.('walk');
+    this.returnToWalk();
     this.setStatus(this.runtime.recovery || this.runtime.inputLocked || this.runtime.mode !== 'walk' ? 'recovering' : 'ready');
   }
   reset() { this.stop(); this.walkWaypoint = 0; this.runtime.resetSim(); this.setStatus('recovering'); }

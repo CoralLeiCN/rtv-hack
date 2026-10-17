@@ -97,7 +97,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
     video.current.load();
     await togglePlay();
   };
-  const primitiveLabel = candidate.action?.primitive === 'head_scan' ? 'Bounded head movement' : candidate.action?.primitive === 'ground_pick' ? 'One complete beak-dip cycle' : candidate.action?.primitive === 'short_walk' ? 'Bounded walk / turn' : 'Intentional steady standing hold';
+  const primitiveLabel = candidate.action?.primitive === 'head_scan' ? 'Bounded head movement' : candidate.action?.primitive === 'head_nod' ? 'Vertical head movement' : candidate.action?.primitive === 'sit_cycle' ? 'Sit and stand cycle' : candidate.action?.primitive === 'ground_pick' ? 'One complete beak-dip cycle' : candidate.action?.primitive === 'short_walk' ? 'Bounded walk / turn' : 'Intentional steady standing hold';
   const evidenceNote = inferred
     ? 'Caption-inferred approximation using a pretrained duck movement. This label has not been visually reviewed.'
     : 'Visually reviewed evidence mapped to a pretrained duck movement.';

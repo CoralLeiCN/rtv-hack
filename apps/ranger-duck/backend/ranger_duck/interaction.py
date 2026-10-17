@@ -6,18 +6,27 @@ wording stays playable but never becomes a motion. Scenario names and search
 text are not inputs, so a hit cannot acquire requested behavior by association.
 """
 import re
+from collections.abc import Callable
 
 Motion = tuple[str, str, int, str]
 NEGATIVE = re.compile(r"\b(?:no|not|never|neither|cannot|can't|doesn't|don't|isn't|aren't|wasn't|weren't|without)\b")
 UNCERTAIN = re.compile(r"\b(?:may|might|could|possibly|perhaps|probably|unclear|uncertain|seems?|appears?)\b")
 ADJECTIVE = r"(?:domestic|adult|young|small|large|black|white|gray|grey|brown|tabby|spotted|red|wild|striped|silver|golden|cream|orange|ginger)"
-AMBIGUOUS_OBJECT = re.compile(r"\b(?:toys?|balls?|feathers?|objects?|cameras?|food|bowls?|strings?|lasers?|hands?|posts?|mirrors?)\b")
+OBJECT_NOUN = r"(?:toys?|balls?|feathers?|objects?|cameras?|food|bowls?|strings?|lasers?|hands?|posts?|mirrors?)"
+AMBIGUOUS_OBJECT = re.compile(rf"\b{OBJECT_NOUN}\b")
+OTHER_ACTOR = r"(?:dogs?|humans?|people|persons?|man|men|woman|women|child|children|owners?|handlers?|birds?|horses?|goats?|cows?|fox(?:es)?|wolves|bears?|lions?|tigers?|rabbits?)"
+# Preference is within one video's caption, never a reranking of video results.
+MOTION_PRIORITY = {"short_walk": 0, "ground_pick": 1, "head_nod": 2,
+                   "head_scan": 3, "sit_cycle": 4, "stand_hold": 5}
 
 
-def _positive(pattern: str, text: str, *, reject_inside: re.Pattern | None = None) -> tuple[bool, bool]:
+def _positive(pattern: str, text: str, *, reject_inside: re.Pattern | None = None,
+              accept_match: Callable[[re.Match], bool] | None = None) -> tuple[bool, bool]:
     """Check the local predicate, retaining whether a candidate was negated."""
     rejected = False
     for match in re.finditer(pattern, text):
+        if accept_match is not None and not accept_match(match):
+            continue
         if reject_inside and reject_inside.search(match.group()):
             rejected = True
             continue
@@ -30,6 +39,37 @@ def _positive(pattern: str, text: str, *, reject_inside: re.Pattern | None = Non
             continue
         return True, rejected
     return False, rejected
+
+
+def _selected_actor(phrase: str, match: re.Match, animal: str, *, paired: bool,
+                    inherited_animal: bool) -> bool:
+    """Conservatively bind a predicate to an animal, not a nearby moving toy.
+
+    This is deliberately a small caption grammar, not general coreference. An
+    explicit new subject resets a clause; an ambiguous object mention prevents
+    an unsupported attribution. Pronouns only inherit an established animal.
+    """
+    species = r"(?:cats?|kittens?)" if animal == "cat" else "deer"
+    entities = rf"(?:cats?|kittens?|deer|{OTHER_ACTOR}|{OBJECT_NOUN})"
+    subject_start = rf"(?:(?:a|an|the|one|another|both|two)\s+)?(?:{ADJECTIVE}\s+){{0,2}}{entities}\b|(?:it|they|one|both|the other)\b"
+    prefix = phrase[:match.start()]
+    # A collective rule includes its own subject at the start of the match.
+    collective_subject = re.match(rf"(?:both(?:\s+{species})?|two\s+(?:{ADJECTIVE}\s+)?{species})\b", match.group())
+    if collective_subject:
+        prefix += collective_subject.group()
+    prefix = re.split(rf"(?:[;,]|\b(?:and|while|whereas|but|then)\b)\s*(?={subject_start})", prefix)[-1]
+    mentioned = list(re.finditer(rf"\b{entities}\b", prefix))
+    if mentioned:
+        # The first entity establishes the clause subject. The last prevents
+        # 'a cat watches a toy that moves forward' from making the cat walk.
+        return bool(re.fullmatch(species, mentioned[0].group()) and (
+            re.fullmatch(species, mentioned[-1].group()) or
+            # 'The cat hisses at a camera while sitting' retains the cat
+            # subject. An explicit 'while the toy ...' was split above.
+            re.search(r"\bwhile\s*$", prefix)))
+    if paired and re.match(r"\s*(?:one|both|the other)(?:\s|$)", prefix):
+        return True
+    return bool(inherited_animal and re.match(r"\s*(?:it|they|one|both|the other)(?:\s|$)", prefix))
 
 
 def has_species_pair(text: str, animal: str) -> bool:
@@ -65,7 +105,7 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
     noun = r"(?:cat|kitten)" if animal == "cat" else "deer"
     # Pronouns are accepted only after the caption has explicitly established
     # two animals of the requested species. A dog/person target does not match.
-    partner = (rf"(?:each other|one another|(?:a |the |its |their )?(?:other|second|companion)\s+{noun}"
+    partner = (rf"(?:each other|one another|(?:a |the |its |their )?(?:other|first|second|companion)\s+{noun}"
                rf"|another\s+(?:{ADJECTIVE}\s+){{0,2}}{noun}"
                rf"|(?:a|the)\s+(?:{ADJECTIVE}\s+){{0,2}}{noun}"
                rf"|(?:the\s+)?{ADJECTIVE}\s+one"
@@ -76,8 +116,6 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
     attention_partner = partner
     if paired and not AMBIGUOUS_OBJECT.search(text):
         attention_partner = rf"(?:{partner}|it|its\s+(?:actions|movements)|them|their\s+(?:actions|movements))"
-    directed = rf"\b(?:at|towards?|to|with|from|beside|alongside|behind|past)\s+{partner}\b"
-    collective = r"\b(?:together|side by side|both|in unison|as a (?:group|herd)|each other|one another)\b"
     direction_modifier = r"(?:\s+(?:directly|briefly|slowly|calmly|curiously|back|to|look|looking)){0,4}"
     group_subject = rf"(?:both(?:\s+{noun}s?)?|two\s+(?:{ADJECTIVE}\s+)?(?:cats|kittens|deer))"
     auxiliary = r"(?:\s+(?:are|were|remain|continue|quietly|calmly|slowly|still)){0,3}\s+"
@@ -88,16 +126,24 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
     def collective_predicate(verb: str, group_subject_allowed: bool = True) -> str:
         together = rf"{verb}\s+(?:(?:quietly|calmly|slowly)\s+)?{shared}"
         return rf"\b(?:{group_subject}{auxiliary}{verb}|{together})\b" if group_subject_allowed else rf"\b{together}\b"
-    phrases = re.split(r"[.!?\n]+", text)
-    retreat = r"\b(?:backs?|backing|steps?|stepping|moves?|moving)\s+(?:slowly\s+)?(?:away|back(?:wards?)?)\b|\bretreat(?:s|ing)?\b"
-    for phrase in phrases:
-        if _positive(retreat, phrase)[0] and re.search(directed, phrase):
-            # The tested policy cannot execute a reliable backward step. Keep
-            # the reference visible; do not relabel retreat as a stationary hiss.
-            return None, "unsupported_retreat"
+    phrases: list[tuple[str, bool]] = []
+    inherited_animal = False
+    other_species = "deer" if animal == "cat" else "cats?|kittens?"
+    other_actors = re.compile(rf"\b(?:{other_species}|{OTHER_ACTOR})\b")
+    for phrase in re.split(r"[.!?\n]+", text):
+        phrases.append((phrase, inherited_animal))
+        if other_actors.search(phrase) or AMBIGUOUS_OBJECT.search(phrase):
+            inherited_animal = False
+        elif re.search(species, phrase):
+            inherited_animal = True
+    retreat = r"\b(?:backs?|backing|steps?|stepping|moves?|moving|walks?|walking)\s+(?:slowly\s+)?(?:away|back(?:wards?)?)\b|\bretreat(?:s|ing)?\b"
+    has_retreat = any(_positive(retreat, phrase, accept_match=lambda match: _selected_actor(
+        phrase, match, animal, paired=paired, inherited_animal=inherited))[0]
+        for phrase, inherited in phrases if not other_actors.search(phrase))
     had_negation = False
-    # Prefer explicit partner orientation over a static approximation. This order is
-    # about interpreting one clip; result ranking itself is never changed.
+    # Sort by supported motion activity, retaining more specific semantic labels
+    # within each primitive. Every rule examines all caption phrases before a
+    # less active primitive is considered. Archive result order is unchanged.
     rules: list[tuple[str, str, int, str, str, str]] = [
         ("orienting_to_partner", "head_scan", 2400,
          rf"\b(?:looks?|looking|(?:turns?|turning)\s+(?:(?:its|their|the)\s+)?head){direction_modifier}\s+(?:towards?|at)\s+{attention_partner}\b",
@@ -129,8 +175,11 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
         ("focal_head_movement", "head_scan", 2400,
          r"\b(?:(?:turns?|turning|moves?|moving|tilts?|tilting|raises?|raising)\s+(?:(?:its|their|the)\s+)?heads?|(?:looks?|looking)\s+(?:up|down|around))\b",
          "directed_verb", "The caption describes the animal moving its head; the duck approximates that visible head movement. This does not imply an interaction with another animal."),
+        ("focal_head_nod", "head_nod", 2400,
+         r"\b(?:nod(?:s|ding)?|(?:lower(?:s|ing)?|rais(?:e|es|ing)|lift(?:s|ing)?|dip(?:s|ping)?)\s+(?:(?:its|their|the)\s+)?heads?|(?:moves?|moving|tilts?|tilting)\s+(?:(?:its|their|the)\s+)?heads?\s+(?:up|down))\b",
+         "directed_verb", "The caption describes the animal nodding or moving its head vertically; the duck approximates it with a head-pitch nod and returns to neutral."),
         ("focal_walking", "short_walk", 2000,
-         r"\b(?:walk(?:s|ing)?|stroll(?:s|ing)?|trot(?:s|ting)?|mov(?:es?|ing)\s+(?:forward|across|towards?\s+(?:the\s+)?(?:left|right)|to\s+the\s+(?:left|right)))\b",
+         r"\b(?:walk(?:s|ing)?|stroll(?:s|ing)?|trot(?:s|ting)?|mov(?:es?|ing)\s+(?:forward|across|towards?\s+(?:the\s+)?(?:left|right)|to\s+the\s+(?:left|right)))\b(?!\s+(?:slowly\s+)?(?:back(?:wards?)?|away)\b)",
          "directed_verb", "The caption describes the animal walking; the duck makes a short walk. This does not imply the animal was approaching or following a companion."),
         ("co_feeding", "ground_pick", 8000,
          collective_predicate(feeding, group_subject_allowed=False),
@@ -147,25 +196,33 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
         ("focal_standing", "stand_hold", 3000,
          r"\b(?:stand(?:s|ing)?|remains?\s+(?:still|stationary)|freez(?:e|es|ing)|froze)\b(?!\s+(?:up|on\s+(?:its\s+)?hind)\b)",
          "directed_verb", "The caption describes the animal standing or pausing; the duck holds a steady standing pose. No interaction is assumed."),
+        ("focal_sitting", "sit_cycle", 6000,
+         r"\b(?:sits?|sitting|(?:is|are|remains?|stays?)\s+seated)\b",
+         "directed_verb", "The caption describes the animal sitting or seated; the duck approximates that posture by sitting briefly and standing back up. This does not imitate lying down."),
         ("focal_hissing", "stand_hold", 3000,
          r"\bhiss(?:es|ing)?\b", "directed_verb",
          "The caption describes the cat hissing; a steady boundary pause approximates its posture. The duck does not produce a hiss or assume another cat is present."),
     ]
-    for behavior, primitive, duration, predicate, requirement, explanation in rules:
+    for behavior, primitive, duration, predicate, requirement, explanation in sorted(
+            rules, key=lambda rule: MOTION_PRIORITY[rule[1]]):
         if behavior in {"hissing_boundary", "focal_hissing"} and animal != "cat":
             continue
         if not paired and behavior in {"orienting_to_partner", "hissing_boundary", "following", "social_approach", "social_play", "watching_partner", "shared_attention", "co_feeding", "group_alert"}:
             continue
-        for phrase in phrases:
+        for phrase, inherited in phrases:
             # A clip can contain several unrelated actors. Do not attribute a
             # dog's or person's movement to the requested pair just because two
             # cats/deer appear elsewhere in the caption.
-            other_species = "deer" if animal == "cat" else "cats?|kittens?"
-            if re.search(rf"\b(?:{other_species}|dogs?|humans?|people|person|persons|men|women|children|birds?|horses?|goats?|cows?|fox(?:es)?|wolves|bears?|lions?|tigers?|rabbits?)\b", phrase):
+            if other_actors.search(phrase):
                 continue
-            positive, rejected = _positive(predicate, phrase)
+            positive, rejected = _positive(predicate, phrase, accept_match=lambda match: _selected_actor(
+                phrase, match, animal, paired=paired, inherited_animal=inherited))
             had_negation |= rejected
             if not positive:
+                continue
+            if has_retreat and primitive == "stand_hold":
+                # Unsupported retreat cannot become a fake stationary hiss.
+                # Separately described supported movement can still be copied.
                 continue
             # Chasing alone is not proof of social play; require the caption's
             # affirmative play qualifier. Generic fighting remains unsupported.
@@ -182,6 +239,8 @@ def classify_interaction(caption: str, animal: str) -> tuple[Motion | None, str]
                     # movement is unsupported jumping, contact, or object play.
                     continue
             return (behavior, primitive, duration, explanation), "caption_behavior_match"
+    if has_retreat:
+        return None, "unsupported_retreat"
     if had_negation:
         return None, "negated_or_uncertain_behavior"
     return None, "unsupported_behavior"

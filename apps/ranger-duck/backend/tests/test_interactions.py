@@ -38,7 +38,14 @@ from test_backend import PAYLOAD, ROW, Upstream, make_client, reviewed, search
     ("cat", "A cat stands quietly.", "focal_standing", "stand_hold"),
     ("cat", "Two cats stand nearby. One cat jumps at a feather toy.", "focal_standing", "stand_hold"),
     ("cat", "Two cats sit near a feather toy. One watches it.", "focal_attention", "head_scan"),
-    ("cat", "Two cats face each other. One cat hisses at a camera while sitting beside the other cat.", "focal_hissing", "stand_hold"),
+    ("cat", "Two cats face each other. One cat hisses at a camera while sitting beside the other cat.", "focal_sitting", "sit_cycle"),
+    ("cat", "A cat sits down.", "focal_sitting", "sit_cycle"),
+    ("cat", "A cat remains seated.", "focal_sitting", "sit_cycle"),
+    ("cat", "A cat is sitting without moving.", "focal_sitting", "sit_cycle"),
+    ("cat", "A cat nods.", "focal_head_nod", "head_nod"),
+    ("cat", "A cat raises its head.", "focal_head_nod", "head_nod"),
+    ("cat", "A cat moves its head up and down.", "focal_head_nod", "head_nod"),
+    ("deer", "A deer lowers its head.", "focal_head_nod", "head_nod"),
     ("deer", "A deer lowers its head to feed.", "focal_foraging", "ground_pick"),
     ("deer", "A deer stands still.", "focal_standing", "stand_hold"),
     ("deer", "Two deer stand together while one deer feeds alone.", "focal_foraging", "ground_pick"),
@@ -62,8 +69,8 @@ def test_explicit_species_behaviors_map_to_bounded_approximations(animal, captio
     ("cat", "Two cats chase each other, possibly playfully."),
     ("cat", "Two cats play with each other by jumping and pouncing."),
     ("cat", "Two cats climb a scratching post together."),
-    ("cat", "Two cats sit nearby. One does not look up."),
-    ("cat", "Two cats sit nearby. One may walk across the room."),
+    ("cat", "Two cats are visible. One does not look up."),
+    ("cat", "Two cats are visible. One may walk across the room."),
     ("cat", "Two cats appear to look at each other."),
     ("cat", "Two cats seem to be hissing at each other."),
     ("cat", "Two cats fight and bite each other."),
@@ -71,7 +78,7 @@ def test_explicit_species_behaviors_map_to_bounded_approximations(animal, captio
     ("cat", "Two cats face each other. One cat backs away from the other cat."),
     ("cat", "Two cats do not hiss at each other."),
     ("cat", "Two cats hissing at each other is not shown."),
-    ("cat", "Two cats sit nearby. A dog backs away from the other cat."),
+    ("cat", "Two cats are visible. A dog backs away from the other cat."),
     ("cat", "Two cats watch two deer grazing together."),
     ("cat", "Two cats never approach each other."),
     ("cat", "Two cats may greet each other."),
@@ -84,6 +91,13 @@ def test_explicit_species_behaviors_map_to_bounded_approximations(animal, captio
     ("cat", "A cat is visible."),
     ("cat", "A cat does not stand."),
     ("cat", "A cat jumps at a feather toy."),
+    ("cat", "A cat walks backwards."),
+    ("cat", "A cat lies down."),
+    ("cat", "A cat does not sit down."),
+    ("cat", "A cat may sit down."),
+    ("cat", "A cat does not nod."),
+    ("cat", "A cat may raise its head."),
+    ("cat", "A cat is visible. A person nods."),
     ("cat", "A dog is walking."),
     ("deer", "No deer is visible. A dog walks across the frame."),
     ("deer", "A deer is near a feeding station."),
@@ -134,6 +148,54 @@ def test_retreat_is_not_silently_replaced_with_a_hissing_pause():
     caption = "Two cats face each other. One cat hisses at the other cat and backs away from the other cat."
     match, reason = classify_interaction(caption, "cat")
     assert match is None and reason == "unsupported_retreat"
+
+
+@pytest.mark.parametrize("caption,primitive", [
+    ("A cat watches a toy. The cat then walks across the room.", "short_walk"),
+    ("A cat walks across the room. The cat then watches a toy.", "short_walk"),
+    ("A cat stands still and looks around. The cat starts eating.", "ground_pick"),
+    ("Two cats look at each other. One cat hisses at another cat. The other cat follows the first cat.", "short_walk"),
+    ("A cat looks around. The cat does not walk across the room.", "head_scan"),
+    ("A cat stands still. The cat may walk across the room.", "stand_hold"),
+    ("A cat does not walk, but looks around.", "head_scan"),
+    ("A cat stands beside a toy. The toy moves forward.", "stand_hold"),
+    ("A cat watches a toy that moves forward.", "head_scan"),
+    ("A cat stands still. A toy moves past the cat and moves forward.", "stand_hold"),
+    ("A cat watches a toy. A person walks across the room.", "head_scan"),
+    ("A cat stands still. A dog is walking.", "stand_hold"),
+    ("A cat watches a toy. It moves forward.", "head_scan"),
+    ("A cat is visible. It walks across the room.", "short_walk"),
+    ("A cat walks backwards. The cat then looks around.", "head_scan"),
+    ("A cat stands still. The cat then sits down.", "sit_cycle"),
+    ("A cat sits down. The cat then looks around.", "head_scan"),
+    ("A cat sits down. The cat raises its head.", "head_nod"),
+    ("A cat raises its head. The cat then walks forward.", "short_walk"),
+    ("A cat sits down. The cat does not nod.", "sit_cycle"),
+    ("Two cats face each other. One cat retreats from the other cat. The other cat walks across the room.", "short_walk"),
+])
+def test_most_active_supported_animal_behavior_wins_across_caption(caption, primitive):
+    match, reason = classify_interaction(caption, "cat")
+    assert reason == "caption_behavior_match"
+    assert match[1] == primitive
+
+
+def test_attention_does_not_hide_walking_in_a_multi_animal_toy_caption():
+    caption = (
+        "Two cats are visible, a gray cat on the left and a white cat with black spots on the right. "
+        "Both cats are sitting on a blue floor. The gray cat stands up and moves towards the left side. "
+        "The white cat remains seated and looks up. A red feather toy is above the white cat. "
+        "The gray cat jumps and tries to catch the toy. The white cat watches the gray cat's actions."
+    )
+    match, _ = classify_interaction(caption, "cat")
+    assert match[:2] == ("focal_walking", "short_walk")
+
+
+def test_active_caption_preference_does_not_override_an_exact_human_review():
+    row = {**ROW, "reasoning_content": "A deer stands still, then walks across the clearing."}
+    manifest = Manifest([reviewed(row, behavior="standing")])
+    item = manifest.annotate_interaction(Segment.parse(row), "deer", "deer")
+    assert item["action_basis"] == "reviewed"
+    assert item["action"]["primitive"] == "stand_hold"
 
 
 def test_caption_action_is_bound_to_exact_provenance_and_exact_legacy_review_remains_valid():

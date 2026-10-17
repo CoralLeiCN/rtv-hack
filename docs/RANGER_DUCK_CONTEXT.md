@@ -4,18 +4,18 @@ This context supports the [approved plan](RANGER_DUCK_PLAN.md) and [frontend int
 
 ## Current product decisions
 
-- One page contains one animal at a fixed position outside the yellow box, the continuous MuJoCo duck, live search, reference playback and automatic movement status.
+- One page contains one animal outside the yellow box, the continuous MuJoCo duck, live search, reference playback and automatic movement status. The latest request permits a bounded east-side animal patrol while the duck roams; original procedural geometry remains because the animal-model replacement was canceled.
 - Cat scenarios are Hissing, Greeting and Social play; deer scenarios are Forage together, Follow companion and Herd alert. Search queries remain cat–cat and deer–deer interaction queries.
 - Returned footage may show a single animal. An explicit supported behavior of the selected species plus complete provenance is sufficient; an actual interaction is not required.
 - Filter all returned candidates for compatible actions, preserve retrieval order, and take the first three. Display action positions and original source ranks separately. Incompatible clips do not occupy visible slots; later ranks can fill them.
-- The duck roams while waiting and between passes, approaches the fixed animal before an action, settles, and executes the reference-derived motion. Navigation is separate from imitation. The animal may pose or face the duck but never translates.
-- Supported primitives are `ground_pick`, `short_walk`, `stand_hold` and `head_scan`. Watch/attention behavior uses a labeled head-turn approximation. Unsupported climbing or retreat does not become a fabricated movement.
+- The duck roams while waiting and between passes. Before an action, the animal returns to its anchor and faces the duck; the wrapper observes its settling before the duck approaches, settles and executes the reference-derived motion. Navigation and scripted animal movement are separate from imitation.
+- Supported primitives are `short_walk`, `ground_pick`, `head_nod`, `head_scan`, `sit_cycle` and `stand_hold`. Within a caption, that order prioritizes active supported behavior: walk → pick → nod → scan → sit → hold. Species/actor attribution and negation still apply; exact current reviews keep their explicit behavior. Retrieval order is unchanged. Unsupported climbing, retreat or lying does not become a fabricated movement.
 - Exact reviewed solitary references are usable again. Caption-inferred actions remain labeled unreviewed. Stale, invalid or contradictory reviews do not silently authorize new actions.
 - Stop and hidden-tab handling stop navigation and imitation. Visibility-only pauses resume automatically; manual Stop and reference inspection stay paused. Clip transitions and repeated cycles never reset physics.
 - Replay is explicit, session-scoped, expires and still needs VSS for video. Broader search relaxes behavior wording while retaining the interaction query's species pair.
 - New training, physical robot control, camera recognition and actual live-animal interaction remain outside scope.
 
-These decisions supersede the earlier strict pair eligibility and raw-rank 1–3 rules recorded in the historical notes below. See the [current plan](RANGER_DUCK_PLAN.md), [API contract](RANGER_DUCK_API.md) and [behavior research](RANGER_DUCK_INTERACTIONS.md).
+These decisions supersede the earlier fixed-animal, strict pair eligibility and raw-rank 1–3 rules recorded in the historical notes below. See the [current plan](RANGER_DUCK_PLAN.md), [API contract](RANGER_DUCK_API.md) and [behavior research](RANGER_DUCK_INTERACTIONS.md).
 
 ## VSS access
 
@@ -93,12 +93,48 @@ The idle report had three contributors: watching a companion mapped to a motionl
 
 Verification of these corrections: 109 backend tests and 30 frontend/adapter tests pass; the production build succeeds. Real browser physics completed 14 consecutive bounded walking actions with no resets or recoveries. The physics clock advanced continuously from 1.54 to 39.86 seconds and X/Y stayed within ±0.633 m, below the 1.15 m boundary. Cycle preparation settles in about 0.2 seconds without replacing the duck. Exact live Social-play captions map companion observation and shared toy attention to head scans; the climbing-only reference remains skipped.
 
-## Fixed animal, duck navigation, and compatible-action ranking
+## Historical fixed-animal, navigation, and compatible-action ranking update
 
-The latest user request keeps the single scripted animal at a fixed position outside the yellow box. Its head and pose may animate toward Microduck, but its root does not translate. Microduck uses the existing locomotion policy to roam inside the box while searching or between action cycles, then approaches the animal and settles before each evidence action. Navigation is labeled separately from imitation. Neither navigation nor cycle preparation resets the duck or replaces its physics body; Stop cancels both navigation and actions.
+At this stage, the user requested a single scripted animal at a fixed position outside the yellow box. Its head and pose may animate toward Microduck, but its root does not translate. Microduck uses the existing locomotion policy to roam inside the box while searching or between action cycles, then approaches the animal and settles before each evidence action. Navigation is labeled separately from imitation. Neither navigation nor cycle preparation resets the duck or replaces its physics body; Stop cancels both navigation and actions.
 
 Search queries still describe cat–cat or deer–deer interactions. Result eligibility now accepts supported solitary behavior as well as interactions. The queue filters the entire response for compatible actions, preserves archive order, and takes up to three. Action positions and original source ranks are displayed separately; incompatible hits do not occupy slots. Existing exact reviews of solitary behaviors are valid again, with the same source, interval, caption, and species checks.
 
 Live retrieval checks on 17 October confirmed the new selection rules: Cat/Social Play returned 15 candidates in 11.37 seconds and selected original ranks 1, 3, and 4. Deer/Forage returned 15 candidates in 11.03 seconds and selected three solitary feeding clips. These measurements establish those runs, not a latency guarantee or a visual review of inferred behavior.
 
 Verification: 126 backend tests (including the three newly merged dotenv configuration checks) and 37 frontend/adapter tests pass, and the production frontend builds. A live Deer/Forage run completed its search in 9.76 seconds, approached the fixed deer, completed all three solitary feeding actions automatically, and continued into a second cycle. Stop paused the active second-cycle action and retained the scene. Real MuJoCo checks also covered 11.5-second and 30-second initial roaming waits followed by approaches, walking, and feeding, without a reset or recovery. The roaming route stays farther inside the yellow box to leave space for the pretrained policy's turning radius.
+
+
+## Six motions, caption activity priority and animal motor update
+
+The current update adds `head_nod` (2400 ms) for explicit vertical head motion
+and `sit_cycle` (6000 ms) for explicit sitting. It does not infer sitting from
+lying or turn unsupported motion into a different action. The classifier
+examines all caption phrases by supported activity priority while retaining
+source ranks and first-three-compatible selection. The backend suite passes
+163 tests; the frontend agent reports 45 combined tests and a production build.
+
+A single real MuJoCo session completed all six primitives with approach before
+each, roaming, and repeated-Stop cancellation during sitting and nodding.
+Physics time advanced from 1.56 to 45.56 seconds with no reset or recovery;
+X remained within [-0.670, 0.465] m and Y within [-0.278, 0.047] m. The seated
+trunk dropped from about 0.116 m to 0.059 m and returned. The nod covered about
+0.52–0.53 rad of actual pitch. An intermediate cancellation test exposed a
+native stand-up timer hazard; the final adapter preserves that two-second
+handover across repeated Stop/preparation calls. See the [motion inventory,
+source references and limitations](RANGER_DUCK_ANIMATION.md).
+
+The animal motor may patrol outside the east side of the box and returns to
+(1.05, -0.05) before an action. The wrapper waits for its position, facing and
+180 ms of stability before approaching with the duck. Stop/reset cancel both
+motors and pending waits. The user canceled the animal-model replacement;
+original articulated procedural geometry remains. New animal asset generation or an
+animal model-loading pipeline is not part of this deliverable.
+
+Final ordinary-browser verification: Cat/Social Play returned 15 candidates in
+9.71 seconds. Source rank 1 now selected the described cat movement as
+`short_walk` instead of its companion's watching. The compatible queue used
+source ranks 1, 4 and 5 in that run, completed two cycles, and preserved the
+same duck scene throughout. The animal returned to its anchor before approach.
+Stop during the third cycle's approach canceled movement and left the duck
+ready. These are observed run results, not an archive ranking or latency
+guarantee.
