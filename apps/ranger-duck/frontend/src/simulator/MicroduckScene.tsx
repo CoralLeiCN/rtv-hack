@@ -22,6 +22,7 @@ export interface MicroduckSceneHandle {
   ensureInteraction(): Promise<void>;
   roam(): void;
   startEncounter(encounter: SceneEncounter): void;
+  updateEncounterBehavior(behaviorHint: string): void;
   status(): DuckStatus;
 }
 type Props = {
@@ -88,7 +89,15 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
       stopMotion();
       pendingEncounter.current = encounter;
       clearing.current?.reset();
-      adapter.current?.reset();
+      if (!encounter.preservePose) adapter.current?.reset();
+    },
+    updateEncounterBehavior: behaviorHint => {
+      if (pendingEncounter.current) {
+        pendingEncounter.current = { ...pendingEncounter.current, behavior_hint: behaviorHint };
+        return;
+      }
+      if (!clearing.current) throw new Error('Scene is still loading.');
+      clearing.current.updateEncounterBehavior(behaviorHint, performance.now());
     },
     status: () => status.current,
   }), []);
@@ -223,7 +232,7 @@ const MicroduckScene = forwardRef<MicroduckSceneHandle, Props>(function Microduc
         adapter.current?.setCompanionTarget(animal ? { x: animal.x, y: -animal.z } : null);
         adapter.current?.tick(callbacks.current.searching);
         const navigation = adapter.current?.navigationStatus();
-        clearing.current?.setActivity(navigation === 'roaming' ? 'patrol' : navigation === 'approaching' || navigation === 'settling' || adapter.current?.status() === 'busy' ? 'interact' : 'hold');
+        clearing.current?.setActivity(navigation === 'roaming' ? 'patrol' : navigation === 'approaching' || navigation === 'settling' || adapter.current?.status() === 'busy' ? 'interact' : 'hold', callbacks.current.searching);
         const rl = runtime();
         // Keep the shared clearing framed; orbit/zoom remains user controlled.
         if (!rl.inputLocked && !rl.respawnActive && !rl.recovery) {

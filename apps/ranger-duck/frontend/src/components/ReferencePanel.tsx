@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { Candidate } from '../api';
+import type { RolePlan } from '../agentLoop';
 import { behaviorLabel, eligibilityNote, isEligible, mmss, motionLabel, segmentTime, type Stage } from '../demo';
 
 function PlayIcon({ playing = false }: { playing?: boolean }) {
@@ -12,7 +13,7 @@ export function ReferenceCard({ candidate, rank, sourceRank, selected, sequenceS
   const p = candidate.provenance;
   const inferred = candidate.action_basis === 'video_caption';
   const supported = isEligible(candidate);
-  return <button className={`card ${selected ? 'sel' : ''}`} onClick={onSelect} aria-pressed={selected} title="Pause the loop and inspect this reference">
+  return <button className={`card ${selected ? 'sel' : ''}`} onClick={onSelect} aria-pressed={selected} title="Pause the run and inspect this reference">
     <div className="ir reference-thumb" aria-hidden="true">
       <span className="mono thumb-cam">ACT</span>
       <span className="mono thumb-time">{segmentTime(p.segment_start_sec)}</span>
@@ -29,7 +30,7 @@ export function ReferenceCard({ candidate, rank, sourceRank, selected, sequenceS
   </button>;
 }
 
-export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, actionElapsedMs, sequenceLabel, onRetry, actionError }: {
+export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, actionElapsedMs, sequenceLabel, onRetry, actionError, videoRef, controlled = false, onPauseRun, rolePlan }: {
   candidate: Candidate;
   stage: Stage;
   autoPlaying: boolean;
@@ -38,8 +39,13 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
   sequenceLabel: string;
   onRetry: () => void;
   actionError: string | null;
+  videoRef?: RefObject<HTMLVideoElement>;
+  controlled?: boolean;
+  onPauseRun?(): void;
+  rolePlan?: RolePlan;
 }) {
-  const video = useRef<HTMLVideoElement>(null);
+  const localVideo = useRef<HTMLVideoElement>(null);
+  const video = videoRef ?? localVideo;
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -58,6 +64,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
     };
   }, []);
   useEffect(() => {
+    if (controlled) return;
     const element = video.current;
     if (!element) return;
     let cancelled = false;
@@ -69,7 +76,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
       });
     } else element.pause();
     return () => { cancelled = true; };
-  }, [autoPlaying]);
+  }, [autoPlaying, controlled]);
   const eligible = isEligible(candidate);
   const inferred = candidate.action_basis === 'video_caption';
   const behavior = candidate.inferred_behavior ?? candidate.reviewed_behavior;
@@ -79,7 +86,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
   const seek = (value: number) => { if (video.current && Number.isFinite(value)) video.current.currentTime = value; };
   const togglePlay = async () => {
     if (!video.current) return;
-    if (!video.current.paused) video.current.pause();
+    if (!video.current.paused) { if (controlled && autoPlaying) onPauseRun?.(); video.current.pause(); }
     else {
       if (video.current.ended) video.current.currentTime = 0;
       try { await video.current.play(); setVideoError(null); setAutoplayBlocked(false); }
@@ -105,7 +112,7 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
   return <div className="selection-panel">
     <div className="selection-heading"><span className="label">Current reference</span><span className="mono secondary small">{p.dataset ?? 'Archive segment'}</span></div>
     <div className="ir video-frame">
-      <video ref={video} src={candidate.video_url} preload="metadata" playsInline muted autoPlay={autoPlaying} loop={autoPlaying}
+      <video ref={video} src={candidate.video_url} preload="metadata" playsInline muted autoPlay={!controlled && autoPlaying} loop={!controlled && autoPlaying}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)}
         onTimeUpdate={() => setPosition(video.current?.currentTime ?? 0)}
         onLoadedMetadata={() => setDuration(Number.isFinite(video.current?.duration) ? video.current!.duration : 0)}
@@ -119,8 +126,8 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
     </div>
     <div className="video-controls">
       <button className="iconbtn" onClick={() => void togglePlay()} aria-label={playing ? 'Pause segment' : 'Play segment'}><PlayIcon playing={playing} /></button>
-      <button className="iconbtn" onClick={() => { video.current?.pause(); seek(0); }} aria-label="Back to segment start"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="2" height="12" fill="currentColor" /><polygon points="14,2 5,8 14,14" fill="currentColor" /></svg></button>
-      <input className="video-seek" aria-label="Segment position" aria-valuetext={`${mmss(position)} of ${mmss(duration)}`} type="range" min="0" max={duration || 1} value={Math.min(position, duration || 1)} step="0.05" disabled={!duration} onChange={event => seek(Number(event.target.value))} />
+      <button className="iconbtn" disabled={controlled && autoPlaying} onClick={() => { video.current?.pause(); seek(0); }} aria-label="Back to segment start"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="2" height="12" fill="currentColor" /><polygon points="14,2 5,8 14,14" fill="currentColor" /></svg></button>
+      <input className="video-seek" aria-label="Segment position" aria-valuetext={`${mmss(position)} of ${mmss(duration)}`} type="range" min="0" max={duration || 1} value={Math.min(position, duration || 1)} step="0.05" disabled={!duration || (controlled && autoPlaying)} onChange={event => seek(Number(event.target.value))} />
       <span className="mono segment-time">{segmentTime(p.segment_start_sec)}–{segmentTime(p.segment_end_sec)}</span>
     </div>
     {autoplayBlocked && !videoError && <div className="body-note">Automatic playback was blocked. Press Play to watch this segment.</div>}
@@ -132,13 +139,14 @@ export function ReferencePanel({ candidate, stage, autoPlaying, actionActive, ac
         <div className="allowed-primitive"><span className="label secondary">Duck approximation</span><span className="mono primitive">{candidate.action!.primitive}</span><span className="body-note">{primitiveLabel} · {(candidate.action!.max_duration_ms / 1000).toFixed(1).replace(/\.0$/, '')} s motion window</span></div>
       </div> : <div className="ineligible-note">{eligibilityNote(candidate)}</div>}
       <div className={`automatic-action display ${actionActive ? 'active' : ''}`}>
-        <span>{actionActive && eligible ? motionLabel(candidate.action.primitive) : autoPlaying ? 'Continuing the reference loop' : stage === 'paused' ? 'Loop stopped' : eligible ? 'Action queued' : 'Rank skipped'}</span>
+        <span>{actionActive && eligible ? motionLabel(candidate.action.primitive) : autoPlaying ? 'Following the action queue' : stage === 'paused' ? 'Run paused' : eligible ? 'Action queued' : 'Rank skipped'}</span>
         {actionActive && <span className="mono action-elapsed"><span className="dot live" aria-hidden="true" />Active · {(actionElapsedMs / 1000).toFixed(1)} s elapsed</span>}
       </div>
       {actionError && <div className="action-error" role="alert">{actionError}</div>}
-      <div className="mono copy-note">{eligible ? evidenceNote : 'No compatible evidence-based action was returned.'} {autoPlaying ? 'Scripted navigation is separate from this action. Use Stop to pause.' : sequenceLabel}</div>
+      <div className="mono copy-note">{eligible ? evidenceNote : 'No compatible evidence-based action was returned.'} {autoPlaying ? 'Scripted navigation is separate from this action. Use Pause to stop the run.' : sequenceLabel}</div>
       <button className="seg details-toggle" onClick={() => setDetailsOpen(value => !value)} aria-expanded={detailsOpen}>{detailsOpen ? 'Hide evidence details' : 'Evidence details'}</button>
       {detailsOpen && <dl className="kv mono">
+        {rolePlan && <><dt>video roles</dt><dd>{rolePlan.grounding === 'single_behavior' ? 'Individual behavior; scene companion stands nearby. No second video role is inferred.' : `${rolePlan.companion.subject} → companion ${rolePlan.companion_behavior}; ${rolePlan.duck.subject} → duck. ${rolePlan.timing.replaceAll('_', ' ')}.`}</dd><dt>duck excerpt</dt><dd>{rolePlan.duck.evidence}</dd>{rolePlan.companion.evidence && <><dt>companion excerpt</dt><dd>{rolePlan.companion.evidence}</dd></>}</>}
         <dt>model caption</dt><dd>{candidate.caption || 'none available'}</dd>
         <dt>caption hash</dt><dd>{candidate.caption_hash ?? 'not supplied by this backend'}</dd>
         <dt>action basis</dt><dd>{candidate.action_basis ?? 'none'}</dd>

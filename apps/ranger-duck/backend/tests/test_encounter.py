@@ -85,6 +85,18 @@ def test_individual_query_branch_is_validated_before_any_archive_search(individu
     assert not upstream.requests
 
 
+def test_combined_query_deduplicates_an_already_included_individual_branch():
+    interaction = 'A deer walks beside another deer'
+    individual = 'A single deer walks alone'
+    client, upstream, _ = make_client(agent=Agent(query=f'{interaction} OR {individual}', individual_query=individual))
+    with client:
+        result = client.post('/demo-api/search', json=PAYLOAD)
+    assert result.status_code == 200
+    expected = f'{interaction} OR {individual}'
+    assert result.json()['query'] == expected
+    assert json.loads(next(request.content for request in upstream.requests if request.url.path.endswith('/search')))['query'] == expected
+
+
 @pytest.mark.parametrize('caption,primitive', [
     ('A deer walks across a clearing.', 'short_walk'),
     ('A deer feeds.', 'ground_pick'),

@@ -1,5 +1,7 @@
 # Ranger Duck: additional Loop mode implementation plan
 
+> The separate Ranger Duck mode described below is historical. The current unified page, Loop toggle and shared agent pipeline are specified in [RANGER_DUCK_PLAN.md](RANGER_DUCK_PLAN.md) and [RANGER_DUCK_API.md](RANGER_DUCK_API.md). Other search-app material remains applicable.
+
 Status: implemented with automated contract coverage and local browser checks.
 Live Codex/VSS end-to-end acceptance remains to be verified in the workshop
 environment. Initial cat/deer scope and supported responses are confirmed.

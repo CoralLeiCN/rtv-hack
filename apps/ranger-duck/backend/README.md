@@ -12,7 +12,7 @@ Python 3.11 or newer:
 cd apps/ranger-duck/backend
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[test]'
-.venv/bin/python -m uvicorn ranger_duck.app:app --host 127.0.0.1 --port 8000 --workers 1
+.venv/bin/python -m uvicorn ranger_duck.app:app --host 127.0.0.1 --port 18000 --workers 1
 ```
 
 `GET /demo-api/health` and `GET /demo-api/encounters` work immediately. Search returns `503 live_not_configured` until the backend has all three required environment variables. No mock data masquerades as live results.
@@ -21,22 +21,32 @@ Use **one worker**: session capabilities and authentication cache live in memory
 
 ## Connect the frontend
 
-Use relative `/demo-api` URLs. During frontend development, proxy `/demo-api` to `http://127.0.0.1:8000`, including cookies, `Range`, and `If-Range`. Browser search requests and video URLs must use the frontend origin. This avoids CORS and credential exposure.
+Use relative `/demo-api` URLs. During frontend development, proxy `/demo-api` to `http://127.0.0.1:18000`, including cookies, `Range`, and `If-Range`. Browser search requests and video URLs must use the frontend origin. This avoids CORS and credential exposure.
 
-```js
-// Await health once before allowing Start; it establishes the playback session.
-await fetch('/demo-api/health').then(r => r.json());
-const catalog = await fetch('/demo-api/encounters').then(r => r.json());
-const response = await fetch('/demo-api/search', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ encounter_id: crypto.randomUUID(), scenario_id: catalog.encounters[0].id })
-});
-const result = await response.json();
-// Check response.ok; only successful responses contain candidates.
-```
+The single page uses `/demo-api/runs` for both Loop toggle positions. A run starts with `{run_id, animal, scenario_id, intent, adaptive}`. Loop OFF repeats its validated queue without new agent/search calls. Loop ON asks for a new round after every queued action has an acknowledged actual outcome. Changing the toggle affects the next queue boundary and does not cancel a running action or search.
 
-Await the health bootstrap before enabling Start, so overlapping searches share one session cookie even if responses finish out of order. Keep the encounter ID when starting a request and ignore responses after Reset changes it. The frontend filters all returned candidates for compatible actions, then displays and loops the first three in retrieval order. Unsupported candidates do not occupy slots; `candidate.rank` retains the original archive rank for transparency. Pass each returned primitive to the simulator adapter and await its actual completion. The backend never starts robot movements. Display a cut video's time from zero; add `provenance.segment_start_sec` only for the archive timestamp.
+The first round uses the selected encounter. After a completed live queue, each adaptive round randomly selects a different catalog encounter for the same animal. The chosen `scenario` snapshot is returned with the query plan and search round, and feeds both query and batch-action planning. The original intent remains the overall goal; actual outcomes record the encounter that produced them. Pausing or retrying a pending round retains its chosen encounter, and replay keeps the recorded encounter without consuming the pending live choice. Loop OFF never rotates an encounter during queue repetition.
+
+Runs, query plans, and cancellation are scoped by both the browser cookie and run ID, so separate tabs can execute independently. A browser session retains up to eight runs; starting another retires its oldest paused run, or returns `run_limit_reached` if none is paused. It never silently replaces an active run in another tab.
+
+| Request | Input / result |
+| --- | --- |
+| `POST /demo-api/runs` | Creates the cookie-scoped run; returns its cursor and 60-second query / 180-second search-plus-actions budgets. |
+| `POST /runs/{id}/plan` | `{broaden:false}` → real agent query, reason, opaque `plan_id`, `round_id`, and query timing. Display this before search. |
+| `POST /runs/{id}/search` | `{plan_id}` → ranked candidates, first three compatible entries in `queue`, and the first `execution` attempt. |
+| `POST /runs/{id}/outcome` | Exact round/action/attempt IDs plus actual playback, duck and companion outcomes. The acknowledgement issues the next attempt, or returns `needs_plan` at an adaptive boundary. |
+| `POST /runs/{id}/pause` | Cancels pending planning and invalidates the current attempt; retains completed acknowledgements and the current queue cursor. |
+| `POST /runs/{id}/resume` | Retries the interrupted clip from its beginning with a fresh attempt ID. Cancelled planning or an expired queue returns `needs_plan`. |
+| `POST /runs/{id}/adaptive` | `{adaptive:boolean}` changes the boundary policy only. |
+| `POST /runs/{id}/replay` | Returns the full recorded round with fresh clip capabilities and attempts; runs once, then pauses. No agent/search call and no replay outcome enters live history. |
+
+All route paths above have the `/demo-api` prefix. Successful search replies retain the existing `SearchResult` fields and add `run_id`, `round_id`, `round`, `pass`, `adaptive`, `run_status`, `queue:[{action_id,candidate,role_plan}]`, `execution:{action_id,attempt_id}`, and `timings`. Plans and search replies include `scenario:{id,label,animal,behavior_hint,interaction,description,interaction_partner}`. Cursor replies use `status: ready|needs_plan|paused`; search replies keep their search status separately from `run_status`. Fixed queue wraps increment `pass` while retaining the round; a new search increments `round`.
+
+Only one attempt is authorized at a time. Send its actual outcome once playback, companion animation and duck physics finish; the server never drives the simulator. Retrying the identical acknowledged outcome returns the same acknowledgement without advancing again. Conflicting or stale outcomes fail. Stop/reset must also abort frontend work and ignore late responses. A paused run cannot plan until explicitly resumed. Capture completed physics telemetry before beginning the next approach.
+
+The backend preserves original archive ranks and selects the first three compatible active actions, skipping unavailable clips. It sends only deterministic-eligible captions to one compact batch planner, which may assign exact caption-grounded companion roles in the same decision. Solitary footage leaves the companion unassigned. Both toggle positions use the same query schema, model, top-15 retrieval, evidence checks and batch call. A normal round uses two agent decisions and one archive search; an all-blocked result skips the batch decision and pauses. There are no hidden retries or per-clip agent calls. A broader search is an explicit user retry.
+
+`timings.query_agent_ms`, `timings.vss_search_ms`, and `timings.action_agent_ms` separate agent latency from archive latency. Replay reports zero new phase timings and retains `original_timings`. The original intent and up to nine actual acknowledged outcomes guide later queries. Recent live clip identities are retained privately to avoid immediate adaptive repetition. Display a cut video's time from zero; add `provenance.segment_start_sec` only for its archive timestamp.
 
 For one production page, set `RANGER_STATIC_DIR` to the frontend's existing build directory. The backend serves its `index.html` and assets at `/`; no frontend build or modification is performed here.
 
@@ -53,7 +63,7 @@ VSS credentials in the ignored backend `.env`; no SSH agent bridge is used.
 
 Search uses the authenticated user's existing VSS ACL scope. Deer scenarios retain the observed `wildlife` tag; cat scenarios use `tags: ["meow-10k", "cat-behavior"]` for the requested cat library. It does not guess metadata filters. The deployed VSS schema rejects `llm_top_n: 0`; this backend explicitly requests `llm_top_n: 1` and discards synthesis. The agent adds one query decision and one batched action-planning decision; VSS search still has its own deadline. Call it **Live search**, not synthesis-free search. Its actual duration is returned as `elapsed_ms`; any timeout is an error, never an automatic replay.
 
-The design's explicit Replay control sends `mode: "replay"` to the same route. It returns the last successful live result for that session, scenario, and `broaden` setting, with a visible replay mode, original timing, and recording timestamp. Missing/expired snapshots return 409. Search snapshots are memory-only and expire with the configured TTL; replayed video still streams from VSS. `broaden: true` relaxes the requested behavior while retaining the species and permitting interactions or similar solitary motion.
+Replay uses the last successful round in the current run and is labeled explicitly. Missing or expired snapshots return 409. Snapshots are memory-only; replayed video still streams from VSS. `broaden: true` relaxes the requested behavior while retaining species and both interaction/solitary query branches.
 
 ## Interaction evidence and optional human review
 
@@ -126,7 +136,7 @@ Health returns `search_timeout_ms` so the browser waits for the configured backe
 
 Up to 15 distinct segment results are returned in original upstream order. `rank` preserves the original 1-based index even when a duplicate or invalid source is omitted. There is no parent diversity reranking. Any compatible action contributes to response `status: "ok"`; the frontend takes the first three compatible results after filtering the whole returned set. For example, eligible archive ranks 4, 7, 13, and 15 yield three displayed action slots backed by ranks 4, 7, and 13.
 
-At most 256 browser sessions and 60 clip capabilities per session are held. Cookies are HttpOnly/SameSite and IDs are opaque. A different session, expiration, restart, or capacity eviction yields the same `404 clip_not_found`. Search again to refresh access.
+At most 256 browser sessions and 60 clip capabilities per session are held. Each retained run protects only its selected queue (at most three capabilities, 24 across eight runs) from capacity eviction by other tabs. New rounds replace that protection; retirement and capability expiry release it. Cookies are HttpOnly/SameSite and IDs are opaque. A different session, expiration, restart, or capacity eviction of an unselected clip yields the same `404 clip_not_found`. Search again to refresh access.
 
 Video requests accept one standard byte range. The proxy forwards `Range`/`If-Range`, supports GET and HEAD, and preserves 206/416 plus range headers. If upstream HEAD is unsupported, it opens a streaming GET and closes after headers without reading the body. No arbitrary URL proxy, upstream redirect, presigned link, or JWT is sent to the browser. A failure after streaming begins interrupts playback; retrying/researching is the UI recovery.
 
@@ -142,16 +152,18 @@ Each event has a timestamp, event ID and run ID linking:
   score, segment times and other returned fields; it does not download video bytes.
 - Codex instructions, context, output schema, raw final output, validated decision
   and returned explanation. Private internal reasoning is not available.
-- Issued actions and browser-reported outcomes, including simulator state. Loop
-  outcomes also retain playback and companion status. Encounter mode reports each
-  action start/completion/failure/cancellation. Missing browser reports remain
-  unknown; a closed tab cannot be assumed to have completed an action.
+- Unified run action issuance and validated browser-reported outcomes, including
+  round/attempt IDs, simulator state, playback and companion status. Fixed and
+  adaptive runs share the same capture path; replay outcomes are labelled.
+  Pausing an issued attempt without a report records an unknown outcome, not
+  completion. Legacy encounter and loop endpoints retain their capture events.
 
 Credentials, bearer tokens and signed URL query strings are stripped before
 writing. Stable video source paths remain private training provenance. Capture
 does not sample or truncate search hits/captions. `/demo-api/health` exposes
 `capture_enabled` and `capture_write_failed`; a disk failure is also logged
-without payloads. Encounter execution stops if its capture cannot be saved.
+without payloads. Unified runs stop issuing actions if capture storage fails;
+outcomes must be saved before acknowledgement.
 
 To send captures to W&B Weave, create a team-only project, set
 `RANGER_WEAVE_PROJECT=ENTITY/PROJECT` and `WANDB_API_KEY` privately in the backend
@@ -186,37 +198,12 @@ On 17 October 2026, all 163 backend tests passed after active-caption preference
 
 ## Local agent decisions
 
-Both Encounter and Agent Loop modes use a locally installed Codex CLI with the
-presenter's existing ChatGPT OAuth login. No OpenAI API key is required. The
-CLI must support `exec --ignore-user-config --ephemeral --output-schema`; see
-the [official CLI reference](https://developers.openai.com/codex/cli/reference).
+The unified run pipeline uses a locally installed Codex CLI with the presenter's existing ChatGPT OAuth login. No OpenAI API key is required. The CLI must support `exec --ignore-user-config --ephemeral --output-schema`; see the [official CLI reference](https://developers.openai.com/codex/cli/reference).
 
-Encounter mode first calls `POST /demo-api/encounter-plan`. The returned query
-and reason are shown before `/demo-api/search` uses its session-scoped
-`plan_id`. Calling search without a plan remains supported and generates one
-internally. Queries request interactions **or similar individual behavior** of
-the selected species. The structured decision requires both an interaction branch and a similar solitary-behavior branch; the server validates both species scopes and joins them with `OR`. After retrieval, one batched agent decision proposes
-actions for up to 15 clips. The backend validates exact caption excerpts,
-selected species, supported behavior, review/provenance vetoes and primitive
-limits. It keeps archive order; the frontend takes the first three compatible
-actions. Replay reuses recorded decisions without another agent call.
+The first query uses the selected animal, encounter and optional original intent. Later adaptive rounds use that same intent plus real acknowledged outcomes. The structured decision requires both a same-species interaction branch and a similar solitary-behavior branch; the server validates each species scope and joins them with `OR`. Query generation is identical with Loop ON or OFF. Requested actions and failed attempts are never presented as observed successes.
 
-`loop_agent.py` runs ephemeral structured decisions in temporary directories
-using `gpt-6-luna` and forced ChatGPT sign-in. It disables shell tools, apps,
-web search, hooks and multi-agent tools, and does not load user custom config.
-Workshop credentials and API-key environment variables are excluded. Source
-URIs and video tokens never enter the agent context.
+`loop_agent.py` remains the shared CLI runner. It runs ephemeral structured decisions using `gpt-6-luna` and forced ChatGPT sign-in, disables shell tools/apps/web/hooks/multi-agent tools, and does not load user custom config. Workshop credentials and API-key environment variables are excluded. Source URIs and video tokens never enter agent context. At most two decisions run concurrently across sessions.
 
-Health reports executable availability, not a successful paid inference probe.
-Missing login, incompatible CLI or unavailable model returns `agent_failed`.
-Query planning is limited to 60 seconds; search plus action planning and each
-Loop cycle have a 180-second ceiling. At most two Codex decisions run at once.
-Stop/reset cancel pending work, including the CLI child process. The application
-does not install Codex or modify its login/configuration.
+Health reports executable availability, not a successful inference probe. Missing login, incompatible CLI or unavailable model returns `agent_failed`. The application never installs Codex or modifies login/configuration. Pause/reset cancels pending work, including the CLI child process.
 
-Agent Loop mode adds context from actual playback and controller outcomes to
-the next query. Paired captions can assign two grounded roles; single-animal
-clips can supply a supported duck behavior without inventing a second observed
-animal. See the [Loop contract](../../../docs/RANGER_DUCK_API.md#additional-agent-loop-mode).
-
-Both Encounter and Loop exclude passive scan/hold actions before selecting references. With no active supported result, the service reports that state (Loop may try a bounded broader query); it never fabricates an active action or falls back to a neutral hold.
+Legacy `/encounter-plan`, `/search`, and `/loop` routes remain for compatibility. The single-page frontend uses only `/runs`; the legacy standalone Loop selector is not a second agent path for the new page. The shared run service reuses Encounter query/action validation, adding bounded optional role plans, session history, ordered execution attempts, and idempotent outcomes.

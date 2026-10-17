@@ -28,6 +28,7 @@ class Session:
     clips: dict[str, tuple[str, float]] = field(default_factory=dict)
     searches: dict[tuple[str, bool], SearchSnapshot] = field(default_factory=dict)
     actions: dict[str, dict] = field(default_factory=dict)
+    protected_clips: dict[str, set[str]] = field(default_factory=dict)
 
 
 class ClipRegistry:
@@ -41,6 +42,14 @@ class ClipRegistry:
         for key in list(self.sessions):
             if self.sessions[key].expires <= now:
                 del self.sessions[key]
+                continue
+            session = self.sessions[key]
+            for group, clips in list(session.protected_clips.items()):
+                retained = {clip for clip in clips if clip in session.clips and session.clips[clip][1] > now}
+                if retained:
+                    session.protected_clips[group] = retained
+                else:
+                    del session.protected_clips[group]
 
     def session(self, supplied_id: str | None) -> str:
         self._prune()
@@ -54,14 +63,33 @@ class ClipRegistry:
         return session_id
 
     def add(self, session_id: str, source: str) -> str:
-        clips = self.sessions[session_id].clips
+        session = self.sessions[session_id]
+        clips = session.clips
         if len(clips) >= 60:
-            oldest = next(iter(clips))
-            del clips[oldest]
-            self.sessions[session_id].actions.pop(oldest, None)
+            protected = {clip for group in session.protected_clips.values() for clip in group
+                         if clip in clips and clips[clip][1] > time.monotonic()}
+            victim = next((clip for clip in clips if clip not in protected), None)
+            if victim is None:
+                raise DemoError('clip_capacity', 'Pause an existing run before requesting more clips.', 409)
+            del clips[victim]
+            session.actions.pop(victim, None)
         clip_id = secrets.token_urlsafe(24)
         clips[clip_id] = (source, time.monotonic() + self.ttl)
         return clip_id
+
+    def protect(self, session_id: str, group: str, clip_ids: list[str]) -> None:
+        # Unified runs cap this at three entries for each of eight runs. The
+        # overall sixty-capability limit still applies to every browser session.
+        session = self.sessions[session_id]
+        if clip_ids:
+            session.protected_clips[group] = set(clip_ids)
+        else:
+            session.protected_clips.pop(group, None)
+
+    def release(self, session_id: str, group: str) -> None:
+        session = self.sessions.get(session_id)
+        if session:
+            session.protected_clips.pop(group, None)
 
     def remember(self, session_id: str, key: tuple[str, bool], snapshot: SearchSnapshot) -> None:
         searches = self.sessions[session_id].searches

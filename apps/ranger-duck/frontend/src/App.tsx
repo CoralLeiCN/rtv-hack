@@ -1,390 +1,138 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, getEncounters, getHealth, cancelEncounter, captureAction, type Encounter, type EncounterPlan, type Health, type SearchMode, type SearchResult } from './api';
-import { reactionState } from './agentLoop';
-import { responseIsCurrent, runReferenceLoop, sequenceSlots, motionLabel, loopPhaseLabel, STAGE_INDEX, STAGES, visibleCandidates, type LoopProgress, type Stage } from './demo';
-import { searchEncounter } from './encounterAgent';
-import { AgentLoopPanel } from './components/AgentLoopPanel';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { ApiError, getEncounters, getHealth, type Encounter, type Health } from './api';
+import { motionLabel, type Stage } from './demo';
 import { ReferenceCard, ReferencePanel } from './components/ReferencePanel';
 import { MicroduckScene, type MicroduckSceneHandle } from './simulator/MicroduckScene';
+import { SessionController, sessionLabel, type SessionPhase } from './session';
+import { sessionApi } from './sessionApi';
 
-type Rehearsal = 'nomatch' | 'timeout' | null;
-type ActiveLoop = { response: SearchResult; cycle: number };
-const idLabel = (number: number) => `encounter-${String(number).padStart(3, '0')}`;
+const stages = ['Encounter', 'Agent search', 'Actions ready', 'Imitating', 'Round complete'];
+const stageIndex: Record<SessionPhase, number> = { idle: -1, starting: 0, planning: 1, searching: 1, approaching: 2, playback: 2, acting: 3, reporting: 3, complete: 4, paused: 3, empty: 1, failed: 1 };
 
 export default function App() {
   const duck = useRef<MicroduckSceneHandle>(null);
-  const [experience, setExperience] = useState<'encounter' | 'agent'>('encounter');
-  const [agentSearching, setAgentSearching] = useState(false);
-  const [loopAnimal, setLoopAnimal] = useState<'cat' | 'deer'>('deer');
+  const video = useRef<HTMLVideoElement>(null);
+  const healthRef = useRef<Health | null>(null);
+  const runner = useRef<SessionController | null>(null);
+  if (!runner.current) runner.current = new SessionController({
+    api: () => { if (!healthRef.current) throw new Error('The backend is not connected.'); return sessionApi(healthRef.current); },
+    scene: () => duck.current, video: () => video.current,
+  });
+  const controller = runner.current;
+  const run = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const [health, setHealth] = useState<Health | null>(null);
   const [scenarios, setScenarios] = useState<Encounter[]>([]);
   const [scenarioId, setScenarioId] = useState('');
+  const [intent, setIntent] = useState('');
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootAttempt, setBootAttempt] = useState(0);
   const [simulatorReady, setSimulatorReady] = useState(false);
   const [simulatorError, setSimulatorError] = useState<string | null>(null);
+  const [movementError, setMovementError] = useState<string | null>(null);
   const [duckStatus, setDuckStatus] = useState('loading');
   const [navigationStatus, setNavigationStatus] = useState('idle');
   const [control, setControl] = useState<ReturnType<MicroduckSceneHandle['telemetry']> | null>(null);
-  const [stage, setStage] = useState<Stage>('idle');
-  const [encounterId, setEncounterId] = useState(idLabel(1));
-  const [mode, setMode] = useState<SearchMode>('live');
-  const [broadened, setBroadened] = useState(false);
-  const [result, setResult] = useState<SearchResult | null>(null);
-  const [queryPlan, setQueryPlan] = useState<EncounterPlan | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [loopRunning, setLoopRunning] = useState(false);
-  const [loopProgress, setLoopProgress] = useState<LoopProgress | null>(null);
-  const [loopNote, setLoopNote] = useState<string | null>(null);
-  const [rankStates, setRankStates] = useState<Record<number, string>>({});
-  const [actionStartedAt, setActionStartedAt] = useState<number | null>(null);
-  const [rehearsal, setRehearsal] = useState<Rehearsal>(null);
-  const [replayKeys, setReplayKeys] = useState<Set<string>>(new Set());
-  const [clock, setClock] = useState(new Date());
-  const sequence = useRef(1);
-  const activeEncounter = useRef(encounterId);
-  const requestGeneration = useRef(0);
-  const actionGeneration = useRef(0);
-  const pending = useRef<AbortController | null>(null);
-  const loopController = useRef<AbortController | null>(null);
-  const activeLoop = useRef<ActiveLoop | null>(null);
-  const visibilityResume = useRef<ActiveLoop | null>(null);
-  const resumeAttending = useRef(false);
-  const motionActive = useRef(false);
-  const currentStage = useRef<Stage>('idle');
+  const [clock, setClock] = useState(Date.now());
+  const lastConfig = useRef('');
   const scenario = scenarios.find(item => item.id === scenarioId) ?? null;
-  const selected = result?.candidates.find(item => item.clip_id === selectedId) ?? null;
+  const currentScenario = run.currentScenario ?? scenario;
   const species = [...new Set(scenarios.map(item => item.animal))].sort();
   const speciesScenarios = scenarios.filter(item => item.animal === scenario?.animal);
-  const replayAvailable = replayKeys.has(`${scenarioId}:${broadened}`);
-  const setCurrentStage = useCallback((value: Stage) => { currentStage.current = value; setStage(value); }, []);
+  const configKey = JSON.stringify([scenarioId, intent.trim()]);
+  const configChanged = !!run.runId && configKey !== lastConfig.current;
+  const searching = ['planning', 'searching'].includes(run.phase);
+  const selected = run.round?.queue.find(item => item.candidate.clip_id === run.selectedId) ?? null;
+  const elapsed = run.startedAt == null ? run.elapsedMs : clock - run.startedAt;
+  const label = sessionLabel(run);
+  const canStart = !run.running && !run.stopping && !!health?.live_configured && !!scenario && simulatorReady && health.encounter_agent_available !== false;
+  const canResume = canStart && !!run.runId && !configChanged;
+  const pendingToggle = !!run.round && run.adaptive !== run.roundAdaptive;
 
   useEffect(() => {
-    const controller = new AbortController();
+    const abort = new AbortController();
     setBootstrapError(null);
-    setHealth(null);
-    Promise.all([getHealth(controller.signal), getEncounters(controller.signal)]).then(([service, catalog]) => {
-      if (controller.signal.aborted) return;
+    Promise.all([getHealth(abort.signal), getEncounters(abort.signal)]).then(([service, catalog]) => {
+      if (abort.signal.aborted) return;
       if (!catalog.length) throw new Error('No encounter scenarios are configured.');
-      setHealth(service);
-      setScenarios(catalog);
+      healthRef.current = service; setHealth(service); setScenarios(catalog);
       setScenarioId(previous => catalog.some(item => item.id === previous) ? previous : catalog[0].id);
-    }).catch(error => {
-      if (!controller.signal.aborted) setBootstrapError(error instanceof ApiError ? error.message : 'The demo backend is unavailable. Start the backend, then reconnect.');
-    });
-    return () => controller.abort();
+    }).catch(error => { if (!abort.signal.aborted) setBootstrapError(error instanceof ApiError || error instanceof Error ? error.message : 'The demo backend is unavailable.'); });
+    return () => abort.abort();
   }, [bootAttempt]);
-  useEffect(() => { const timer = setInterval(() => setClock(new Date()), 1000); return () => clearInterval(timer); }, []);
-  useEffect(() => () => { if (pending.current) { pending.current.abort(); void cancelEncounter(activeEncounter.current).catch(() => undefined); } loopController.current?.abort(); duck.current?.stop(); }, []);
   useEffect(() => {
-    if (!simulatorReady) return;
-    const timer = setInterval(() => { try { setControl(duck.current?.telemetry() ?? null); } catch { /* Runtime is still changing scenes. */ } }, 250);
+    const timer = setInterval(() => {
+      setClock(Date.now());
+      if (simulatorReady) try { setControl(duck.current?.telemetry() ?? null); } catch { /* Scene is still loading. */ }
+    }, 250);
     return () => clearInterval(timer);
   }, [simulatorReady]);
-
-  const cancelPending = useCallback(() => {
-    if (!pending.current) return;
-    pending.current.abort(); pending.current = null;
-    void cancelEncounter(activeEncounter.current).catch(() => undefined);
-  }, []);
-
-  const stopMotion = useCallback(() => {
-    loopController.current?.abort();
-    loopController.current = null;
-    activeLoop.current = null;
-    motionActive.current = false;
-    actionGeneration.current += 1;
-    duck.current?.stop();
-    setLoopRunning(false);
-    setActionStartedAt(null);
-    setNavigationStatus('idle');
-  }, []);
-
-  const startAttending = useCallback(() => {
-    if (!duck.current) return;
-    if (document.hidden) { resumeAttending.current = true; return; }
-    resumeAttending.current = false;
-    motionActive.current = true;
-    const generation = actionGeneration.current;
-    void duck.current.ensureInteraction().catch(error => {
-      if (generation !== actionGeneration.current || document.hidden) return;
-      motionActive.current = false;
-      setActionError(error instanceof Error ? error.message : 'The duck could not approach the animal.');
-      setLoopNote('Navigation stopped. Resume to approach the animal again.');
-    });
-  }, []);
-
-  const pauseLoop = useCallback((message = 'Stopped. Resume continues from action 1 without resetting the duck.') => {
-    visibilityResume.current = null;
-    resumeAttending.current = false;
-    cancelPending();
-    requestGeneration.current += 1;
-    stopMotion();
-    setLoopNote(message);
-    setActionError(null);
-    setRankStates(previous => Object.fromEntries(Object.entries(previous).map(([rank, value]) => [rank, ['running', 'waiting', 'approaching'].includes(value) ? 'paused' : value])));
-    if (currentStage.current !== 'idle') setCurrentStage('paused');
-  }, [stopMotion, setCurrentStage, cancelPending]);
-
-  const pauseForVisibility = useCallback(() => {
-    // Abort the sequence before stopping physics so intentional cancellation
-    // cannot become a stale movement failure or leave a running rank behind.
-    if (activeLoop.current) visibilityResume.current = { ...activeLoop.current, cycle: activeLoop.current.cycle + 1 };
-    else if (motionActive.current) resumeAttending.current = true;
-    if (!visibilityResume.current && !resumeAttending.current) return;
-    stopMotion();
-    setActionError(null);
-    setRankStates(previous => Object.fromEntries(Object.entries(previous).map(([rank, value]) => [rank, ['running', 'waiting', 'approaching'].includes(value) ? 'paused' : value])));
-    if (visibilityResume.current) {
-      setLoopNote('Paused while this tab is hidden. The loop resumes when you return.');
-      setCurrentStage('paused');
-    }
-  }, [stopMotion, setCurrentStage]);
-
-  const invalidate = useCallback(() => {
-    visibilityResume.current = null;
-    resumeAttending.current = false;
-    cancelPending();
-    requestGeneration.current += 1;
-    stopMotion();
-    const id = idLabel(++sequence.current);
-    activeEncounter.current = id;
-    setEncounterId(id);
-    setResult(null);
-    setQueryPlan(null);
-    setSelectedId(null);
-    setElapsed(0);
-    setSearchError(null);
-    setActionError(null);
-    setLoopProgress(null);
-    setLoopNote(null);
-    setRankStates({});
-    return id;
-  }, [stopMotion, cancelPending]);
-
-  const startLoop = useCallback((response: SearchResult, firstCycle = 1) => {
-    if (response.encounter_id !== activeEncounter.current || !duck.current) return;
-    visibilityResume.current = null;
-    resumeAttending.current = false;
-    stopMotion();
-    setSelectedId(visibleCandidates(response.candidates)[0]?.candidate.clip_id ?? null);
-    if (!sequenceSlots(response.candidates).some(slot => slot.supported)) {
-      setLoopNote('No active supported motion was found. Microduck is attending to the animal while it waits.');
-      setCurrentStage('nomatch');
-      startAttending();
-      return;
-    }
-    if (document.hidden) {
-      visibilityResume.current = { response, cycle: firstCycle };
-      setLoopNote('Paused while this tab is hidden. The loop resumes when you return.');
-      setCurrentStage('paused');
-      return;
-    }
-    const controller = new AbortController();
-    loopController.current = controller;
-    activeLoop.current = { response, cycle: firstCycle };
-    motionActive.current = true;
-    const generation = ++actionGeneration.current;
-    const executionId = crypto.randomUUID();
-    const isCurrent = () => !controller.signal.aborted && generation === actionGeneration.current && response.encounter_id === activeEncounter.current;
-    setLoopRunning(true);
-    setActionError(null);
-    setLoopNote(null);
-    void runReferenceLoop({
-      candidates: response.candidates,
-      signal: controller.signal,
-      firstCycle,
-      prepareCycle: () => duck.current!.prepareCycle(),
-      approach: () => duck.current!.ensureInteraction(),
-      attend: () => duck.current!.ensureInteraction(),
-      status: () => duck.current?.status() ?? 'failed',
-      perform: action => duck.current!.perform({ primitive: action.primitive, evidenceId: action.evidence_id, maxDurationMs: action.max_duration_ms }),
-      onAction: (candidate, cycle, status) => captureAction({
-        clip_id: candidate.clip_id, search_id: response.search_id,
-        execution_id: `${executionId}_${cycle}_${candidate.clip_id}`, cycle,
-        primitive: candidate.action!.primitive, status,
-        state: duck.current ? reactionState(duck.current.telemetry()) : null,
-      }),
-      onProgress: progress => {
-        if (!isCurrent()) return;
-        activeLoop.current = { response, cycle: progress.cycle };
-        setLoopProgress(progress);
-        setActionStartedAt(progress.phase === 'running' ? Date.now() : null);
-        if (progress.rank != null) setSelectedId(progress.candidate?.clip_id ?? null);
-        if (progress.phase === 'preparing') setRankStates({});
-        if (progress.rank != null) setRankStates(previous => ({ ...previous, [progress.rank!]: progress.phase }));
-        setCurrentStage(['attending', 'cycle_complete'].includes(progress.phase) ? 'complete' : 'imitating');
-      },
-    }).catch(error => {
-      if (!isCurrent()) return;
-      if (document.hidden) { pauseForVisibility(); return; }
-      stopMotion();
-      setRankStates(previous => Object.fromEntries(Object.entries(previous).map(([rank, value]) => [rank, ['running', 'waiting', 'approaching'].includes(value) ? 'failed' : value])));
-      setActionError(error instanceof Error ? error.message : 'The controller could not continue. Reset before resuming.');
-      setLoopNote('The loop stopped before another action could begin.');
-      setCurrentStage('paused');
-    }).finally(() => {
-      if (loopController.current === controller) { loopController.current = null; setLoopRunning(false); }
-    });
-  }, [stopMotion, setCurrentStage, pauseForVisibility, startAttending]);
-
   useEffect(() => {
-    const visibilityChanged = () => {
-      if (document.hidden) { pauseForVisibility(); return; }
-      const queued = visibilityResume.current;
-      visibilityResume.current = null;
-      if (queued && queued.response.encounter_id === activeEncounter.current) startLoop(queued.response, queued.cycle);
-      else if (resumeAttending.current) startAttending();
-    };
-    document.addEventListener('visibilitychange', visibilityChanged);
-    return () => document.removeEventListener('visibilitychange', visibilityChanged);
-  }, [pauseForVisibility, startLoop, startAttending]);
+    const visibility = () => controller.visibility(document.hidden);
+    document.addEventListener('visibilitychange', visibility);
+    return () => { document.removeEventListener('visibilitychange', visibility); controller.pause(); };
+  }, [controller]);
 
-  const reset = useCallback(() => {
-    invalidate();
-    duck.current?.reset();
-    setCurrentStage('idle');
-    setRehearsal(null);
-    setBroadened(false);
-    setMode('live');
-  }, [invalidate, setCurrentStage]);
+  const start = (broaden = false) => {
+    if (!canStart || !scenario) return;
+    const id = crypto.randomUUID();
+    lastConfig.current = configKey;
+    setMovementError(null);
+    // Stop the previous owner before queuing the animal. Planning starts
+    // independently of the animal's appearance and automatic approach.
+    controller.start({ run_id: id, animal: scenario.animal === 'cat' ? 'cat' : 'deer', scenario_id: scenario.id, intent: intent.trim(), adaptive: run.adaptive }, broaden);
+    duck.current?.startEncounter({ id, animal: scenario.animal === 'cat' ? 'cat' : 'deer', interaction_partner: 'microduck', behavior_hint: scenario.behavior_hint, preservePose: true });
+  };
+  const reset = () => { controller.reset(); duck.current?.reset(); setMovementError(null); lastConfig.current = ''; };
+  const onReady = useCallback(() => { setSimulatorReady(true); setSimulatorError(null); }, []);
+  const onError = useCallback((message: string) => { controller.pause('Simulator unavailable.'); setSimulatorReady(false); setSimulatorError(message); setDuckStatus('failed'); }, [controller]);
+  const onStatus = useCallback((status: string) => { setDuckStatus(status); if (status === 'ready' || status === 'complete') setMovementError(null); }, []);
+  const onNavigation = useCallback((status: string) => setNavigationStatus(status), []);
+  const onMovementError = useCallback((message: string) => setMovementError(message), []);
+  const navigationLabel = control?.primitive ? motionLabel(control.primitive as Parameters<typeof motionLabel>[0]) : navigationStatus === 'approaching' ? 'Turning and approaching the animal' : navigationStatus === 'settling' ? 'Settling for the next action' : control?.target && Math.abs(control.target.facing_error) < 0.18 && duckStatus === 'ready' ? 'Facing the animal · ready' : 'Movement paused';
+  const panelStage: Stage = run.phase === 'acting' ? 'imitating' : ['paused', 'failed'].includes(run.phase) ? 'paused' : run.phase === 'complete' ? 'complete' : 'ready';
 
-  const beginSearch = useCallback(async (id: string, broad = false, requestedMode: SearchMode = mode) => {
-    if (!scenario || !health || id !== activeEncounter.current) return;
-    cancelPending();
-    stopMotion();
-    const controller = new AbortController();
-    pending.current = controller;
-    const generation = ++requestGeneration.current;
-    setResult(null); setQueryPlan(null); setSelectedId(null); setSearchError(null); setActionError(null); setElapsed(0); setBroadened(broad); setMode(requestedMode);
-    setCurrentStage('searching');
-    startAttending();
-    const started = performance.now();
-    const isCurrent = () => id === activeEncounter.current && generation === requestGeneration.current;
-    const tick = setInterval(() => { if (isCurrent()) setElapsed(performance.now() - started); }, 80);
-    try {
-      const response = await searchEncounter({ encounter_id: id, scenario_id: scenario.id, mode: requestedMode, broaden: broad }, {
-        signal: controller.signal, health, onPlan: plan => { if (isCurrent()) setQueryPlan(plan); },
-      });
-      if (!responseIsCurrent(response, id, activeEncounter.current, generation, requestGeneration.current)) return;
-      setResult(response);
-      setElapsed(performance.now() - started);
-      setMode(response.mode);
-      if (response.mode === 'live') setReplayKeys(previous => new Set([...previous, `${scenario.id}:${broad}`]));
-      setCurrentStage(visibleCandidates(response.candidates).length ? 'ready' : 'nomatch');
-      startLoop(response);
-    } catch (error) {
-      if (!isCurrent()) return;
-      if (error instanceof ApiError && error.code === 'encounter_timeout') void cancelEncounter(id).catch(() => undefined);
-      setElapsed(performance.now() - started);
-      setSearchError(error instanceof ApiError ? error.message : 'The encounter agent or archive service could not be reached. Check the connection and retry.');
-      if (error instanceof ApiError && error.code === 'replay_unavailable') setReplayKeys(previous => { const next = new Set(previous); next.delete(`${scenario.id}:${broad}`); return next; });
-      setCurrentStage('failed');
-    } finally { clearInterval(tick); if (pending.current === controller) pending.current = null; }
-  }, [scenario, health, mode, setCurrentStage, startLoop, stopMotion, startAttending, cancelPending]);
-
-  const onEncounterReady = useCallback((id: string) => {
-    if (id !== activeEncounter.current || currentStage.current !== 'encounter') return;
-    void beginSearch(id, broadened, mode);
-  }, [beginSearch, mode, broadened]);
-  const onSimulatorReady = useCallback(() => { setSimulatorReady(true); setSimulatorError(null); }, []);
-  const onSimulatorError = useCallback((message: string) => { pauseLoop('Simulator unavailable.'); setSimulatorReady(false); setSimulatorError(message); setDuckStatus('failed'); }, [pauseLoop]);
-  const onSimulatorStatus = useCallback((status: string) => { setDuckStatus(status); }, []);
-  const onNavigation = useCallback((status: string) => { setNavigationStatus(status); }, []);
-  const onMovementError = useCallback((message: string) => { setActionError(message); setLoopNote(`Navigation stopped: ${message}`); }, []);
-
-  const start = () => {
-    if (!scenario || !health || !simulatorReady || !(stage === 'idle' || (stage === 'paused' && !result))) return;
-    const id = invalidate();
-    setRehearsal(null);
-    setCurrentStage('encounter');
-    motionActive.current = true;
-    duck.current?.startEncounter({ id, animal: scenario.animal === 'cat' ? 'cat' : 'deer', interaction_partner: 'microduck', behavior_hint: scenario.behavior_hint });
-  };
-  const chooseScenario = (id: string) => { if (id !== scenarioId) { reset(); setScenarioId(id); setMode('live'); } };
-  const chooseSpecies = (animal: string) => { const first = scenarios.find(item => item.animal === animal); if (first) chooseScenario(first.id); };
-  const chooseMode = (value: SearchMode) => {
-    if (value !== mode || rehearsal) {
-      const retainedScope = broadened;
-      reset();
-      setBroadened(retainedScope);
-      setMode(value);
-    }
-  };
-  const select = (id: string) => {
-    if (!result || !visibleCandidates(result.candidates).some(item => item.candidate.clip_id === id)) return;
-    pauseLoop('Paused for reference inspection. Resume restarts the compatible-action loop.');
-    setSelectedId(id);
-    setActionError(null);
-  };
-  const resume = () => {
-    if (!result || rehearsal || !simulatorReady) return;
-    if (visibleCandidates(result.candidates).length) startLoop(result, (loopProgress?.cycle ?? 0) + 1);
-    else { setCurrentStage('nomatch'); setLoopNote('No active supported motion was found. Microduck is attending to the animal while it waits.'); startAttending(); }
-  };
-  const rehearse = (kind: Exclude<Rehearsal, null>) => {
-    invalidate(); duck.current?.reset(); setRehearsal(kind); setBroadened(false);
-    setCurrentStage(kind === 'nomatch' ? 'nomatch' : 'failed');
-    setSearchError(kind === 'timeout' ? 'Rehearsal: the deadline reached state. No archive request was made.' : null);
-  };
-  const retry = (requestedMode: SearchMode = mode, broad = broadened) => {
-    setRehearsal(null);
-    const id = invalidate();
-    void beginSearch(id, broad, requestedMode);
-  };
-  const currentIndex = STAGE_INDEX[stage];
-  const results = visibleCandidates(result?.candidates ?? []);
-  const statusText = rehearsal ? 'UI rehearsal · no request' : stage === 'idle' ? 'idle' : stage === 'encounter' ? 'preparing encounter' : stage === 'searching' ? mode === 'replay' ? 'replaying saved run' : queryPlan ? 'searching + planning actions' : 'agent generating query' : stage === 'nomatch' ? 'no active supported motion' : stage === 'failed' ? 'search did not finish' : `${result?.mode ?? mode} · ${result?.candidates.length ?? 0} candidates`;
-  const timeLabel = stage === 'idle' || stage === 'encounter' || rehearsal ? '— s' : `${(elapsed / 1000).toFixed(2)} s`;
-  const canStart = (stage === 'idle' || (stage === 'paused' && !result)) && !!health && !!scenario && simulatorReady && (mode === 'replay' || health.encounter_agent_available !== false);
-  const slots = sequenceSlots(result?.candidates ?? []);
-  const canResume = !!result && result.encounter_id === activeEncounter.current && simulatorReady;
-  const canStop = motionActive.current || loopRunning || navigationStatus !== 'idle' || stage === 'encounter' || stage === 'searching';
-  const loopLabel = loopRunning && loopProgress ? `Cycle ${loopProgress.cycle} · ${loopProgress.rank ? `action ${loopProgress.rank}/${slots.length} · ` : ''}${loopPhaseLabel(loopProgress.phase)}${loopProgress.candidate?.action && loopProgress.phase === 'running' ? ` · ${motionLabel(loopProgress.candidate.action.primitive)}` : ''}` : loopNote ?? 'Up to three compatible actions run automatically after search.';
-  const navigationLabel = control?.primitive ? motionLabel(control.primitive as Parameters<typeof motionLabel>[0]) ?? control.primitive : navigationStatus === 'approaching' ? 'Turning and approaching the animal' : navigationStatus === 'roaming' ? 'Roaming inside the arena' : navigationStatus === 'settling' ? 'Settling for the next action' : control?.target && Math.abs(control.target.facing_error) < 0.18 && duckStatus === 'ready' ? 'Facing the animal · ready' : 'Movement paused';
-  const eventJson = scenario && stage !== 'idle' ? JSON.stringify({ encounter_id: encounterId, scenario_id: scenario.id, input_mode: 'scripted_scene', animal: scenario.animal, scene_partner: 'microduck', archive_interaction_partner: scenario.interaction_partner ?? scenario.animal, interaction: scenario.interaction ?? scenario.behavior_hint }, null, 2) : '{ awaiting Start }';
-
-  return <div className={`app-shell ${experience === 'agent' ? 'agent-experience' : ''}`}>
-    <nav className="experience-tabs" aria-label="Interaction mode"><button className={`tab ${experience === 'encounter' ? 'on' : ''}`} aria-pressed={experience === 'encounter'} onClick={() => { if (experience !== 'encounter') { reset(); setExperience('encounter'); } }}>Encounter mode</button><button className={`tab ${experience === 'agent' ? 'on' : ''}`} aria-pressed={experience === 'agent'} onClick={() => { if (experience !== 'agent') { reset(); setExperience('agent'); } }}>Agent Loop mode</button></nav>
+  return <div className="app-shell unified-experience">
     <header className="app-header">
-      <div className="brand"><div className="logo" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="12" cy="16" r="8" fill="#101018" /><circle cx="17" cy="9" r="5" fill="#101018" /><path d="M21 9 L27 11 L21 13 Z" fill="#FF7A2F" /><circle cx="18.5" cy="8" r="1.2" fill="#FFD23F" /></svg></div><div><h1 className="display">Ranger Duck</h1><div className="label brand-subtitle">Field unit AV-1 · {experience === 'agent' ? 'agent-selected responses' : 'retrieval-guided imitation'}</div></div></div>
-      {experience === 'encounter' && <><div className="species-tabs"><span className="label">Species</span><div className="tabs" role="group" aria-label="Animal species">{species.map(animal => <button key={animal} className={`tab ${scenario?.animal === animal ? 'on' : ''}`} aria-pressed={scenario?.animal === animal} onClick={() => chooseSpecies(animal)}>{animal}</button>)}</div></div>
-      <div className="encounter-tabs"><span className="label">Interaction</span><div className="tabs" role="group" aria-label="Encounter scenario">{speciesScenarios.map(item => <button key={item.id} className={`tab ${scenarioId === item.id ? 'on' : ''}`} aria-pressed={scenarioId === item.id} onClick={() => chooseScenario(item.id)}>{item.label}</button>)}{!scenarios.length && <span className="mono secondary small">Connecting…</span>}</div></div>
-      <div className="header-actions"><div className="mono encounter-id">{encounterId}</div><button className="btn primary" disabled={!canStart} onClick={start}>Start</button><button className="btn loop-control" disabled={!canStop && !canResume} onClick={() => canStop ? pauseLoop() : resume()}>{canStop || !canResume ? 'Stop' : 'Resume'}</button><button className="btn" onClick={reset}>Reset</button></div></>}
+      <div className="brand"><div className="logo" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="12" cy="16" r="8" fill="#101018" /><circle cx="17" cy="9" r="5" fill="#101018" /><path d="M21 9 L27 11 L21 13 Z" fill="#FF7A2F" /><circle cx="18.5" cy="8" r="1.2" fill="#FFD23F" /></svg></div><div><h1 className="display">Ranger Duck</h1><div className="label brand-subtitle">Field unit AV-1 · retrieval-guided imitation</div></div></div>
+      <div className="species-tabs"><span className="label">Species</span><div className="tabs" role="group" aria-label="Animal species">{species.map(animal => <button key={animal} className={`tab ${scenario?.animal === animal ? 'on' : ''}`} aria-pressed={scenario?.animal === animal} disabled={run.running || run.stopping} onClick={() => { const first = scenarios.find(item => item.animal === animal); if (first) { setScenarioId(first.id); setIntent(''); } }}>{animal}</button>)}</div></div>
+      <div className="encounter-tabs"><span className="label">Interaction preset</span><div className="tabs" role="group" aria-label="Encounter scenario">{speciesScenarios.map(item => <button key={item.id} className={`tab ${scenarioId === item.id ? 'on' : ''}`} aria-pressed={scenarioId === item.id} disabled={run.running || run.stopping} onClick={() => { setScenarioId(item.id); setIntent(''); }}>{item.label}</button>)}{!scenarios.length && <span className="mono secondary small">Connecting…</span>}</div></div>
+      <div className="header-actions"><button className={`seg adaptive-toggle ${run.adaptive ? 'on' : ''}`} role="switch" aria-checked={run.adaptive} aria-label="Loop: refresh search after each round" onClick={() => controller.setAdaptive(!run.adaptive)}>Loop {run.adaptive ? 'on' : 'off'}</button><button className="btn primary" disabled={!canStart} onClick={() => start()}>{configChanged ? 'Start new run' : 'Start'}</button><button className="btn loop-control" disabled={!run.running && !canResume} onClick={() => run.running ? controller.pause() : controller.resume()}>{run.running ? 'Pause' : 'Resume'}</button><button className="btn" onClick={reset}>Reset</button></div>
     </header>
     <main className="main">
       <section aria-label="Shared simulation scene" className="scene-column">
         <div className="scene">
-          <MicroduckScene ref={duck} loopAnimal={experience === 'agent' ? loopAnimal : undefined} onReady={onSimulatorReady} onError={onSimulatorError} onStatus={onSimulatorStatus} onNavigation={onNavigation} onMovementError={onMovementError} onEncounterReady={onEncounterReady} searching={experience === 'agent' ? agentSearching : stage === 'searching'} />
-          {(stage === 'searching' || agentSearching) && <div className="scan" aria-hidden="true" />}
+          <MicroduckScene ref={duck} onReady={onReady} onError={onError} onStatus={onStatus} onNavigation={onNavigation} onMovementError={onMovementError} searching={searching} />
+          {searching && <div className="scan" aria-hidden="true" />}
           <div className="hud scene-hud-top"><span className={`dot ${simulatorReady ? 'live' : ''}`} aria-hidden="true" /><span>SIM · MuJoCo WASM · pretrained policy</span></div>
-          <div className="hud scene-clock">{clock.toLocaleDateString('sv-SE')} {clock.toLocaleTimeString('en-GB')}</div>
-          <div className="hud scene-hud-bottom"><span>{experience === 'agent' ? 'Agent Loop mode' : `Scenario ${scenario?.behavior_hint ?? '—'}`}</span><span>{encounterId}</span></div>
-          {(experience === 'agent' || stage !== 'idle') && <div className={`hud scene-navigation ${navigationStatus}`}><span className="label">Duck control · {control?.primitive ? 'evidence action' : 'navigation'}</span><span>{navigationLabel}</span>{control?.commands && <span className="mono control-command">Forward {control.commands.forward.toFixed(2)} · turn {control.commands.yaw.toFixed(2)}{control.target && navigationStatus === 'approaching' ? ` · ${control.target.distance.toFixed(2)} m to animal` : ''}</span>}</div>}
+          <div className="hud scene-clock">{new Date(clock).toLocaleDateString('sv-SE')} {new Date(clock).toLocaleTimeString('en-GB')}</div>
+          <div className="hud scene-hud-bottom"><span>Encounter {currentScenario?.label ?? '—'}</span><span>{run.runId ? `RUN ${run.runId.slice(0, 8)}` : 'Awaiting Start'}</span></div>
+          {run.runId && <div className={`hud scene-navigation ${navigationStatus}`}><span className="label">Duck control · {control?.primitive ? 'evidence action' : 'navigation'}</span><span>{navigationLabel}</span>{control?.commands && <span className="mono control-command">Forward {control.commands.forward.toFixed(2)} · turn {control.commands.yaw.toFixed(2)}{control.target && navigationStatus === 'approaching' ? ` · ${control.target.distance.toFixed(2)} m to animal` : ''}</span>}</div>}
           <div className="sticker mono duck-status"><span className="label">duck.status()</span><span>{duckStatus}</span></div>
           {simulatorError && <div className="sim-error alert" role="alert"><strong className="display">Simulator unavailable</strong><span>{simulatorError}</span><span className="small">Load the pinned simulator assets and reload this page.</span></div>}
         </div>
-        {experience === 'encounter' ? <div className="encounter-details"><div className="encounter-description"><div className="label">Encounter event · supplied by the simulation</div><div className="scene-caption">{stage === 'idle' ? scenario ? `Press Start. Microduck faces the ${scenario.animal} while the agent searches for interactions or similar individual behaviors, then copies up to three compatible actions.` : 'Connecting to the encounter catalog.' : scenario ? `Microduck turns toward and approaches the ${scenario.animal}. The agent chooses a search query and supported actions from the returned video captions.` : ''}</div><div className="body-note">Scripted animal motion · continuous duck physics</div></div><pre className="mono encounter-json">{eventJson}</pre></div> : <div className="encounter-details"><p>The agent searches for {loopAnimal} interactions or similar individual behavior. It maps caption evidence to supported duck actions and, when two roles are described, a companion animation. Actual outcomes guide the next search.</p></div>}
-        {actionError && !selected && <div className="alert compact" role="alert"><span>Movement paused: {actionError}</span></div>}
+        <div className="encounter-details"><div className="encounter-description"><div className="label">One animal · continuous duck physics</div><div className="scene-caption">{run.running ? `${currentScenario?.label ?? 'Encounter'}: Microduck faces the ${currentScenario?.animal ?? 'animal'} and imitates caption-grounded video behavior.` : 'Choose an encounter, then Start. The agent finds interactions or similar individual behavior for the duck to imitate.'}</div><div className="body-note">{run.adaptive ? 'Loop on: the animal chooses a different interaction after each completed round; a fresh query and action queue follow.' : 'Loop off: repeat the same query and up to three actions, without another search.'}{pendingToggle && ' This change applies at the round boundary.'}</div></div></div>
+        {configChanged && <div className="body-note">The preset or intent changed. Start a new run to apply it; the duck keeps its physical position.</div>}
+        {movementError && <div className="alert compact" role="alert">Navigation: {movementError}</div>}
         {bootstrapError && <div className="alert compact" role="alert"><span>{bootstrapError}</span><button className="seg" onClick={() => setBootAttempt(value => value + 1)}>Reconnect backend</button></div>}
-        {health && !health.live_configured && <div className="setup-note mono">Live archive credentials are not configured on this backend. The simulator can load; live searches will report setup required.</div>}
-        {health?.encounter_agent_available === false && experience === 'encounter' && <div className="setup-note mono">The encounter agent is unavailable. Connect the backend agent runtime to start a live encounter.</div>}
-        {health && health.reviewed_reference_count === 0 && <div className="setup-note mono">Agent-selected caption approximations are labeled separately from visually reviewed evidence.</div>}
+        {health && !health.live_configured && <div className="setup-note mono">Live archive access is not configured on the backend.</div>}
+        {health?.encounter_agent_available === false && <div className="setup-note mono">The agent runtime is unavailable. Connect the backend agent runtime to start.</div>}
       </section>
-      {experience === 'agent' ? <AgentLoopPanel animal={loopAnimal} onAnimalChange={setLoopAnimal} duck={duck} ready={simulatorReady} health={health} onSearching={setAgentSearching} /> : <aside aria-label="Live archive search" className={`archive-column ${selected ? 'has-selection' : ''}`}>
-        <div className="archive-heading"><h2 className="display">{stage === 'searching' && <span className="dot live" aria-hidden="true" />}Archive search</h2><div role="group" aria-label="Search mode" className="mode-group"><button className={`seg ${mode === 'live' ? 'on' : ''}`} aria-pressed={mode === 'live'} onClick={() => chooseMode('live')}>Live</button><button className={`seg ${mode === 'replay' ? 'on' : ''}`} aria-pressed={mode === 'replay'} disabled={!replayAvailable && mode !== 'replay'} title={replayAvailable ? 'Replay the previous live search for this encounter' : 'Run this encounter live to save a replay first'} onClick={() => chooseMode('replay')}>Replay</button></div></div>
-        <div className="box"><div className="query-heading"><span className="label">Agent query</span><span className={`label request-status ${stage}`} role="status">{statusText}</span></div><div className="mono query-text">{result?.query ?? queryPlan?.query ?? (stage === 'idle' ? '—' : rehearsal ? 'UI state rehearsal — no query sent' : mode === 'replay' ? 'Loading the saved agent query…' : 'Agent is composing a query from the encounter…')}</div><div className="query-footer"><span className="mono request-route">{mode === 'replay' ? 'Saved live run · current browser session' : `Live archive · ${scenario?.animal ?? 'animal'} interactions or individual behavior`}</span><span className="mono elapsed">{timeLabel}</span></div>{(result?.query_reason || queryPlan?.query_reason) && <div className="agent-query-reason body-note">{result?.query_reason ?? queryPlan?.query_reason}</div>}{result?.agent_plan?.summary && <div className="agent-plan-summary body-note"><span className="label">Agent action plan</span> {result.agent_plan.summary}</div>}{broadened && <div className="mono broadened-note">Broader behavior · same species</div>}{result?.mode === 'replay' && <div className="mono replay-note">Replaying a saved result{result.recorded_at ? ` from ${new Date(result.recorded_at).toLocaleTimeString('en-GB')}` : ''}{result.original_elapsed_ms != null ? ` · original live search ${(result.original_elapsed_ms / 1000).toFixed(2)} s` : ''}.</div>}</div>
-        <div className="results-section"><div className="results-heading"><span className="label">Active actions · {result ? `${results.length} of up to 3` : 'awaiting search'}</span><span className="label secondary">{result ? `${result.candidates.length} references searched` : 'filtered archive ranking'}</span></div><div className="results-list">
-          {results.length ? slots.map(slot => <ReferenceCard key={slot.rank} candidate={slot.candidate} rank={slot.rank} sourceRank={slot.sourceRank} selected={selectedId === slot.candidate.clip_id} sequenceState={rankStates[slot.rank] ?? 'queued'} onSelect={() => select(slot.candidate.clip_id)} />) : stage === 'nomatch' || (result && !results.length) ? <div className="alert"><div className="display alert-title">No active supported motion</div><div className="body-note">{rehearsal ? 'Rehearsal only. No archive request was made. Microduck holds its pose.' : 'The returned clips contain no supported active movement. Head scans and standing holds are excluded; navigation remains separate from imitation.'}</div><button className="btn small-button" disabled={!health || broadened} onClick={() => retry('live', true)}>Other interactions</button></div> : stage === 'failed' ? <div className="alert"><div className="display alert-title">Search did not finish</div><div className="body-note">{searchError}</div><div className="alert-actions"><button className="btn small-button" disabled={!health} onClick={() => retry('live')}>Retry live</button><button className="btn small-button" disabled={!replayAvailable} onClick={() => retry('replay')}>Use replay</button></div></div> : <div className="empty">{stage === 'searching' ? mode === 'replay' ? 'Loading the saved archive results…' : queryPlan ? 'Searching the archive and mapping supported duck actions…' : 'The agent is generating a search query…' : stage === 'encounter' ? 'Preparing the animal encounter. Agent query planning starts next.' : 'Choose an encounter and press Start.'}</div>}
+      <aside aria-label="Archive agent and reference queue" className={`archive-column ${selected && !searching ? 'has-selection' : ''}`}>
+        <div className="archive-heading"><h2 className="display">{searching && <span className="dot live" aria-hidden="true" />}Archive agent</h2><span className={`badge ${run.replay ? 'hot' : ''}`}>{run.replay ? 'Saved round replay' : 'Live archive'}</span></div>
+        <details className="intent-editor"><summary className="label">Intent · {intent.trim() ? 'custom' : scenario?.label ?? 'choose a preset'}</summary><label className="label" htmlFor="run-intent">Optional intent</label><textarea id="run-intent" maxLength={1000} value={intent} placeholder={scenario?.description ?? 'Describe an interaction or individual behavior'} disabled={run.running || run.stopping} onChange={event => setIntent(event.target.value)} /><p className="body-note">The preset supplies the starting context. Pause before editing.</p></details>
+        <div className="current-interaction"><span className="label">Current interaction{run.plan ? ` · round ${run.plan.round}` : run.round ? ` · round ${run.round.round}` : ""}</span><span className="mono">{currentScenario?.label ?? "Awaiting preset"}</span><span className="body-note">Scripted animal context · {searching ? "guides this query" : "video evidence authorizes each duck action"}</span></div>
+        <div className="box"><div className="query-heading"><span className="label">Agent query</span><span className={`label request-status ${run.phase}`} role="status">{run.stopping ? 'Stopping…' : run.phase === 'planning' ? 'Generating query' : run.phase === 'searching' ? 'Search + action plan' : run.replay ? 'Recorded decisions' : run.round ? `Round ${run.round.round} · pass ${run.pass}` : 'Ready'}</span></div><div className="mono query-text">{run.plan?.query ?? (run.phase === 'planning' ? 'Agent is composing a query…' : run.round?.query ?? '—')}</div><div className="query-footer"><span className="mono request-route">{run.replay ? 'Saved result · no new agent or search call' : `${scenario?.animal ?? 'Animal'} interactions or individual behavior`}</span><span className="mono elapsed">{run.startedAt != null || run.round ? `${(elapsed / 1000).toFixed(2)} s` : '— s'}</span></div>{(run.plan?.query_reason ?? (!searching && run.round?.query_reason)) && <div className="agent-query-reason body-note">{run.plan?.query_reason ?? run.round?.query_reason}</div>}{!searching && run.round?.agent_plan?.summary && <div className="agent-plan-summary body-note"><span className="label">Agent action plan</span> {run.round.agent_plan.summary}</div>}{(run.plan?.timings ?? (!searching && run.round?.timings)) && <div className="mono stage-timings">{([["Query", "query_agent_ms"], ["VSS", "vss_search_ms"], ["Actions", "action_agent_ms"]] as const).map(([name, key]) => { const value = (run.plan?.timings ?? run.round?.timings)?.[key]; return <span key={key}>{name} {typeof value === "number" ? `${(value / 1000).toFixed(2)} s` : "—"}</span>; })}</div>}{run.replay && <div className="mono replay-note">Replaying saved decisions{run.round?.recorded_at ? ` from ${new Date(run.round.recorded_at).toLocaleTimeString('en-GB')}` : ''}. Replay outcomes do not update the live agent.</div>}</div>
+        <div className="results-section"><div className="results-heading"><span className="label">Active actions · {!searching && run.round ? `${run.round.queue.length} of up to 3` : 'awaiting search'}</span><span className="label secondary">{!searching && run.round ? `${run.round.candidates.length} references searched` : 'original archive order'}</span></div><div className="results-list">
+          {searching ? <div className="empty">{run.phase === 'planning' ? 'The agent is generating a query…' : 'Searching the archive and mapping supported active actions…'}</div> : run.round?.queue.length ? run.round.queue.map((item, index) => <ReferenceCard key={item.action_id} candidate={item.candidate} rank={index + 1} sourceRank={item.candidate.rank ?? index + 1} selected={run.selectedId === item.candidate.clip_id} sequenceState={run.rankStates[item.action_id] ?? 'queued'} onSelect={() => controller.inspect(item.candidate.clip_id)} />) : run.phase === 'empty' ? <div className="alert"><div className="display alert-title">No active supported motion</div><div className="body-note">Head scans and standing holds are excluded. Try another intent or broaden the behavior.</div><button className="btn small-button" disabled={!canStart} onClick={() => start(true)}>Other interactions</button></div> : <div className="empty">{run.phase === 'starting' ? 'Preparing the animal encounter and agent session…' : 'Choose a preset and press Start.'}</div>}
         </div></div>
-        {result && <div className={`sequence-status mono ${loopRunning ? 'running' : ''}`} role="status">{loopLabel}</div>}
-        {result?.warnings.length ? <div className="search-warnings mono">{result.warnings.map((warning, index) => <div key={index}>{warning}</div>)}</div> : null}
-        {selected ? <ReferencePanel key={`${result?.search_id}:${selected.clip_id}`} candidate={selected} stage={stage} autoPlaying={loopRunning} actionActive={loopRunning && loopProgress?.phase === 'running' && loopProgress.candidate?.clip_id === selected.clip_id} actionElapsedMs={actionStartedAt == null ? 0 : Math.max(0, clock.getTime() - actionStartedAt)} sequenceLabel={loopLabel} onRetry={() => retry('live')} actionError={actionError} /> : results.length ? <div className="empty">{loopLabel}</div> : null}
-      </aside>}
+        {run.runId && <div className={`sequence-status mono ${run.running ? 'running' : ''}`} role="status">{label}{run.note && <div className="body-note">{run.note}</div>}</div>}
+        {run.error && <div className="alert compact" role="alert"><span>{run.error}</span><button className="seg" disabled={!canResume} onClick={() => controller.resume()}>Resume</button></div>}
+        {run.playbackBlocked && <div className="alert compact"><span>Playback needs permission. The action is waiting.</span><button className="btn small-button" onClick={() => { void video.current?.play().catch(() => undefined); }}>Play clip</button></div>}
+        {!searching && run.round?.warnings.length ? <div className="search-warnings mono">{run.round.warnings.map((warning, index) => <div key={index}>{warning}</div>)}</div> : null}
+        {selected && !searching && <ReferencePanel key={`${run.round?.round_id}:${selected.candidate.clip_id}`} candidate={selected.candidate} stage={panelStage} autoPlaying={run.running} controlled videoRef={video} rolePlan={selected.role_plan} onPauseRun={() => controller.pause()} actionActive={run.phase === 'acting' && run.execution?.action_id === selected.action_id} actionElapsedMs={run.actionStartedAt == null ? 0 : Math.max(0, clock - run.actionStartedAt)} sequenceLabel={label} onRetry={() => controller.pause('Paused. Resume retries the current reference.')} actionError={null} />}
+        {(run.history.length > 0 || run.round) && <details className="session-history"><summary className="label">Agent history · {run.history.length} recent outcomes</summary>{run.round && <button className="seg" disabled={run.stopping || !simulatorReady} onClick={() => controller.replay()}>Replay saved round</button>}{run.history.map(item => <div className="history-entry" key={item.attemptId}><div className="label">{item.replay ? 'Replay · ' : ''}Round {item.round} · {item.interaction} · pass {item.pass} · source #{item.sourceRank}</div><div className="mono">{item.primitive} · {item.status}</div><p>{item.query}</p><p className="body-note">{item.queryReason}</p></div>)}</details>}
+      </aside>
     </main>
-    {experience === 'encounter' && <footer className="stage-footer"><ol className="stage-list" aria-label="Demo progress">{STAGES.map((label, index) => <li key={label} className={`step ${index === 1 && (stage === 'nomatch' || stage === 'failed') ? 'bad' : index < currentIndex ? 'done' : index === currentIndex ? 'cur' : ''}`} aria-current={index === currentIndex ? 'step' : undefined}><span className="mono step-number">{String(index + 1).padStart(2, '0')}</span>{label}</li>)}</ol><div className="rehearsal-controls"><span className="label secondary">Rehearse UI</span><button className="seg" onClick={() => rehearse('nomatch')}>No match</button><button className="seg" onClick={() => rehearse('timeout')}>Timeout</button><span className="mono end-tape">End of tape · be kind, rewind</span></div></footer>}
+    <footer className="stage-footer"><ol className="stage-list" aria-label="Demo progress">{stages.map((name, index) => <li key={name} className={`step ${index === 1 && ['empty', 'failed'].includes(run.phase) ? 'bad' : index < stageIndex[run.phase] ? 'done' : index === stageIndex[run.phase] ? 'cur' : ''}`} aria-current={index === stageIndex[run.phase] ? 'step' : undefined}><span className="mono step-number">{String(index + 1).padStart(2, '0')}</span>{name}</li>)}</ol><span className="mono end-tape">{run.adaptive ? 'New encounter + query after the round' : 'Same queue · continuous physics'}</span></footer>
   </div>;
 }

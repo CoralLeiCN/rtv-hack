@@ -1,5 +1,7 @@
 # Specification: web frontend for video search
 
+> The separate Ranger Duck mode described below is historical. The current unified page, Loop toggle and shared agent pipeline are specified in [RANGER_DUCK_PLAN.md](RANGER_DUCK_PLAN.md) and [RANGER_DUCK_API.md](RANGER_DUCK_API.md). Other search-app material remains applicable.
+
 The Ranger Duck loop below is implemented as an additional mode. Live
 Codex/VSS end-to-end verification remains pending. The remaining sections
 describe the original search-only implementation; their manual playback and

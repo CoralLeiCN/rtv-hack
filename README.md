@@ -27,7 +27,7 @@ Canary-1B is available in the workshop but is not part of this app's search flow
 
 ## How agentic search works
 
-Both demo modes use the local Codex CLI with the presenter's existing ChatGPT
+The unified demo uses the local Codex CLI with the presenter's existing ChatGPT
 OAuth login. The backend runs on the same Mac; no SSH agent bridge or copied
 account credentials are needed. VSS search remains an authenticated request to
 the configured archive service.
@@ -53,27 +53,38 @@ sequenceDiagram
     API->>API: Validate species, provenance and supported behavior
     API-->>UI: Ranked, compatible actions
     UI->>UI: Play and imitate first three compatible actions automatically
+    UI->>API: Acknowledge actual outcomes
+    alt Loop on
+        UI->>API: Choose different same-species interaction and plan next round
+    else Loop off
+        UI->>UI: Repeat the current encounter queue
+    end
 ```
 
 The agent searches for interactions between the selected species **or similar
 individual behavior**. A returned clip need not contain two animals. Actions
 must be supported by that clip's caption or an exact current human review;
 the requested encounter cannot supply missing evidence. Eligible reference actions are walking, beak dip, vertical head nod and
-sit/stand. `head_scan` and `stand_hold` are excluded in both modes. An active
+sit/stand. `head_scan` and `stand_hold` are excluded from retrieval-selected actions. An active
 behavior within a mixed caption can still qualify. Archive ordering is
 preserved, and excluded clips do not occupy the three action slots.
 
 The duck begins attending to the animal immediately, before search completes.
 The controls show actual turning, walking and imitation commands. Navigation is
-scene positioning, separate from video-derived imitation. Stop cancels pending
+scene positioning, separate from video-derived imitation. Pause cancels pending
 agent work and movement; switching clips does not reload the duck.
 
-**Encounter mode** generates an initial query on demand, plans actions for the
-returned candidates, and loops the first three compatible references. Replay
-uses the saved decisions. **Agent Loop mode** generates its next query from the
-prompt and actual previous playback/movement outcome, then chooses one clip
-and a bounded response. See the [demo guide](apps/ranger-duck/README.md) and
-[API contract](docs/RANGER_DUCK_API.md).
+One **Loop** toggle controls what happens after the current action queue. Off
+keeps Encounter behavior: repeat the same first three compatible references.
+On randomly chooses a different interaction for the same animal after that queue
+completes, then generates the next query from the current interaction, original
+intent and actual outcomes. The first round uses the selected preset. Changing
+the toggle preserves the current action and duck.
+Both settings use the same query, VSS search, batch action/role planner and
+execution controller. A normal new search uses two agent calls and one VSS
+request; there is no additional agent call per clip. Phase timings distinguish
+query generation, VSS retrieval and action planning. See the
+[demo guide](apps/ranger-duck/README.md) and [API contract](docs/RANGER_DUCK_API.md).
 
 ### Local ChatGPT OAuth
 

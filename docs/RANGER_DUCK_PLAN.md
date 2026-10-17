@@ -1,101 +1,128 @@
-# Ranger Duck implementation plan
+# Ranger Duck unified implementation plan
 
-This document describes the existing encounter mode. The additional agent-driven
-Loop mode is implemented separately; see [plan.md](plan.md). Its query, selection,
-and repeat rules do not replace the encounter rules below.
+Updated 17 October 2026. One page and one agent pipeline support the encounter
+and adaptive Loop behaviors. This supersedes the separate-mode plans in
+[plan.md](plan.md) and the Ranger Duck section of [spec.md](spec.md).
 
-Current scope, updated 17 October 2026: one page combines one animal permitted to patrol outside the duck arena, a roaming physics-simulated duck, live archive search, and the three highest-ranked compatible video actions. This supersedes the original manual-selection/Copy flow. The user selected cat–cat and deer–deer reference interactions.
+The interface follows the [design handoff](../apps/ranger-duck/design/README.md).
+See the [API contract](RANGER_DUCK_API.md), [startup guide](../apps/ranger-duck/README.md),
+[behavior research](RANGER_DUCK_INTERACTIONS.md) and [motion inventory](RANGER_DUCK_ANIMATION.md).
 
-The implementation follows the [design handoff](../apps/ranger-duck/design/README.md), with added species/interaction controls and automatic sequence status. See the [API contract](RANGER_DUCK_API.md), [behavior research](RANGER_DUCK_INTERACTIONS.md), and [startup instructions](../apps/ranger-duck/README.md), and [motion inventory](RANGER_DUCK_ANIMATION.md).
+## One page, one Loop toggle
+
+Keep Cat/Deer, the encounter presets, an editable intent, Start/Pause/Resume,
+and Reset. Keep the simulation and movement HUD on the left, with query,
+three active reference cards, current playback and action mapping on the right.
+There is one persistent duck and one animal outside its arena.
+
+- Loop off is Encounter behavior: repeat the same up-to-three-action queue without a new search.
+- Loop on randomly chooses a different interaction for the same animal after the queue finishes, then plans a fresh query using that interaction, the original intent and actual outcomes. The first round uses the selected preset.
+- Changing the toggle preserves the current action and queue. It controls the next round boundary; an already-running search may finish.
+- Both toggle positions use the same query model, VSS settings, batch action/role planner, validation and execution coordinator.
+- A changed intent/species creates a new run without replacing the physics body. Only explicit Reset resets the duck.
 
 ## Inputs and outputs
 
 | Stage | Input | Output |
 | --- | --- | --- |
-| Choose encounter | Cat or deer, plus one interaction | One procedural animal outside the box, with bounded patrol and facing |
-| Start | Selected catalog entry | Encounter ID, focal animal, same-species partner, behavior hint |
-| Retrieve | A query describing that species pair and interaction | Actual ranked VSS segment results and measured latency |
-| Interpret evidence | Each returned segment's video-model caption and provenance | A supported bounded action, or a visible reason to skip |
-| Run sequence | First three compatible actions in retrieval order | Wait for the animal to return to its anchor, approach it, play a reference and perform its action |
-| Repeat | The same compatible action queue | Roam between passes, then approach again; no reset or new search |
-| Stop or Reset | Presenter control or a changed encounter | Cancellation of the current sequence and movement |
+| Start run | Animal, catalog preset, optional intent, Loop setting | Session-scoped run and original intent |
+| Plan query | Current interaction, run intent and bounded actual-outcome history | Current scenario snapshot, required interaction and solitary-behavior query branches joined with OR, and a brief reason |
+| Retrieve | Validated generated query and species tags | Up to 15 ranked VSS segments and measured retrieval duration |
+| Batch plan | Eligible captions, exact reviews and bounded motion choices | Grounded duck actions and companion role plans, or skip reasons |
+| Select | Validated candidates in archive order | First three compatible active actions, preserving original source ranks |
+| Execute | Video, duck action and supported companion role | Actual playback, physics and scripted-companion completion |
+| Acknowledge | Run/round/action/attempt identity and observed outcome | Next authorized attempt, repeated queue, or permission to plan the next round |
 
-The encounter hint supplies the query only. It never directly supplies the duck action. Each action is an approximation of a behavior described in its own reference, with the copied role and limitations shown. Caption-derived actions are labeled as inferred rather than visually reviewed.
+The scenario and search query cannot supply missing action evidence. Single-animal
+footage is valid when its caption supports a selected-species motion. Two-role
+plans need caption evidence for both roles. The duck takes the more active
+supported role; a solitary clip leaves the companion standing without claiming
+a second observed video animal.
 
-## Interaction catalog
+A turn is one round of up to three actions. Later Loop rounds choose among the
+other same-species presets, so adjacent rounds never repeat the interaction.
+Changing the animal's scripted interaction preserves the existing actor, its
+position and the duck's physics state. Show the current interaction beside the
+query; preserve each round's scenario in history and saved replay. This random
+selection adds no model call or archive request.
 
-| Animal pair | Encounter | Query intent |
-| --- | --- | --- |
-| Cat–cat | Hissing boundary | One cat hisses toward another cat |
-| Cat–cat | Friendly greeting | Directed approach, sniffing, nose contact or rubbing |
-| Cat–cat | Social play | Reciprocal play or attention to another cat |
-| Deer–deer | Forage together | Two deer feeding beside one another |
-| Deer–deer | Follow companion | One deer follows another |
-| Deer–deer | Herd alert | One deer responds to another becoming alert |
+## Shared architecture and latency
 
-The [research note](RANGER_DUCK_INTERACTIONS.md) gives authoritative behavior sources and observable signals. The scene shows one animal outside the yellow box. The latest user request permits a bounded east-side patrol while the duck roams. Before an evidence action, the animal returns to its interaction anchor and faces the duck. The original articulated procedural cat/deer remain; the requested model replacement was canceled. The duck roams inside the arena when no evidence action is running, approaches the animal before responding, and continues with the same physics body. Navigation is labeled separately from video-induced behavior. The scripted animal has no MuJoCo collision body. The duck remains a real MuJoCo body controlled by the pinned pretrained policies. No new training, physical robot control, live animal interaction, or camera recognition is part of this demo.
+The browser runs React, Three.js, MuJoCo WASM and the existing ONNX controller.
+The local FastAPI backend uses the presenter's local ChatGPT OAuth through Codex
+CLI. VSS remains the existing remote archive. No SSH agent bridge, model training,
+new database or shared ingest-pipeline change is needed.
 
-## Architecture
+One RunService owns planning, retrieval, queue/attempt state, outcome history,
+cancellation and replay. Both toggle settings use two agent calls per normal
+new round: query generation and one batch action/role plan. Only deterministically
+eligible candidates require model action planning. There is no per-clip agent
+call. The outcome acknowledgement issues the next queued attempt directly.
 
-| Component | Location | Responsibility |
-| --- | --- | --- |
-| React / Three.js | Browser | One-page interface, scripted animals, sequence and playback |
-| MuJoCo / ONNX WASM | Same browser | Existing Microduck controller and observed motion completion |
-| FastAPI app | Workshop VM | Authentication, interaction queries, evidence-to-action mapping, video proxy |
-| Existing VSS | Workshop infrastructure | Ranked retrieval, existing video-model captions, video access |
+Query planning begins alongside animal-facing/approach navigation. Navigation
+must not delay the archive request. Expose query_agent_ms, vss_search_ms and
+action_agent_ms separately, plus total elapsed time. Shared code and call counts
+remove mode-specific overhead; actual model/network times remain variable.
 
-Keep the original hard borders, typography, colors, scene/evidence columns and stage strip. Desktop evidence can scroll without moving the scene out of view. Species and interaction selectors, Start, Stop/Resume, and Reset remain accessible. The current reference rank, cycle, inferred behavior and controller state explain the automatic sequence.
+Use the existing VSS client with top_k 15, llm_top_n 1 and the authenticated
+archive scope. The deployed service still performs synthesis; do not claim
+retrieval-only latency. Cat requests use tags meow-10k and cat-behavior. The
+requested dataset identity is hf-smgjch-meow-10k, but dataset_id is not an exposed
+filter and absent result metadata must not be fabricated. Deer uses wildlife.
 
-Credentials and raw storage identities stay on the backend. Video URLs use opaque session-scoped IDs and preserve range requests. Serve the compiled frontend and backend on one origin, or use the development proxy and an SSH tunnel.
+## Evidence and action selection
 
-## Search behavior
+Require complete source/parent/interval metadata and positive selected-species
+behavior evidence, or an exact current human review. Apply actor attribution,
+negation and uncertainty checks. Stale, invalid or contradictory reviews veto
+inference. Keep caption inference visibly distinct from visual review.
 
-Queries name both animals and their relationship. Cat searches use the existing authenticated archive without a wildlife-only tag, since domestic cats may not carry it. Deer searches retain the observed wildlife tag. A broader search relaxes the interaction wording while retaining the selected species pair.
+Eligible retrieved actions, in within-caption preference order, are short_walk,
+ground_pick, head_nod and sit_cycle. Head scan and standing hold remain internal
+controller capabilities but never occupy a reference action slot. Hiss-only,
+watching-only or stillness-only clips cannot supply active imitation. A mixed
+caption can supply its supported active behavior, such as sitting while looking.
+Unsupported jumping, retreat, climbing, grooming and lying are not invented motions.
 
-Use the deployed VSS search API with `top_k: 15`, `llm_top_n: 1`, and the existing authorization scope. Preserve upstream rank when normalizing valid, distinct sources. Filter out incompatible results, then choose the first three remaining actions in retrieval order. Preserve each source rank separately from its action-queue position; source rank 4 can become action 2 when earlier results are incompatible. Do not manufacture missing actions.
+Filter before taking three; retain archive rank separately from queue position.
+Show the actual count when fewer qualify. Bound no-match recovery and report
+failure explicitly; never silently substitute cached evidence or a passive hold.
 
-The deployed endpoint has no advertised retrieval-only flag and requires synthesis for nonempty chunk results. A measured request took 0.24 seconds for embeddings, 7.75 seconds for database retrieval, 2.02 seconds for synthesis, and about 0.83 seconds for remaining work. Database retrieval runs parallel text/visual SQL similarity queries with fresh connections and overfetching. Raising a timeout does not make this path faster.
+## Continuous execution and outcomes
 
-The backend search budget defaults to 30 seconds; health reports the configured value and the browser allows five seconds of extra grace. Display actual elapsed time. Explicit Replay reuses a previous successful live search for this session, scenario and query scope. It is labeled, expires, and still needs VSS for video. There is no automatic fallback to replay on an error.
+Before each action, settle the animal at its outside-arena anchor, align the duck
+inside its arrival corridor, and wait for balance. Start the grounded roles when
+video playback begins. Their timing may be together, companion_first or duck_first.
+Advance only after playback, duck motion and required companion animation finish.
+Capture completed physics telemetry before navigation changes the controller state.
 
-## Evidence-derived actions
+The same body and simulation clock continue across references, passes, fresh
+searches and toggle changes. Navigation is labeled separately from imitation.
+No overlapping commands or assumed timer-based success are allowed.
 
-Use the existing video-model caption to avoid another inference request. Require complete source/parent/interval metadata, the selected animal species and an explicit supported behavior. Single-animal footage is usable: interaction wording constrains the search query, not action eligibility. A solitary feeding deer, a walking cat, and shared attention can all supply actions. Describe the actual returned behavior without claiming the requested interaction occurred. Ambiguous or negated behavior, wrong species, incomplete metadata and unsupported movement remain ineligible.
+Use run, round, action and attempt IDs. Acknowledgements are idempotent; stale
+or conflicting outcomes cannot advance the queue. Pause cancels pending work,
+video, navigation and both roles, retaining acknowledged entries. An in-progress
+sit uses its native standing return. Resume restarts an interrupted entry from
+the beginning with a new attempt ID; a paused/expired search requires planning
+again. A visibility-only pause can resume automatically when the tab returns;
+manual Pause and reference inspection remain paused.
 
-| Described behavior | Bounded approximation |
-| --- | --- |
-| Feeding or foraging, alone or beside another animal | One `ground_pick` cycle |
-| Directed approach, following, supported play movement | `short_walk` |
-| Watching a partner or object | `head_scan`, labeled as an attentive head-turn approximation |
-| Alert pause or stationary hissing boundary | `stand_hold` |
-| Turning the head | `head_scan` |
-| Explicit nodding or vertical head raise/lower/dip | `head_nod` |
-| Explicit sitting or seated posture | `sit_cycle`, then a safe standing return |
+## Recorded rounds
 
-Within a caption, choose the most active supported observed behavior using `short_walk → ground_pick → head_nod → head_scan → sit_cycle → stand_hold`. Apply species/actor attribution, negation and uncertainty checks before accepting a match. Feeding outranks its associated head lowering, and walking outranks simultaneous standing. This does not reorder archive results or override a valid exact review. Motion windows are 2000/8000/2400/2400/6000/3000 ms respectively; observed controller completion and settling are still required. See the [complete capability inventory and test record](RANGER_DUCK_ANIMATION.md).
-
-The hissing scene is scripted. A pause is not an actual reproduced hiss. Backward walking did not produce reliable movement in physics checks, so retreat-only clips remain unsupported. Unsupported jumping, grooming, biting and pouncing do not become arbitrary duck movements.
-
-Each candidate exposes its action basis, inferred behavior, reason, evidence ID and maximum duration. Caption inference never becomes a visual review. Exact private manifests remain available for reviewed references, including solitary-animal behavior; a valid feeding review does not need to attest to a pair. Stale or contradictory reviews must not silently become inferred approvals.
-
-## Automatic sequence
-
-After search, filter all returned candidates for supported actions, preserve retrieval order, and take up to three. Display action positions 1–3 with their original source ranks. Incompatible clips do not occupy a card or loop slot. Show the actual queue size if fewer than three actions qualify. If none qualify, keep the duck roaming and explain why no evidence action is available.
-
-Before an evidence action, wait for the animal to return to its anchor and face the duck, then navigate the duck toward it, settle and execute the bounded motion. Between passes, roam without resetting physics or sending another search. Navigation and evidence actions never run at the same time.
-
-Repeat until Stop, Reset, a changed scenario, replacement search or teardown. Stop also halts roaming, animal patrol/return and duck approach. An in-progress sit uses its native standing return; repeated Stop calls preserve that transition. Pause while hidden and resume on return only when visibility caused the pause. Manual Stop and reference inspection remain paused. Only explicit Reset or a new encounter resets the body; clip and cycle transitions preserve it.
-
-Never overlap movements. Reset and cancellation invalidate both pending searches and actions. Controller recovery, failed playback, missing evidence and timeouts have visible outcomes; they do not produce fabricated success.
+Replay saved round uses recorded decisions through the same queue/player/controller.
+It issues fresh playback capabilities, makes no agent/search call, stays clearly
+labeled as recorded and ends paused after one pass. Replay outcomes do not enter
+live planning history. Playback still needs VSS access. Snapshot identity belongs
+to the run/round and its intent/scope, not only a scenario name.
 
 ## Verification
 
-Check query specificity and source rank preservation, caption inference and negation, review compatibility, replay/session scope, and range playback in backend tests. Check compatible-action selection, preserved source ranks, navigation cancellation, pause/resume and stale result handling in frontend tests. Verify new primitives using actual MuJoCo physics, then run at least one live cat interaction sequence through the browser with no per-action clicks. Build the production frontend and check that development-only instrumentation is omitted.
-
-Archive availability remains an external input. The initial cat queries found observation/head-turn clips, while deer co-foraging queries returned solitary deer. Both can supply supported actions under the current policy; the description must still reflect what the footage actually contains.
-
-Scene update (17 October 2026): render one animal companion plus Microduck.
-The archive still searches same-species pairs; the duck represents the other
-video animal. The additional Loop mode assigns both caption-described roles
-through Codex as documented in [spec.md](spec.md). Encounter search, eligibility,
-and fixed-sequence playback remain unchanged.
+Backend checks cover equal search/model call counts with Loop on/off, scope and
+rank preservation, passive/invalid evidence exclusion, grounded role plans,
+real-outcome requirements, idempotent acknowledgements and cancellation.
+Frontend checks cover boundary-only toggle behavior, fixed-queue repeat versus
+fresh planning, playback/motion gating, pause/resume and stale response handling.
+Run a production build and verify live cat searches with both toggle settings,
+including a second adaptive round and continuous physical returns. Measure
+per-phase timings rather than promising identical remote response times.

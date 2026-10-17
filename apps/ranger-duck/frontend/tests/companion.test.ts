@@ -29,6 +29,8 @@ describe('single companion scene', () => {
   });
   it('finishes the bounded companion animation only on a completed render frame', async () => {
     const { clearing, visible } = setup(); clearing.showLoopAnimals('deer'); let completed = false;
+    const retreat = clearing.performCompanion({ behavior: 'retreat', durationMs: 1000 }, -1000);
+    clearing.frame(0); await retreat;
     const run = clearing.performCompanion({ behavior: 'approach', durationMs: 3000 }, 100).then(() => { completed = true; });
     clearing.frame(1600); await Promise.resolve(); expect(completed).toBe(false);
     expect(visible()[0].position.x).toBeCloseTo(ANIMAL_ANCHOR.x + 0.2);

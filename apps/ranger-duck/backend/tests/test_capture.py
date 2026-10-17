@@ -195,3 +195,72 @@ def test_follow_retries_initial_connection_failure(tmp_path, monkeypatch):
     capture.main()
     assert len(attempts) == 2
     assert exports == finishes == [True]
+
+
+@pytest.mark.parametrize('adaptive', [False, True])
+@pytest.mark.parametrize('status', ['completed', 'failed', 'cancelled'])
+def test_unified_run_captures_search_decisions_and_one_validated_outcome(tmp_path, adaptive, status):
+    from test_runs import RunAgent, rows, start as start_run, search as search_run, report
+    clips = rows()
+    app = create_app(replace(SETTINGS, capture_dir=tmp_path),
+                     httpx.MockTransport(Upstream(clips)), Manifest(), RunAgent())
+    with TestClient(app) as client:
+        start_run(client, adaptive)
+        result = search_run(client)
+        body = report(result, result)
+        if status != 'completed':
+            body.update(status=status, playback=status)
+            body['state']['status'] = 'ready'
+            body['companion']['status'] = status
+        invalid = {**body, 'attempt_id': 'not-issued'}
+        assert client.post('/demo-api/runs/run-1/outcome', json=invalid).status_code == 409
+        first = client.post('/demo-api/runs/run-1/outcome', json=body)
+        assert first.status_code == 200
+        assert client.post('/demo-api/runs/run-1/outcome', json=body).json() == first.json()
+    captured = events(tmp_path)
+    assert next(e for e in captured if e['kind'] == 'vss.search.completed')['output']['results'] == clips
+    assert len([e for e in captured if e['kind'] == 'codex.decision.completed']) == 2
+    assert next(e for e in captured if e['kind'] == 'run.search.result')['output'] == result
+    outcomes = [e for e in captured if e['kind'] == 'run.action.outcome']
+    assert len(outcomes) == 1 and outcomes[0]['output'] == body
+    assert outcomes[0]['attributes']['outcome_source'] == 'browser_report'
+    issued = next(e for e in captured if e['kind'] == 'run.action.issued')
+    assert issued['inputs']['attempt_id'] == body['attempt_id']
+    assert {e['run_id'] for e in captured} == {outcomes[0]['run_id']}
+    assert outcomes[0]['run_id']
+
+
+def test_unified_pause_records_unknown_and_replay_outcomes_are_labelled(tmp_path):
+    from test_runs import RunAgent, rows, start as start_run, search as search_run, report
+    app = create_app(replace(SETTINGS, capture_dir=tmp_path),
+                     httpx.MockTransport(Upstream(rows())), Manifest(), RunAgent())
+    with TestClient(app) as client:
+        start_run(client)
+        result = search_run(client)
+        assert client.post('/demo-api/runs/run-1/pause').status_code == 200
+        assert client.post('/demo-api/runs/run-1/pause').status_code == 200
+        replay = client.post('/demo-api/runs/run-1/replay').json()
+        body = report(replay, replay)
+        assert client.post('/demo-api/runs/run-1/outcome', json=body).status_code == 200
+    captured = events(tmp_path)
+    interrupted = [e for e in captured if e['kind'] == 'run.action.interrupted']
+    assert len(interrupted) == 1
+    assert interrupted[0]['inputs']['attempt_id'] == result['execution']['attempt_id']
+    assert interrupted[0]['output'] == {'status': 'unknown'}
+    outcomes = [e for e in captured if e['kind'] == 'run.action.outcome']
+    assert len(outcomes) == 1 and outcomes[0]['inputs']['origin'] == 'replay'
+
+
+def test_unified_run_does_not_issue_an_action_when_capture_storage_fails(tmp_path):
+    from test_runs import RunAgent, rows, start as start_run, plan
+    blocked = tmp_path / 'file'
+    blocked.write_text('not a directory')
+    app = create_app(replace(SETTINGS, capture_dir=blocked),
+                     httpx.MockTransport(Upstream(rows())), Manifest(), RunAgent())
+    with TestClient(app) as client:
+        start_run(client)
+        planned = plan(client)
+        response = client.post('/demo-api/runs/run-1/search', json={'plan_id': planned['plan_id']})
+        assert response.status_code == 503
+        run = next(iter(app.state.run_service.runs.values()))
+        assert run.pending is None and run.phase == 'paused'

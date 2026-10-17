@@ -1,8 +1,108 @@
 # Ranger Duck frontend and backend contract
 
-Contract version 1, updated 17 October 2026 for local OAuth agent planning, six supported motions and automatic animal attention. The frontend and backend implement these routes.
+Contract version 1, updated 17 October 2026 for the unified run pipeline and Loop toggle. The browser uses the run endpoints below; the older Encounter and Loop endpoints remain compatibility routes.
 
-Use relative `/demo-api/` URLs. For separate frontend development, proxy that prefix to the backend on `127.0.0.1:8000` through the frontend dev server. Forward cookies and Range headers. This preserves same-origin behavior and avoids exposing VSS credentials. Production may serve the built frontend through the same backend when a static directory is configured.
+Use relative `/demo-api/` URLs. For separate frontend development, proxy that prefix to the backend on `127.0.0.1:18000` through the frontend dev server. Forward cookies and Range headers. This preserves same-origin behavior and avoids exposing VSS credentials. Production may serve the built frontend through the same backend when a static directory is configured.
+
+## Unified runs
+
+One page uses one service and one execution coordinator. Loop off (`adaptive:
+false`) repeats the current up-to-three-action queue; Loop on (`adaptive: true`)
+plans the next round after that queue finishes. Changing the flag never cancels
+an active action or replaces the current queue. A search already in progress can
+finish. The flag is consulted at the queue boundary.
+
+All endpoints below use the same HttpOnly browser session established by health.
+Each run ID has its own queue, history and cancellation scope, so separate tabs
+sharing that cookie do not replace each other's runs. All are POST requests;
+paths are relative to `/demo-api/runs`.
+
+| Path | Request | Response / effect |
+| --- | --- | --- |
+| empty path | `{run_id, animal, scenario_id, intent, adaptive}` | Create a run; verify species/preset consistency; advertise 60s query and 180s search/action budgets |
+| `/{id}/plan` | `{broaden?: false}` | Generate a query with original intent and recent actual outcomes |
+| `/{id}/search` | `{plan_id}` | Retrieve 15, batch-plan eligible evidence, validate roles, publish first three compatible entries and first execution attempt |
+| `/{id}/outcome` | `{round_id, action_id, attempt_id, primitive, status, playback, state, companion}` | Acknowledge the issued attempt and authorize the next step |
+| `/{id}/pause` | `{}` | Cancel pending work/current attempt, retain queue cursor and acknowledged outcomes |
+| `/{id}/resume` | `{}` | Issue a new attempt for the interrupted entry, or request a fresh plan if no usable queue remains |
+| `/{id}/adaptive` | `{adaptive}` | Change the next-boundary policy without interrupting work |
+| `/{id}/replay` | `{}` | Replay a saved round through the same queue/controller with no model or search request |
+
+A query plan reuses the existing query response fields and adds `run_id`,
+`round_id`, `round`, `scenario`, `search_scope` and `timings.query_agent_ms`. Both interaction
+and similar individual-behavior query branches are required internally and joined
+with OR. First-round context has the original animal, scenario and intent; later
+rounds add actual outcomes and recent clip identities. The first round uses the
+selected preset. Each later adaptive round randomly chooses a different preset
+for the same species before query generation. `scenario` is the public catalog
+snapshot used by that round; the frontend applies its `behavior_hint` to the
+existing animal before archive retrieval. This adds no endpoint or agent call.
+
+A search or replay result retains the candidate/provenance fields documented
+below and adds:
+
+```text
+run_id, round_id, round, pass, adaptive, run_status, scenario
+queue: [{ action_id, candidate, role_plan }]
+execution: { action_id, attempt_id } | null
+timings: { query_agent_ms, vss_search_ms, action_agent_ms }
+```
+
+Search `status` remains `ok`, `no_supported_imitation` or `no_results`;
+`run_status` describes execution readiness separately. `queue` contains only the
+first three compatible active results in source rank order, or the actual smaller
+count. The four eligible duck actions are short_walk, ground_pick, head_nod and
+sit_cycle. Passive scans/holds, uncertain or unsupported behavior, incomplete
+provenance and review vetoes cannot occupy a queue slot. Exact-caption role
+validation applies equally with the toggle on or off. Solitary behavior remains
+usable without inventing a second video subject.
+
+Normal new rounds use the same two model calls and one VSS request for both
+settings. The batch call receives only deterministically eligible captions and
+returns compact action and role plans; there is no per-clip model request. Query
+and search execution are independent of browser navigation. Timings expose real
+query generation, VSS retrieval and action-planning duration rather than labeling
+all waiting as archive search. VSS still uses the same deployed search path,
+top_k 15, llm_top_n 1 and selected-species tags.
+
+Outcome/control acknowledgements have this shape:
+
+```text
+{ run_id, status: ready | needs_plan | paused, adaptive,
+  round_id: string | null, round, pass,
+  execution: { action_id, attempt_id } | null }
+```
+
+Outcome `state` uses the existing strict physics telemetry shape (status,
+position, head_yaw, simulation_time); navigation UI fields are not sent.
+Completion requires actual playback end, duck completion and companion
+completion. Capture telemetry before starting navigation for the next action.
+Identical duplicate outcomes return their original acknowledgement; conflicting
+or stale attempts fail. An acknowledgement can carry the next attempt directly,
+so action transitions add no model/search/start request.
+
+At the queue boundary, Loop off keeps `round_id`, increments `pass` and issues
+the first queued action again. Loop on returns `needs_plan`; the next plan creates
+a fresh round with pass 1. Mid-round toggle acknowledgements update metadata only
+and cannot start a duplicate execution. Run/round/attempt generation guards also
+invalidate stale browser callbacks.
+
+Pause invalidates the active attempt and retains completed entries. Resume
+restarts an interrupted clip/action from its beginning under a fresh attempt ID;
+it does not report the interrupted attempt as completed. Paused searches must be
+planned again. Explicit Reset cancels the current run and resets physics; the next
+Start creates a fresh run. Changing the intent/species starts a new run while
+preserving the body.
+
+Replay uses a round snapshot with recorded intent/scope and refreshed opaque
+playback capabilities. It is labeled as recorded, runs once, then pauses. It does
+not add replay outcomes to live planning history. Video still requires VSS.
+
+## Shared endpoints and compatibility contracts
+
+Health, the encounter catalog and opaque video playback are shared with the
+unified run API. The Encounter query/search and additional Loop contracts below
+describe compatibility routes; the new browser does not switch between them.
 
 ## Health
 

@@ -228,6 +228,23 @@ dl.kv dt{color:var(--muted-2)}dl.kv dd{margin:0}
 .agent-loop-panel .alert-actions{gap:14px;padding-bottom:6px}
 .agent-loop-panel .btn{font-size:16px;padding:12px}
 .agent-loop-panel .badge{font-size:9px}
+.adaptive-toggle{white-space:nowrap;min-width:88px}
+.adaptive-toggle.on{color:var(--ink);background:var(--yellow);border-color:var(--yellow)}
+.intent-editor,.session-history{border:2px solid var(--rule);padding:10px 12px;min-width:0}
+.intent-editor summary,.session-history summary{cursor:pointer;line-height:1.5}
+.intent-editor[open] summary,.session-history[open] summary{margin-bottom:12px}
+.intent-editor textarea{display:block;width:100%;min-height:76px;margin-top:7px;padding:10px;resize:vertical;font:13px var(--body);line-height:1.4;color:var(--paper);background:var(--ink-2);border:2px solid var(--rule)}
+.intent-editor textarea:focus{outline:2px solid var(--yellow)}
+.intent-editor p{margin:7px 0 0}
+.history-entry{padding:12px 0;border-bottom:1px solid var(--rule);overflow-wrap:anywhere}
+.history-entry:last-child{border:0;padding-bottom:0}
+.history-entry p{margin:6px 0;font-size:12px;line-height:1.45}
+.sequence-status .body-note{margin-top:5px;text-transform:none;letter-spacing:normal}
+.stage-timings{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:10px}
+.current-interaction{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 10px;padding:9px 11px;border-left:3px solid var(--teal);background:var(--ink-2)}
+.current-interaction .mono{font-size:13px;color:var(--teal)}
+.current-interaction .body-note{flex-basis:100%;font-size:10px}
+@media(min-width:981px){.app-shell.unified-experience{grid-template-rows:auto minmax(0,1fr) auto}.unified-experience .header-actions{gap:10px}.unified-experience .encounter-details{grid-template-columns:1fr}}
 @media(min-width:981px){
   .app-shell{grid-template-rows:auto auto minmax(0,1fr) auto}
   .app-shell.agent-experience{grid-template-rows:auto auto minmax(0,1fr)}

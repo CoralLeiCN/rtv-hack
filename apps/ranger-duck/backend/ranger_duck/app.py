@@ -28,6 +28,7 @@ from .encounter import EncounterService, PLAN_TIMEOUT, ENCOUNTER_TIMEOUT
 from .capture import Capture, CapturedAgent
 from .loop import StrictModel, Telemetry
 from .loop_agent import Primitive
+from .runs import RunService, install_run_routes
 
 SCENARIOS = {
     "deer-feeding": {"id": "deer-feeding", "label": "Forage together", "animal": "deer", "behavior_hint": "feeding",
@@ -112,6 +113,22 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
                 result = result.replace(secret, "[redacted]")
         return result
 
+    def render_candidate(owner, segment, recorded_annotation):
+        annotation = dict(recorded_annotation)
+        reference = annotation.pop('_reference', None)
+        clip_id = registry.add(owner, segment.source)
+        source_label = (reference or {}).get('source_label') or f'Reference clip {segment.rank:02d}'
+        dataset = (reference or {}).get('dataset') or segment.dataset
+        return {'clip_id': clip_id, 'rank': segment.rank, 'video_url': f'/demo-api/clips/{clip_id}/video',
+                'caption': public_text(segment.caption), 'similarity': segment.similarity,
+                'caption_hash': 'sha256:' + caption_hash(segment.caption),
+                'review_reason': public_text((reference or {}).get('review_note'), 1000) or None,
+                **annotation,
+                'provenance': {'dataset': public_text(dataset, 100) or None,
+                    'dataset_id': public_text(segment.dataset_id, 100) or None,
+                    'source_label': public_text(source_label, 150), 'parent_id': opaque_parent(segment.parent),
+                    'segment_start_sec': segment.start, 'segment_end_sec': segment.end}}
+
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         yield
@@ -126,8 +143,10 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     agent = CapturedAgent(loop_agent if loop_agent is not None else CodexAgent(capture), capture)
     loop_service = LoopService(registry, client, manifest, public_text, agent, capture)
     encounter_service = EncounterService(registry, manifest, public_text, agent, capture)
+    run_service = RunService(registry, client, encounter_service, render_candidate, SCENARIOS)
     app.state.loop_service = loop_service
     app.state.encounter_service = encounter_service
+    app.state.run_service = run_service
     install_loop_routes(app, loop_service)
 
     @app.exception_handler(DemoError)
@@ -150,6 +169,8 @@ def create_app(settings: Settings | None = None, transport: httpx.AsyncBaseTrans
     def establish_cookie(response: Response, session_id: str) -> None:
         response.set_cookie(COOKIE_NAME, session_id, httponly=True, samesite="lax",
                             secure=settings.secure_cookie, max_age=settings.clip_ttl_sec, path="/demo-api")
+
+    install_run_routes(app, run_service, SCENARIOS, establish_cookie)
 
     @app.get("/demo-api/health")
     async def health(request: Request):

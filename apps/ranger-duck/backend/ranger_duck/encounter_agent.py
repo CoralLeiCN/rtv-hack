@@ -4,7 +4,7 @@ import re
 
 from pydantic import Field
 
-from .loop_agent import Decision
+from .loop_agent import Decision, RolePlan
 from .errors import DemoError
 
 
@@ -30,12 +30,24 @@ def combined_behavior_query(interaction_query: str, individual_query: str, anima
     """Always send both agent-generated retrieval branches to the archive."""
     interaction = species_scoped_query(interaction_query, animal)
     individual = species_scoped_query(individual_query, animal)
-    return f'{interaction} OR {individual}'
+    # Occasionally the agent has already included the solitary alternative in
+    # its first field. Keep both validated branches without repeating that text.
+    branches, seen = [], set()
+    for branch in re.split(r'\s+OR\s+', f'{interaction} OR {individual}'):
+        branch = branch.strip()
+        key = re.sub(r'\s+', ' ', branch).casefold()
+        if key not in seen:
+            branches.append(branch)
+            seen.add(key)
+    return ' OR '.join(branches)
 
 
 class EncounterQueryDecision(Decision):
     agent_instructions: ClassVar[str] = COMMON + (
         'Write TWO required natural, specific archive query branches from the selected animal and encounter. '
+        'Preserve original_prompt when supplied as the user’s intent throughout the run. Empty history means this is the first query. '
+        'The current encounter describes the simulated animal now; if it changes, respond to that new behavior while preserving the original prompt as the overall goal, not as a demand to repeat an earlier encounter. '
+        'For later rounds, use actual recorded outcomes to choose a relevant next behavior and avoid repeating recent clips; never turn a requested or failed action into an observed success. '
         'Put the same-species interaction in query. Put a similar observable behavior performed by ONE selected-species animal ALONE in individual_query. '
         'Both fields are required; do not combine them in one field or omit the solitary branch. The application joins them with OR. '
         'Interactions must be cat–cat or deer–deer, matching the selected species; the alternative is similar solitary motion by that same species. '
@@ -79,3 +91,22 @@ class EncounterActionsDecision(Decision):
     )
     summary: str = Field(min_length=1, max_length=800)
     actions: list[EncounterActionDecision] = Field(max_length=15)
+
+
+class RunActionDecision(EncounterActionDecision):
+    reason: str = Field(min_length=1, max_length=240)
+    evidence_excerpt: str = Field(max_length=800)
+    role_plan: RolePlan | None
+
+
+class RunActionsDecision(EncounterActionsDecision):
+    agent_instructions: ClassVar[str] = EncounterActionsDecision.agent_instructions.replace('\nINPUT:\n', '') + (
+        ' Only executable candidates are supplied. Keep each explanation and exact excerpt concise. '
+        'Use role_plan=null for a single observed animal behavior; the application assigns the scene companion no video role. '
+        'Optionally provide role_plan with grounding=caption_roles only when this caption explicitly supports two distinct same-species actors. '
+        'Give exact short caption excerpts for both roles, each including the selected species and its actual behavior. '
+        'The duck primitive must match its positive observed role. Companion behavior must be one of allowed_companion_behaviors. '
+        'Use together, companion_first, or duck_first only as a simple approximation of the described order. '
+        'Never use an insufficient-evidence fallback. Prior outcomes inform intent but cannot supply missing caption evidence.\nINPUT:\n'
+    )
+    actions: list[RunActionDecision] = Field(max_length=15)

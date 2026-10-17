@@ -4,20 +4,40 @@ This context supports the [approved plan](RANGER_DUCK_PLAN.md) and [frontend int
 
 ## Current product decisions
 
+- One page now uses a single Loop toggle and one shared run pipeline. Off repeats the current first-three-compatible encounter queue. On randomly chooses a different interaction for the same animal after each queue completes, then generates a fresh query using that interaction and actual outcomes. The first round uses the selected preset; a turn is a round of up to three actions. Toggle changes preserve the active action and apply at round boundaries.
+- Shared planning uses two agent calls and one VSS request for a normal new round, with separate query/VSS/action timings. Search starts alongside approach, and individual clips require no additional model call. A shared controller synchronizes playback and both role completions, records outcomes, and preserves the same duck.
 - One page contains one animal outside the yellow box, the continuous MuJoCo duck, live search, reference playback and automatic movement status. The animal remains outside the arena and the duck attends to it during search and between clips; original procedural geometry remains because the animal-model replacement was canceled.
 - Cat scenarios are Hissing, Greeting and Social play; deer scenarios are Forage together, Follow companion and Herd alert. The agent generates a fresh query for interactions of the selected species or similar individual behavior.
 - Cat searches in both modes use tags `meow-10k` and `cat-behavior`; the requested dataset identity is `hf-smgjch-meow-10k`. The live schema exposes no dataset_id search filter, and sampled cat results omit that metadata, so this ID is recorded as requested scope rather than fabricated clip provenance. Deer retains the wildlife tag.
 - Returned footage may show a single animal. An explicit supported behavior of the selected species plus complete provenance is sufficient; an actual interaction is not required.
-- Exclude `head_scan` and `stand_hold` from retrieval-selected actions in Encounter and Loop. Eligible actions are `short_walk`, `ground_pick`, `head_nod` and `sit_cycle`; a mixed caption can contribute its active behavior. With no active evidence, report no match rather than use a neutral hold.
+- Exclude `head_scan` and `stand_hold` from retrieval-selected actions with Loop both off and on. Eligible actions are `short_walk`, `ground_pick`, `head_nod` and `sit_cycle`; a mixed caption can contribute its active behavior. With no active evidence, report no match rather than use a neutral hold.
 - Filter all returned candidates for compatible active actions, preserve retrieval order, and take the first three. Display action positions and original source ranks separately. Incompatible clips do not occupy visible slots; later ranks can fill them.
 - Whenever an animal appears, the duck turns toward it and approaches only as needed, including while the agent is planning/searching. It maintains attention between clips. Before an action the animal settles at its anchor, then the duck completes positioning and executes the reference-derived motion. The UI shows actual movement commands; navigation remains separate from imitation.
 - The controller retains six primitives: `short_walk`, `ground_pick`, `head_nod`, `head_scan`, `sit_cycle` and `stand_hold`. Retrieval uses the four active ones in walk → pick → nod → sit order. Species/actor attribution and negation still apply; exact current reviews keep their explicit behavior and passive reviews are excluded. Retrieval order is unchanged. Unsupported climbing, retreat or lying does not become a fabricated movement.
 - Exact reviewed solitary references are usable again. Caption-inferred actions remain labeled unreviewed. Stale, invalid or contradictory reviews do not silently authorize new actions.
-- Stop and hidden-tab handling stop navigation and imitation. Visibility-only pauses resume automatically; manual Stop and reference inspection stay paused. Clip transitions and repeated cycles never reset physics.
+- Pause and hidden-tab handling stop navigation and imitation. Visibility-only pauses resume automatically; manual Pause and reference inspection stay paused. Clip transitions and repeated cycles never reset physics.
+- Separate tabs have independent run IDs, planning, cancellation and histories under the shared browser cookie. Each active queue's video capabilities stay protected while another tab searches, within the existing bounded clip registry.
 - Replay is explicit, session-scoped, expires and still needs VSS for video. Broader search relaxes behavior wording while retaining the selected species and allowing interactions or similar individual motion.
 - New training, physical robot control, camera recognition and actual live-animal interaction remain outside scope.
 
 These decisions supersede the earlier fixed-animal, strict pair eligibility and raw-rank 1–3 rules recorded in the historical notes below. See the [current plan](RANGER_DUCK_PLAN.md), [API contract](RANGER_DUCK_API.md) and [behavior research](RANGER_DUCK_INTERACTIONS.md).
+
+## Unified flow verification, 17 October
+
+The unified implementation passes 254 backend tests, 99 frontend tests and a
+production build. A normal browser run completed all three Greeting actions,
+randomly selected Hissing for round two, and generated a new matching query.
+Turning Loop off during that search preserved the new Hissing round, completed
+its three actions and entered pass two without a new search. Pause retained
+completed entries and let the seated duck return to standing. The same duck and
+single animal remained present. Measured live round totals were 19.32 and
+22.92 seconds; query, VSS and action planning are displayed separately.
+
+Separate physics verification covered three consecutive walks with all role
+orderings and seated cancellation/resume across 61.24 simulated seconds, with
+no reset or recovery during those sequences. Browser testing also exposed and
+fixed one-run-per-cookie replacement across tabs; run/task isolation and bounded
+active-queue playback protection now have regression coverage.
 
 ## Local agent runtime
 

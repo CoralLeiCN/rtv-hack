@@ -6,6 +6,7 @@ export { ANIMAL_ANCHOR } from './animalMotor';
 export type SceneEncounter = {
   id: string; behavior_hint: string; animal?: AnimalSpecies;
   interaction_partner?: string;
+  preservePose?: boolean;
 };
 export type DuckScenePose = { x: number; z: number; yaw: number };
 export type CompanionBehavior = 'standing' | 'alert' | 'walking' | 'approach' | 'retreat' | 'feeding' | 'hissing' | 'greeting' | 'play';
@@ -66,14 +67,19 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
   // One visible animal is the duck's scene partner. Archive interactions
   // may contain multiple animals; that does not add actors to this scene.
   const actors: Partial<Record<AnimalSpecies, AnimalActor>> = {};
-  let encounter: (SceneEncounter & { behavior: Interaction; start: number; reached: boolean }) | null = null;
+  let encounter: (SceneEncounter & { behavior: Interaction; start: number; behaviorStart?: number; reached: boolean }) | null = null;
   let primary: AnimalActor | null = null;
   let loopActor: AnimalActor | null = null;
   let loopSpecies: AnimalSpecies | null = null;
-  let roleAction: (CompanionAction & { start: number; fromX: number; resolve(): void; reject(error: Error): void }) | null = null;
+  let roleControlled = false;
+  let roleAction: (CompanionAction & { actor: AnimalActor; start: number; fromX: number; resolve(): void; reject(error: Error): void }) | null = null;
   const stopRoleAction = () => {
     const pending = roleAction; roleAction = null;
-    loopActor?.pose('standing', 0);
+    if (roleControlled && primary) {
+      primary.pose('standing', 0);
+      motor.x = primary.root.position.x; motor.z = primary.root.position.z;
+      motor.speed = 0; activity = 'hold';
+    }
     pending?.reject(new DOMException('Companion action stopped.', 'AbortError'));
   };
   let motor = createAnimalMotor();
@@ -102,6 +108,7 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
   return {
     showLoopAnimals(species: AnimalSpecies) {
       stop(); encounter = null; hideActors();
+      roleControlled = false;
       loopSpecies = species;
       loopActor = actorFor(species);
       primary = loopActor;
@@ -111,20 +118,23 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
       loopActor.pose('standing', 0);
     },
     performCompanion(action: CompanionAction, now: number): Promise<void> {
-      if (!loopActor || roleAction) return Promise.reject(new Error('Companion is unavailable or busy.'));
-      const allowed = ['standing', 'alert', 'walking', 'approach', 'retreat', 'feeding', ...(loopSpecies === 'cat' ? ['hissing', 'greeting', 'play'] : [])];
+      if (!primary?.root.visible || roleAction || interaction) return Promise.reject(new Error('Companion is unavailable or busy.'));
+      const species = loopSpecies ?? encounter?.animal;
+      const allowed = ['standing', 'alert', 'walking', 'approach', 'retreat', 'feeding', ...(species === 'cat' ? ['hissing', 'greeting', 'play'] : [])];
       if (!allowed.includes(action.behavior) || !Number.isFinite(action.durationMs) || action.durationMs <= 0 || action.durationMs > 3000) {
         return Promise.reject(new Error('Unsupported companion action.'));
       }
-      loopActor.root.position.set(action.behavior === 'retreat' ? ANIMAL_ANCHOR.x : ANIMAL_ANCHOR.x + 0.4, 0, ANIMAL_ANCHOR.z);
-      loopActor.root.rotation.set(0, 0, 0);
+      // Grounded roles use the existing actor and current position. In
+      // particular, a standing/feeding role must not jump to a new mark.
+      roleControlled = true; activity = 'hold'; motor.speed = 0;
       return new Promise((resolve, reject) => {
-        roleAction = { ...action, start: now, fromX: loopActor!.root.position.x, resolve, reject };
+        roleAction = { ...action, actor: primary!, start: now, fromX: primary!.root.position.x, resolve, reject };
       });
     },
     stopRoleAction,
     start(input: SceneEncounter, now: number) {
       stop(); loopActor = null; loopSpecies = null;
+      roleControlled = false;
       hideActors();
       encounter = { ...input, behavior: interactionFor(input.behavior_hint), start: now, reached: false };
       primary = actorFor(input.animal === 'cat' ? 'cat' : 'deer');
@@ -135,9 +145,24 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
       primary.pose('alert', 0);
       previous = now;
     },
+    updateEncounterBehavior(behaviorHint: string, now: number) {
+      if (!encounter || !primary?.root.visible) throw new Error('No encounter animal is present.');
+      if (roleAction) throw new Error('Wait for the companion action to finish before changing its interaction.');
+      if (!behaviorHint.trim()) throw new Error('An interaction behavior is required.');
+      // A new round changes only ambient behavior. Keep the same actor,
+      // motor, readiness promise and one-time encounter observation.
+      encounter.behavior_hint = behaviorHint;
+      encounter.behavior = interactionFor(behaviorHint);
+      encounter.behaviorStart = now;
+      roleControlled = false;
+    },
     reset() { stop(); encounter = null; loopActor = null; loopSpecies = null; hideActors(); },
     stop,
-    setActivity(next: AnimalActivity) { if (!loopActor && !interaction) activity = next; },
+    setActivity(next: AnimalActivity, searching = false) {
+      if (!loopActor && !interaction && !roleControlled) {
+        activity = next === 'hold' && searching && encounter?.behavior === 'following' ? 'patrol' : next;
+      }
+    },
     interactionTarget() {
       return primary?.root.visible ? { x: primary.root.position.x, z: primary.root.position.z } : null;
     },
@@ -152,7 +177,7 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
         geometries.add(mesh.geometry);
         for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) materials.add(material);
       });
-      return { species: loopSpecies ?? encounter?.animal ?? null, activity, position: { x: loopActor?.root.position.x ?? motor.x, z: loopActor?.root.position.z ?? motor.z }, yaw: motor.yaw, speed: motor.speed, meshes, triangles, geometries: geometries.size, materials: materials.size };
+      return { species: loopSpecies ?? encounter?.animal ?? null, behavior_hint: encounter?.behavior_hint ?? null, activity, position: { x: loopActor?.root.position.x ?? motor.x, z: loopActor?.root.position.z ?? motor.z }, yaw: motor.yaw, speed: motor.speed, meshes, triangles, geometries: geometries.size, materials: materials.size };
     },
     prepareInteraction(): Promise<void> {
       stop();
@@ -171,22 +196,24 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
       return { x: (duck.x + primary.root.position.x) / 2, z: (duck.z + primary.root.position.z) / 2 };
     },
     frame(now: number): string | null {
-      if (loopActor) {
+      if (roleAction) {
         const action = roleAction;
-        if (!action) return null;
         const elapsed = Math.max(0, now - action.start);
         const progress = Math.min(1, elapsed / action.durationMs);
         const moving = ['approach', 'retreat', 'walking'].includes(action.behavior);
         const target = action.behavior === 'retreat' ? ANIMAL_ANCHOR.x + 0.4 : action.behavior === 'walking' ? ANIMAL_ANCHOR.x + 0.15 : ANIMAL_ANCHOR.x;
-        if (moving) loopActor.root.position.x = THREE.MathUtils.lerp(action.fromX, target, progress);
-        loopActor.pose(moving ? 'walking' : action.behavior as AnimalPose, elapsed / 1000);
+        if (moving) action.actor.root.position.x = THREE.MathUtils.lerp(action.fromX, target, progress);
+        action.actor.pose(moving ? 'walking' : action.behavior as AnimalPose, elapsed / 1000);
+        motor.x = action.actor.root.position.x; motor.z = action.actor.root.position.z;
+        previous = now;
         if (progress === 1) {
           roleAction = null;
-          loopActor.pose('standing', 0);
+          action.actor.pose('standing', 0);
           action.resolve(); // Completion of a scripted animation, not physics telemetry.
         }
         return null;
       }
+      if (loopActor) return null;
       if (!encounter || !primary) return null;
       const duck = getDuckPose();
       const dt = Math.min(0.05, Math.max(0, (now - previous) / 1000));
@@ -196,7 +223,7 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
       primary.root.position.set(motor.x, 0, motor.z);
       primary.root.rotation.y = motor.yaw;
       const observed = time >= 1.8;
-      const t = Math.max(0, time - 1.8);
+      const t = Math.max(0, (now - (encounter.behaviorStart ?? encounter.start + 1800)) / 1000);
       const cycle = t % 5.5;
       let pose: Parameters<AnimalActor['pose']>[0] = 'alert';
       if (encounter.behavior === 'boundary') {
@@ -206,8 +233,8 @@ export function createClearing(scene: THREE.Scene, getDuckPose: () => DuckSceneP
       else if (encounter.behavior === 'feeding') pose = 'feeding';
       const offAnchor = Math.hypot(motor.x - ANIMAL_ANCHOR.x, motor.z - ANIMAL_ANCHOR.z) > 0.012;
       // Distance-driven gait stays still while turning or paused.
-      const walking = motor.speed > 0.004 || offAnchor;
-      primary.pose(walking ? 'walking' : pose, walking ? motor.gait : t, dt);
+      const walking = motor.speed > 0.004 || (offAnchor && (!roleControlled || activity === 'interact'));
+      primary.pose(walking ? 'walking' : roleControlled ? 'standing' : pose, walking ? motor.gait : t, dt);
       if (interaction) {
         const desiredYaw = Math.atan2(duck.z - motor.z, motor.x - duck.x);
         const facingError = Math.abs(Math.atan2(Math.sin(desiredYaw - motor.yaw), Math.cos(desiredYaw - motor.yaw)));
