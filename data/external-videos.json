@@ -2680,19 +2680,19 @@
         "location": "workshop_vm",
         "path": "~/data/meow-10k",
         "manifest_path": "~/data/meow-10k/manifest.json",
-        "index_path": "~/data/external-videos.json"
+        "index_path": "~/data/external-videos.json",
+        "dataset_metadata_path": "~/data/meow-10k/dataset-metadata.json"
       },
       "download": {
-        "status": "in_progress",
+        "status": "verified",
         "recorded_at_utc": "2026-10-17T10:49:27.646694+00:00",
-        "completed_at_utc": null,
-        "actual_size_bytes": null,
+        "completed_at_utc": "2026-10-17T11:14:15.519784+00:00",
+        "actual_size_bytes": 3332526016,
         "expected_size_bytes": 3332526016,
-        "verified_size_bytes": 2666744432,
+        "verified_size_bytes": 3332526016,
         "total_files": 16870,
         "file_counts_by_status": {
-          "pending": 7191,
-          "verified": 9679
+          "verified": 16870
         },
         "by_extension_and_status": [
           {
@@ -2718,31 +2718,17 @@
           },
           {
             "extension": ".npy",
-            "status": "pending",
-            "files": 3227,
-            "expected_size_bytes": 626188,
-            "verified_size_bytes": 0
-          },
-          {
-            "extension": ".npy",
             "status": "verified",
-            "files": 1700,
-            "expected_size_bytes": 390340,
-            "verified_size_bytes": 390340
-          },
-          {
-            "extension": ".wav",
-            "status": "pending",
-            "files": 3964,
-            "expected_size_bytes": 665155396,
-            "verified_size_bytes": 0
+            "files": 4927,
+            "expected_size_bytes": 1016528,
+            "verified_size_bytes": 1016528
           },
           {
             "extension": ".wav",
             "status": "verified",
-            "files": 1241,
-            "expected_size_bytes": 440943348,
-            "verified_size_bytes": 440943348
+            "files": 5205,
+            "expected_size_bytes": 1106098744,
+            "verified_size_bytes": 1106098744
           },
           {
             "extension": "[no extension]",
@@ -2752,7 +2738,7 @@
             "verified_size_bytes": 2504
           }
         ],
-        "summary_updated_at_utc": "2026-10-17T11:02:52.091247+00:00"
+        "summary_updated_at_utc": "2026-10-17T11:32:35.796798+00:00"
       },
       "ingestion": {
         "status": "in_progress",
@@ -2762,13 +2748,13 @@
         "indexed_at_utc": null,
         "total_videos": 6735,
         "video_counts_by_status": {
-          "indexed": 6,
-          "not_submitted": 6629,
-          "uploaded": 100
+          "indexed": 29,
+          "not_submitted": 6506,
+          "uploaded": 200
         },
         "journal_path": "~/data/meow-10k/ingestion.json",
-        "journal_sha256": "19d3b5c18ed1fed7d71432b93900e95e87f76915357e031d685d281e1aec3032",
-        "journal_updated_at_utc": "2026-10-17T11:02:51.949091+00:00",
+        "journal_sha256": "30d5d83eb19f0cb6c30b2f4e7de920d939401772c38bd58b7dd867f9785d8662",
+        "journal_updated_at_utc": "2026-10-17T11:32:35.472433+00:00",
         "settings_sha256": "5f8eabcf339aa5ccd7de15d079f16a1c448e8a315ef9fb48370ada21212f0d12",
         "worker_status": "batch_complete",
         "pipeline_status_path": "~/data/meow-10k/pipeline-status.json"
@@ -2776,9 +2762,28 @@
       "manifest": {
         "relative_path": "meow-10k/manifest.json",
         "relative_to": "data_directory",
-        "sha256": "9b335c87e06baf56b98bd63a5cf1b9cb06f5c3682f0fc3f661a649fbda292988",
-        "snapshot_at_utc": "2026-10-17T11:02:52.091247+00:00",
-        "manifest_updated_at_utc": "2026-10-17T11:02:50.975842+00:00"
+        "sha256": "c87b66d145dce2625c2a0fdcd783ee7d3d82537c8463e0690a6289b3be067e2c",
+        "snapshot_at_utc": "2026-10-17T11:32:35.796798+00:00",
+        "manifest_updated_at_utc": "2026-10-17T11:14:15.408398+00:00"
+      },
+      "dataset_metadata": {
+        "storage_kind": "linked_provenance_index",
+        "dataset": "meow-10k",
+        "native_search_filter": {
+          "tags": [
+            "meow-10k"
+          ]
+        },
+        "relative_path": "meow-10k/dataset-metadata.json",
+        "video_count": 6735,
+        "clip_count": 58,
+        "video_counts_by_ingestion_status": {
+          "indexed": 29,
+          "not_submitted": 6506,
+          "uploaded": 200
+        },
+        "sha256": "a5a092bee42a2d30834097e033d90301ed62aaeb988be8daf2e30cbad9bd12b7",
+        "updated_at_utc": "2026-10-17T11:32:35.714280+00:00"
       }
     },
     {

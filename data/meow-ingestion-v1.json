@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "settings_version": "meow-cat-behavior-v1",
+  "dataset": "smgjch/meow-10k",
+  "revision": "41e4014ef226bd822dec22be61cf5eee7f12088a",
+  "approved_by_user": true,
+  "approval_date": "2026-10-17",
+  "scope": "all verified MP4 files in the pinned dataset snapshot",
+  "is_public": false,
+  "custom_prompt": "Describe the cats’ visible actions, interactions, posture, and surroundings. Note changes over time. Distinguish observable behavior from uncertain interpretations; do not infer medical diagnoses.",
+  "capture_type": "general",
+  "tags": ["meow-10k", "cat-behavior"],
+  "omitted_fields": ["camera_id", "location", "allowed_users", "scenario"],
+  "companion_files": "Retain audio, time-series arrays, and annotations on the VM with provenance; do not upload them through the VSS video endpoint."
+}
