@@ -2,6 +2,11 @@
 
 One page for a scripted wildlife encounter, live archive retrieval, reference playback, and evidence-guided imitation by a physics-simulated Microduck. The interface follows the [design handoff](design/README.md); the scene uses the official Microduck MuJoCo/ONNX controller.
 
+See the repository README for the [tech stack](../../README.md#ranger-duck-tech-stack)
+and [agentic search architecture](../../README.md#how-agentic-search-works), including
+Codex login, search tool calls, reranking, and the remaining frontend integration.
+The current demo uses direct VSS search; the agent prototype is not connected yet.
+
 ## Start development
 
 Use Node.js 22.12 or newer, Python 3.11 or newer, and two terminals. From the repository root:
