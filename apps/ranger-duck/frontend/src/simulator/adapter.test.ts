@@ -160,6 +160,49 @@ describe('evidence primitive execution', () => {
 });
 
 describe('separate continuous navigation', () => {
+  it('accepts a facing arrival corridor instead of orbiting an exact point', async () => {
+    const { adapter, runtime, advance } = fixture();
+    const q = runtime.data.qpos as Float64Array;
+    q[0] = 0.08; q[1] = -0.2;
+    adapter.setCompanionTarget({ x: 1.05, y: 0.05 });
+    const ready = adapter.approach();
+    expect([...adapter.source.command]).toEqual([0,0,0]);
+    advance(300); advance(300); await ready;
+    expect(adapter.status()).toBe('ready');
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+  });
+
+  it('holds one inward turn direction then steers toward the animal after alignment', async () => {
+    const { adapter, runtime } = fixture();
+    const q = runtime.data.qpos as Float64Array;
+    q[0] = 0.17; q[1] = 0.1; q[3] = Math.cos(Math.PI/4); q[6] = Math.sin(Math.PI/4);
+    adapter.setCompanionTarget({ x: 1.05, y: 0.05 });
+    const ready = adapter.approach().catch(error => error);
+    expect(adapter.telemetry().approach_phase).toBe('align');
+    expect(adapter.source.command[2]).toBeGreaterThan(0); // Turn inward, continuing the left arc.
+    q[0] = -0.21; q[1] = 0.05; q[3] = Math.cos(-Math.PI/4); q[6] = Math.sin(-Math.PI/4);
+    expect(adapter.source.command[2]).toBe(1); // Crossing the arena center cannot flip the arc.
+    q[0] = -0.24; q[1] = -0.18; q[3] = 1; q[6] = 0;
+    const command = adapter.source.command;
+    expect(adapter.telemetry().approach_phase).toBe('final');
+    expect(command[0]).toBeGreaterThan(0);
+    expect(command[2]).toBeGreaterThan(0);
+    expect(command[2]).toBeLessThan(0.5);
+    adapter.stop(); await ready;
+    expect([...adapter.source.command]).toEqual([0,0,0]);
+    expect(runtime.resetSim).not.toHaveBeenCalled();
+  });
+
+  it('moves directly forward when already aligned just west of the arrival corridor', async () => {
+    const { adapter, runtime } = fixture();
+    (runtime.data.qpos as Float64Array)[0] = 0;
+    adapter.setCompanionTarget({ x: 1.05, y: 0 });
+    const result = adapter.approach().catch(error => error);
+    expect(adapter.telemetry().approach_phase).toBe('final');
+    expect([...adapter.source.command]).toEqual([0.25,0,0]);
+    adapter.stop(); await result;
+  });
+
   it('holds an already reached interaction pose with no extra locomotion', async () => {
     const { adapter, runtime, advance } = fixture();
     (runtime.data.qpos as Float64Array)[0] = 0.12;

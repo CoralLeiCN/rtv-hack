@@ -27,6 +27,8 @@ type Pending = {
 };
 type Navigation = {
   kind: 'roaming' | 'approaching'; stableSince: number | null; reached: boolean;
+  approachPhase?: 'align' | 'final';
+  turnDirection?: number;
   simStart: number; deadline?: ReturnType<typeof setTimeout>;
   resolve?(): void; reject?(error: Error): void;
 };
@@ -73,7 +75,7 @@ export class DuckAdapter {
         if (self.outsideGuard() || self.runtime.recovery || self.runtime.inputLocked || self.runtime.respawnActive) self.vector.fill(0);
         else if (self.navigation && !self.navigation.reached) {
           if (self.navigation.kind === 'roaming') self.steerWalk();
-          else self.steerToward(APPROACH_POINT);
+          else self.steerApproach();
         } else if (self.clock() >= self.commandUntil) self.vector.fill(0);
         else if (action?.primitive === 'short_walk') self.steerWalk();
         return self.vector;
@@ -90,7 +92,7 @@ export class DuckAdapter {
     const q = this.runtime.data.qpos;
     return { status: this.state, position: Array.from(this.runtime.data.qpos).slice(0, 3),
       head_yaw: this.runtime.headYaw, simulation_time: this.runtime.data.time,
-      navigation: this.navigationState, primitive: this.pending?.primitive ?? null,
+      navigation: this.navigationState, approach_phase: this.navigation?.approachPhase ?? null, primitive: this.pending?.primitive ?? null,
       commands: { forward: command[0], lateral: command[1], yaw: command[2] }, body_yaw: this.yaw(),
       target: this.companionTarget ? { ...this.companionTarget,
         distance: Math.hypot(this.companionTarget.x - q[0], this.companionTarget.y - q[1]),
@@ -104,7 +106,36 @@ export class DuckAdapter {
   }
   private atInteractionPose() {
     const q = this.runtime.data.qpos;
-    return Math.hypot(q[0] - APPROACH_POINT[0], q[1] - APPROACH_POINT[1]) < 0.1 && Math.abs(this.facingError()) < 0.7;
+    // The policy cannot turn in place. A corridor accepts a correctly facing
+    // arrival without asking it to orbit a tiny point to satisfy two goals.
+    return q[0] >= APPROACH_POINT[0] - 0.1 && q[0] <= APPROACH_POINT[0] + 0.1 &&
+      Math.abs(q[1]) <= 0.28 && Math.abs(this.facingError()) < 0.45;
+  }
+  private atApproachEntry() {
+    const q = this.runtime.data.qpos;
+    return q[0] <= APPROACH_POINT[0] - 0.1 && Math.abs(q[1]) < 0.32 && Math.abs(this.facingError()) < 0.45;
+  }
+  private approachTurnDirection() {
+    const q = this.runtime.data.qpos, yaw = this.yaw();
+    // Compare conservative turning-circle envelopes. Keep one direction for
+    // the entire arc; point pursuit can flip direction as it crosses a target.
+    const radius = 0.23;
+    const score = (direction: number) => {
+      const x = q[0] - direction * radius * Math.sin(yaw);
+      const y = q[1] + direction * radius * Math.cos(yaw);
+      const boundary = Math.max(0, -0.70 - (x-radius)) + Math.max(0, x+radius-0.50) + Math.max(0, Math.abs(y)+radius-0.55);
+      const exitY = y-direction*radius;
+      return boundary*100 + Math.max(0,x-0.2)*10 + Math.abs(exitY);
+    };
+    return score(1) <= score(-1) ? 1 : -1;
+  }
+  private steerApproach() {
+    const navigation = this.navigation;
+    if (!navigation) return;
+    if (navigation.approachPhase === 'align' && this.atApproachEntry()) navigation.approachPhase = 'final';
+    if (navigation.approachPhase === 'align') {
+      this.vector.set([0.25, 0, navigation.turnDirection ?? 1]);
+    } else this.steerToward([this.companionTarget?.x ?? 1.05, this.companionTarget?.y ?? 0]);
   }
   private yaw() {
     const q = this.runtime.data.qpos;
@@ -165,7 +196,9 @@ export class DuckAdapter {
     this.setStatus('busy');
     return new Promise((resolve, reject) => {
       this.navigation = {
-        kind: 'approaching', reached: this.atInteractionPose(), stableSince: null, simStart: this.runtime.data.time, resolve, reject,
+        kind: 'approaching', approachPhase: this.atApproachEntry() ? 'final' : 'align',
+        turnDirection: this.approachTurnDirection(),
+        reached: this.atInteractionPose(), stableSince: null, simStart: this.runtime.data.time, resolve, reject,
         deadline: setTimeout(() => this.failNavigation('The duck could not reach its interaction position in time.'), 25000),
       };
     });
