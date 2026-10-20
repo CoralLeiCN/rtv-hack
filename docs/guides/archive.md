@@ -4,6 +4,21 @@ The archive uses Qdrant, Neon Postgres, local media, EmbeddingGemma 2 and a
 self-hosted Cosmos 3 Reasoner. The existing
 Codex decision agent and optional W&B tracing remain separate application features.
 
+## Service connections
+
+| Connection | Configuration |
+| --- | --- |
+| Applications to archive API | ARCHIVE_URL and server-side ARCHIVE_API_KEY |
+| Archive to Neon | DATABASE_URL; direct WORKER_DATABASE_URL for worker locks |
+| Archive to Qdrant | QDRANT_URL, QDRANT_COLLECTION and optional QDRANT_API_KEY |
+| Archive to local files | MEDIA_ROOT |
+| Ingestion to Cosmos Reasoner | COSMOS_URL, COSMOS_MODEL, COSMOS_REVISION and optional COSMOS_API_KEY |
+| Local embedding inference | EMBEDDING_MODEL, EMBEDDING_REVISION and EMBEDDING_DEVICE |
+
+Use the [development configuration guide](../development.md#configuration-boundaries)
+for file selection and precedence. Use committed examples for variable names;
+keep real values private. Browsers receive session-scoped playback URLs.
+
 ## Install and configure
 
 Use Python 3.11+, FFmpeg/FFprobe, Node for the frontend, and Docker for Qdrant.
@@ -12,7 +27,7 @@ From the repository root:
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -e './services/archive[models,test]' -e './apps/ranger-duck/backend[test]'
-cp config.example .env
+test -e .env || cp config.example .env
 ```
 
 Fill in `.env` privately. Generate a random ARCHIVE_API_KEY and use the same key
@@ -79,7 +94,7 @@ Cosmos does not need filesystem access. Reduce segment length for oversized clip
 .venv/bin/video-archive worker
 ```
 
-Run `video-archive serve` in a second terminal. It binds to 127.0.0.1:18001.
+Run `.venv/bin/video-archive serve` from the repository root in a second terminal. It binds to 127.0.0.1:18001.
 Use `--tag meow-10k --tag cat-behavior` for the current cat encounter scope.
 Tags use OR matching. The library is single-tenant: the configured applications
 can search all indexed material in it. Dataset IDs record provenance, not access
@@ -123,12 +138,13 @@ check; use a newly ingested video without imported captions to test that service
 
 ## Connect the applications
 
-Copy apps/ranger-duck/backend/example.env to `.env` beside it and privately set
+If no application configuration exists, copy
+[backend/example.env](../../apps/ranger-duck/backend/example.env) to `.env` beside it and privately set
 ARCHIVE_URL and ARCHIVE_API_KEY. Both UIs use that application config, or an
 absolute RANGER_ENV_FILE, with exported variables taking precedence.
 
 - Ranger Duck: `.venv/bin/ranger-duck-serve`, then run the frontend as described
-  in apps/ranger-duck/README.md. Keep one app worker for session state.
+  in [the application guide](../../apps/ranger-duck/README.md#run). Keep one app worker for session state.
 - Simple search: `make run` serves http://127.0.0.1:8000.
 
 Local media uses media://UUID references. Historical S3 review manifests remain
@@ -137,20 +153,11 @@ or reacquire videos from the old environment, ingest them, and review new eviden
 references. Changing source IDs or caption text invalidates old review bindings.
 No actual video files are included in the repository dataset inventories.
 
-## Tests and deployment boundaries
+## Verification and deployment boundaries
 
-```bash
-.venv/bin/python -m pytest tests apps/ranger-duck/backend/tests services/archive/tests -q
-node --test tests/*.test.mjs
-docker build -f services/archive/Dockerfile.test -t rtv-hack-archive-test:local .
-docker run --rm rtv-hack-archive-test:local
-```
-
-The test image starts a disposable Postgres database, generates tiny videos with
-FFmpeg and exercises real Qdrant local storage. Model calls use explicit test
-fixtures. It never connects to Neon or downloads model weights. Outside that
-image, set TEST_DATABASE_URL only to a disposable test database: tests truncate
-archive_* tables. Integration tests skip when it is absent.
+Run the checks in [testing](../testing.md), including the disposable archive
+integration image for storage, ingestion and media changes. Fixture tests and
+live model validation must be reported separately.
 
 The optional services/archive/Dockerfile packages the API and worker runtime.
 Mount persistent media at /media and pass configuration privately. Cosmos runs

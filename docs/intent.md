@@ -8,8 +8,8 @@ see how its caption supports a simulated duck action.
 
 The search interface accepts natural-language queries and returns matching video
 segments with captions and source-relative timestamps. Each segment plays inline.
-An independent archive stores local media, metadata and jobs in Neon Postgres,
-and caption embeddings in Qdrant. EmbeddingGemma 2 embeds queries and captions;
+An independent archive stores media on the local filesystem, metadata and jobs
+in Neon Postgres, and caption embeddings in Qdrant. EmbeddingGemma 2 embeds queries and captions;
 self-hosted Cosmos 3 Reasoner produces captions during ingestion.
 
 The applications keep archive credentials on the server. The configured library
@@ -42,5 +42,5 @@ These movements are caption-grounded approximations, not motion capture. The
 project does not control physical robots or interact with live animals. Navigation
 and search animations remain distinct from evidence-derived imitation.
 
-See the [archive specification](spec.md), [encounter and Loop plan](RANGER_DUCK_PLAN.md),
-[API contract](RANGER_DUCK_API.md), and [implementation plan](../plan.md).
+See the [archive specification](spec.md), [runtime behavior](reference/behavior.md),
+[API contract](reference/ranger-duck-api.md), and [implementation status](status.md).

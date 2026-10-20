@@ -1,12 +1,12 @@
-# Ranger Duck unified implementation plan
+# Ranger Duck runtime behavior
 
 One page and one agent pipeline support encounter and adaptive Loop behavior.
-The [archive specification](spec.md) defines retrieval, ingestion and media
-storage; the [implementation plan](../plan.md) records validation status.
+The [archive specification](../spec.md) defines retrieval, ingestion and media
+storage; the [status](../status.md) records remaining work and validation limits.
 
-The interface follows the [design handoff](../apps/ranger-duck/design/README.md).
-See the [API contract](RANGER_DUCK_API.md), [startup guide](../apps/ranger-duck/README.md),
-[behavior research](RANGER_DUCK_INTERACTIONS.md) and [motion inventory](RANGER_DUCK_ANIMATION.md).
+The interface follows the [design guide](../../apps/ranger-duck/design/README.md).
+See the [API contract](ranger-duck-api.md), [startup guide](../../apps/ranger-duck/README.md),
+[behavior research](interactions.md) and [motion inventory](simulator.md).
 
 ## One page, one Loop toggle
 
@@ -57,7 +57,9 @@ One RunService owns planning, retrieval, queue/attempt state, outcome history,
 cancellation and replay. Both toggle settings use two agent calls per normal
 new round: query generation and one batch action/role plan. Only deterministically
 eligible candidates require model action planning. There is no per-clip agent
-call. The outcome acknowledgement issues the next queued attempt directly.
+call. An all-blocked result skips the batch decision and pauses. Unified runs
+have no hidden model/search retries; a broader search is an explicit user retry.
+The outcome acknowledgement issues the next queued attempt directly.
 
 Query planning begins alongside animal-facing/approach navigation. Navigation
 must not delay the archive request. Expose query_agent_ms, vss_search_ms and
@@ -94,6 +96,7 @@ Before each action, settle the animal at its outside-arena anchor, align the duc
 inside its arrival corridor, and wait for balance. Start the grounded roles when
 video playback begins. Their timing may be together, companion_first or duck_first.
 Advance only after playback, duck motion and required companion animation finish.
+Blocked autoplay shows a Play control and cannot start movement.
 Capture completed physics telemetry before navigation changes the controller state.
 
 The same body and simulation clock continue across references, passes, fresh
@@ -106,14 +109,16 @@ video, navigation and both roles, retaining acknowledged entries. An in-progress
 sit uses its native standing return. Resume restarts an interrupted entry from
 the beginning with a new attempt ID; a paused/expired search requires planning
 again. A visibility-only pause can resume automatically when the tab returns;
-manual Pause and reference inspection remain paused.
+manual Pause and reference inspection remain paused. Preset and intent edits
+while paused require Start new run; they do not silently replace the queue.
 
 ## Recorded rounds
 
 Replay saved round uses recorded decisions through the same queue/player/controller.
 It issues fresh playback capabilities, makes no agent/search call, stays clearly
 labeled as recorded and ends paused after one pass. Replay outcomes do not enter
-live planning history. Playback still needs archive access. Snapshot identity belongs
+live planning history. Resume after a finished replay plans a fresh live round.
+Playback still needs archive access. Snapshot identity belongs
 to the run/round and its intent/scope, not only a scenario name.
 
 ## Verification

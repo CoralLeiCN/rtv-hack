@@ -1,8 +1,8 @@
 # Independent video archive specification
 
 The archive supports the [project intent](intent.md). Encounter and Loop behavior
-is defined in the [API contract](RANGER_DUCK_API.md) and
-[behavior plan](RANGER_DUCK_PLAN.md).
+is defined in the [API contract](reference/ranger-duck-api.md) and
+[runtime behavior](reference/behavior.md).
 
 ## Components
 
