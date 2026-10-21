@@ -21,6 +21,11 @@ There is one persistent duck and one animal outside its arena.
 - Both toggle positions use the same query model, archive settings, batch action/role planner, validation and execution coordinator.
 - A changed intent/species creates a new run without replacing the physics body. Only explicit Reset resets the duck.
 
+If a Loop setting update fails, pause the run and retain the selected value.
+Resume retries that value once and waits for the backend acknowledgement before
+restarting execution. Another failure leaves the run paused for a later Resume;
+Pause or Reset during the retry prevents execution from restarting.
+
 ## Inputs and outputs
 
 | Stage | Input | Output |
@@ -49,14 +54,15 @@ selection adds no model call or archive request.
 ## Shared architecture and latency
 
 The browser runs React, Three.js, MuJoCo WASM and the existing ONNX controller.
-The local FastAPI backend runs the existing Codex CLI decision agent. The
+The local FastAPI backend runs Codex CLI with `gpt-6-luna` for query and action
+decisions. The
 independent archive provides retrieval and playback using Qdrant, Neon Postgres
 and local media; Cosmos and EmbeddingGemma 2 support ingestion and search.
 
 One RunService owns planning, retrieval, queue/attempt state, outcome history,
 cancellation and replay. Both toggle settings use two agent calls per normal
-new round: query generation and one batch action/role plan. Only deterministically
-eligible candidates require model action planning. There is no per-clip agent
+new round: query generation and one batch action/role plan. All captions with valid provenance and review constraints require model action
+planning, including passive or ambiguous descriptions. There is no per-clip agent
 call. An all-blocked result skips the batch decision and pauses. Unified runs
 have no hidden model/search retries; a broader search is an explicit user retry.
 The outcome acknowledgement issues the next queued attempt directly.
@@ -74,17 +80,25 @@ filter and absent result metadata must not be fabricated. Deer uses wildlife.
 
 ## Evidence and action selection
 
-Require complete source/parent/interval metadata and positive selected-species
-behavior evidence, or an exact current human review. Apply actor attribution,
-negation and uncertainty checks. Stale, invalid or contradictory reviews veto
-inference. Keep caption inference visibly distinct from visual review.
+Code requires complete source/parent/interval metadata and enforces exact current
+review constraints, caption quotation, command types and duration limits. Stale,
+invalid or contradictory reviews veto inference. Keep caption inference visibly
+distinct from visual review.
 
-Eligible retrieved actions, in within-caption preference order, are short_walk,
-ground_pick, head_nod and sit_cycle. Head scan and standing hold remain internal
-controller capabilities but never occupy a reference action slot. Hiss-only,
-watching-only or stillness-only clips cannot supply active imitation. A mixed
-caption can supply its supported active behavior, such as sitting while looking.
-Unsupported jumping, retreat, climbing, grooming and lying are not invented motions.
+Codex with `gpt-6-luna` decides whether each full caption describes a supported
+selected-species action, which actor performs it, and whether evidence is negated
+or uncertain. It chooses among short_walk, ground_pick, head_nod and sit_cycle,
+or skips the clip with a reason. There is no phrase classifier or fixed
+within-caption action priority in the runtime path. A walk away may be ordinary
+forward locomotion; the agent distinguishes that from unsupported reverse steps.
+Head scan and standing hold remain internal controller capabilities. Rolling,
+jumping, climbing, grooming and lying have no enabled imitation command.
+
+The agent receives recent-clip flags and actual outcome history. It should avoid
+pointless repetition but may explain a useful repeat when alternatives are absent.
+Recency does not automatically veto a reference. The application verifies exact
+quotes and command/role compatibility, not the semantic correctness of the model's
+interpretation; real model evaluation remains necessary.
 
 Filter before taking three; retain archive rank separately from queue position.
 Show the actual count when fewer qualify. Bound no-match recovery and report

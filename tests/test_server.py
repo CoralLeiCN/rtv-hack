@@ -58,6 +58,24 @@ def test_malformed_archive_response_is_safe(data):
         assert client.post('/api/v1/search', json={'query': 'deer'}).status_code == 502
 
 
+def test_search_limit_is_an_explicit_maintenance_error():
+    with TestClient(create_app(BASE, httpx.MockTransport(lambda r: httpx.Response(
+            503, json={'detail': 'search_limit_reached', 'debug': KEY})), KEY)) as client:
+        response = client.post('/api/v1/search', json={'query': 'deer'})
+        assert response.status_code == 503
+        assert response.json()['code'] == 'search_limit_reached'
+        assert 'maintenance' in response.json()['detail']
+        assert KEY not in response.text and 'results' not in response.json()
+
+
+@pytest.mark.parametrize('data', [[], None, 'private-key', {'detail': KEY}])
+def test_unrecognized_503_response_stays_redacted(data):
+    with TestClient(create_app(BASE, httpx.MockTransport(lambda r: httpx.Response(503, json=data)), KEY)) as client:
+        response = client.post('/api/v1/search', json={'query': 'deer'})
+        assert response.status_code == 502
+        assert KEY not in response.text
+
+
 @pytest.mark.parametrize('error,code', [(httpx.ReadTimeout, 504), (httpx.ConnectError, 502)])
 def test_transport_errors_do_not_expose_url_or_key(error, code):
     def fail(request):

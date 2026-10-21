@@ -1,4 +1,6 @@
-"""Conservative, deterministic interpretations of existing video-model captions.
+"""Legacy caption heuristics, retained for historical fixture coverage only.
+
+Runtime action planning uses Codex/Luna and action_evidence, not this classifier.
 
 This is not a video model or a visual review. A clip must identify the selected
 species and a supported behavior; a second animal is optional. Unsupported

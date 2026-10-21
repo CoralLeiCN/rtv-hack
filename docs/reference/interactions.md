@@ -26,13 +26,18 @@ These scenarios reflect social and alert contexts described by the [Missouri Dep
 
 ## Evidence and automatic execution
 
-The backend derives each action from that segment's existing video-model caption, not the query or scripted encounter. It requires the selected species, an explicitly described supported behavior and complete source/timing metadata. Single-animal behavior is usable. The search query asks for an interaction, but a supported solitary or shared activity can still drive an honestly labeled action. Wrong species, negated or uncertain behavior, and unsupported movements remain ineligible.
+Codex with `gpt-6-luna` interprets each segment's existing video-model caption to choose an action; the query and scripted encounter cannot supply missing evidence. It requires the selected species, an explicitly described supported behavior and complete source/timing metadata. Single-animal behavior is usable. The search query asks for an interaction, but a supported solitary or shared activity can still drive an honestly labeled action. Wrong species, negated or uncertain behavior, and unsupported movements remain ineligible.
 
 Caption-derived actions are labeled `video_caption`, with the inferred behavior and its movement approximation shown. They are not visual reviews and do not turn `review_status` into `reviewed`. An exact current review of a solitary feeding deer can authorize a ground-pick action; it does not claim a deer–deer interaction occurred.
 
 The unified backend selects the first three compatible active actions in retrieval order; the frontend also rejects passive actions from stale responses. It shows each action's position and original source rank. Unsupported results do not occupy a card or queue slot. If only one or two qualify, loop those available actions without inventing a third.
 
-Within each caption, supported active behavior takes precedence over stillness, while matching the selected animal and retaining negation checks. Retrieval allows walking, beak dipping, explicit vertical head nodding and sitting then standing. Head scans and standing holds remain internal controller capabilities. The [motion inventory](simulator.md) lists the precise priority, tested limits and other native capabilities that remain disabled.
+Within each caption, the agent chooses the supported motion and actor from context,
+including negation and uncertainty. There is no fixed motion priority or phrase
+veto. Retrieval allows walking, beak dipping, vertical head nodding and sitting then
+standing; the [motion inventory](simulator.md) defines the available commands and
+limits. The application enforces provenance, exact quotations and valid commands.
+Semantic correctness belongs to the agent and requires model-backed validation.
 
 The animal patrols outside the yellow box while the duck roams, then returns to its interaction mark and settles before duck approach. The duck executes the evidence action after arriving. Navigation is not presented as behavior copied from a clip. Stop or Reset cancels all movement, and ordinary video/cycle changes preserve the duck body and physics clock.
 

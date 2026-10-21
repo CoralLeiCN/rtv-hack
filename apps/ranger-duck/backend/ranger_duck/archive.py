@@ -49,6 +49,10 @@ class ArchiveClient:
             async with asyncio.timeout(self.settings.search_timeout_sec):
                 response = await self._request('POST', '/search', json=payload,
                     timeout=httpx.Timeout(self.settings.request_timeout_sec, read=self.settings.search_timeout_sec))
+                if response.status_code == 503:
+                    error = response.json()
+                    if isinstance(error, dict) and error.get('detail') == 'search_limit_reached':
+                        raise DemoError('search_limit_reached', 'Search could not finish validating matches. Archive index maintenance is required before retrying.', 503, retryable=False)
                 if response.status_code != 200:
                     raise upstream_error()
                 data = response.json()

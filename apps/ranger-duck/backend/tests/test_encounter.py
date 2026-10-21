@@ -121,7 +121,7 @@ def test_passive_ranks_do_not_occupy_first_three_compatible_slots():
         result = client.post('/demo-api/search', json={**PAYLOAD, 'scenario_id': 'cat-play'}).json()
     compatible = [item for item in result['candidates'] if item['action']]
     assert [item['rank'] for item in compatible[:3]] == [3, 5, 6]
-    assert all(result['candidates'][rank-1]['eligibility_reason'] == 'passive_behavior_excluded' for rank in [1, 2, 4])
+    assert all(result['candidates'][rank-1]['eligibility_reason'] == 'agent_skipped' for rank in [1, 2, 4])
 
 
 @pytest.mark.parametrize('caption', ['A cat looks around.', 'A cat stands still.', 'A cat hisses.'])
@@ -131,7 +131,7 @@ def test_passive_only_encounter_has_no_substituted_action(caption):
         result = client.post('/demo-api/search', json={**PAYLOAD, 'scenario_id': 'cat-hissing'}).json()
     assert result['status'] == 'no_supported_imitation'
     assert result['candidates'][0]['action'] is None
-    assert result['candidates'][0]['eligibility_reason'] == 'passive_behavior_excluded'
+    assert result['candidates'][0]['eligibility_reason'] == 'agent_skipped'
 
 
 def test_encounter_uses_active_sitting_even_when_caption_also_describes_looking():
@@ -152,17 +152,15 @@ def test_exact_passive_review_cannot_be_replaced_by_caption_active_motion():
     assert item['action'] is None and item['eligibility_reason'] == 'passive_behavior_excluded'
 
 
-@pytest.mark.parametrize('mutation', ['wrong_motion', 'invented_quote', 'quote_negated', 'idle_downgrade', 'skip'])
-def test_agent_cannot_invent_motion_or_evidence_and_skips_do_not_fill_top_three(mutation):
+@pytest.mark.parametrize('mutation', ['invented_quote', 'empty_quote', 'idle_downgrade', 'skip'])
+def test_invalid_commands_and_quotes_and_agent_skips_do_not_fill_top_three(mutation):
     row = {**ROW, 'reasoning_content': 'A deer stands still. The deer does not nod. The deer walks across a clearing.'}
     def mutate(result):
         action = result.actions[0]
-        if mutation in {'wrong_motion', 'quote_negated'}:
-            action.primitive = 'head_nod'
         if mutation == 'invented_quote':
             action.evidence_excerpt = 'A deer walks toward a rabbit.'
-        if mutation == 'quote_negated':
-            action.evidence_excerpt = 'The deer does not nod.'
+        if mutation == 'empty_quote':
+            action.evidence_excerpt = ' '
         if mutation == 'idle_downgrade':
             action.primitive = 'stand_hold'; action.evidence_excerpt = 'A deer stands still.'
         if mutation == 'skip':

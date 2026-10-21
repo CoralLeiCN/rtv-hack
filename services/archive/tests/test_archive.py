@@ -18,6 +18,7 @@ from video_archive.config import Settings
 from video_archive.index import VectorIndex, validate_vector
 from video_archive.ingest import duration, enqueue, work_once, validate_video
 from video_archive.media import MediaStore, media_id
+from video_archive.maintenance import cleanup_vectors
 from video_archive.models import Captioner, embedding_identity
 from video_archive.repository import Repository
 
@@ -153,6 +154,56 @@ def test_worker_excludes_concurrent_worker(archive):
                 pass
 
 
+def test_successful_retries_remove_previous_points_after_publication(archive, video):
+    settings, repo, index, store = archive
+    job_id = submit(archive, video)
+    work_once(repo, store, index, FixtureEmbedding(), NoCaptioner(), settings)
+    with repo.connect() as conn:
+        original = conn.execute('SELECT * FROM archive_segments ORDER BY start_sec').fetchall()
+    for _ in range(2):
+        repo.retry(job_id)
+        work_once(repo, store, index, FixtureEmbedding(), NoCaptioner(), settings)
+        assert repo.jobs()[0]['status'] == 'complete'
+        assert index.client.count(settings.collection).count == 2
+    assert index.client.retrieve(settings.collection, [str(row['index_id']) for row in original]) == []
+    for row in original:
+        current = repo.segment(row['id'])
+        assert current['indexed'] and current['caption'] == row['caption']
+        assert current['index_id'] != row['index_id']
+
+
+def test_cleanup_failure_does_not_retry_a_published_job(archive, video, monkeypatch, caplog):
+    settings, repo, index, store = archive
+    job_id = submit(archive, video)
+    work_once(repo, store, index, FixtureEmbedding(), NoCaptioner(), settings)
+    def unavailable(ids):
+        raise RuntimeError('private-cleanup-key')
+    monkeypatch.setattr(index, 'delete', unavailable)
+    repo.retry(job_id)
+    work_once(repo, store, index, FixtureEmbedding(), NoCaptioner(), settings)
+    assert repo.jobs()[0]['status'] == 'complete'
+    assert repo.jobs()[0]['error_code'] is None
+    assert 'cleanup deferred' in caplog.text
+    assert 'private-cleanup-key' not in caplog.text
+    assert index.client.count(settings.collection).count == 4
+
+
+def test_orphan_cleanup_retains_unpublished_and_other_model_references(archive, video):
+    settings, repo, index, store = archive
+    submit(archive, video)
+    work_once(repo, store, index, FixtureEmbedding(), NoCaptioner(), settings)
+    with repo.connect() as conn:
+        conn.execute("UPDATE archive_segments SET indexed=false, embedding_identity='other-model', tags=ARRAY['other'] WHERE start_sec=0")
+        row = conn.execute('SELECT * FROM archive_segments LIMIT 1').fetchone()
+    orphan = {**row, 'index_id': uuid4()}
+    index.upsert(orphan, FixtureEmbedding().encode('deer'))
+    assert cleanup_vectors(repo, index) == {'scanned': 3, 'orphaned': 1, 'deleted': 0}
+    assert cleanup_vectors(repo, index, apply=True) == {'scanned': 3, 'orphaned': 1, 'deleted': 1}
+    assert index.client.count(settings.collection).count == 2
+    with repo.worker_lock(), pytest.raises(ValueError, match='Another archive worker'):
+        cleanup_vectors(repo, index, apply=True)
+
+
 def test_lost_worker_cannot_publish_or_overwrite_successor_vectors(archive, video):
     settings, repo, index, store = archive
     submit(archive, video)
@@ -241,6 +292,22 @@ def test_audio_only_output_is_not_published(archive, video, monkeypatch, tmp_pat
     assert not list(store.root.glob('segments/**/*.mp4'))
 
 
+@pytest.mark.parametrize('frame_count,filter_expression', [
+    (1, 'null'),
+    (20, 'null'),
+    (20, 'setpts=PTS+5/TB'),
+    (20, "select='not(eq(n,1)+eq(n,4)+eq(n,8))'"),
+])
+def test_decoded_video_duration_includes_final_frame(tmp_path, frame_count, filter_expression):
+    if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):
+        pytest.skip('FFmpeg/FFprobe required; use the integration test container')
+    source = tmp_path / 'video.webm'
+    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+                    f'color=c=green:s=64x64:r=10:d={frame_count / 10}',
+                    '-vf', filter_expression, '-fps_mode', 'vfr', '-c:v', 'libvpx-vp9', str(source)], check=True)
+    assert duration(source) == pytest.approx(frame_count / 10)
+
+
 def test_missing_stream_duration_uses_video_timeline(archive, tmp_path):
     settings, repo, index, store = archive
     source = tmp_path / 'audio-tail.webm'
@@ -252,6 +319,17 @@ def test_missing_stream_duration_uses_video_timeline(archive, tmp_path):
     assert work_once(repo, store, index, FixtureEmbedding(), NoCaptioner(), settings)
     assert repo.jobs()[0]['status'] == 'complete'
     assert index.client.count(settings.collection).count == 2
+    with repo.connect() as conn:
+        rows = conn.execute('SELECT * FROM archive_segments ORDER BY start_sec').fetchall()
+    assert [(row['start_sec'], row['end_sec']) for row in rows] == [(0, 1), (1, 2)]
+    # Correct metadata must also preserve the final decoded frame after cutting.
+    frame_counts = []
+    for row in rows:
+        result = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            '-count_frames', '-show_entries', 'stream=nb_read_frames', '-of', 'json',
+            str(store.path(row['storage_key']))], check=True, capture_output=True)
+        frame_counts.append(int(json.loads(result.stdout)['streams'][0]['nb_read_frames']))
+    assert frame_counts == [10, 10]
 
 
 def test_schema_upgrade_preserves_existing_vector_ids(archive, video):
@@ -372,10 +450,19 @@ def test_both_applications_use_new_archive_and_session_scoped_media(archive, vid
         async def decide(self, context, schema):
             if schema is EncounterQueryDecision:
                 return EncounterQueryDecision(query='Deer walking together', individual_query='A deer walks alone', reason='Find visible walking.')
-            return EncounterActionsDecision(summary='Imitate supported walking.', actions=[{
-                'candidate_id': c['candidate_id'], 'decision': 'imitate' if c['allowed_actions'] else 'skip',
-                'primitive': c['preferred_action'], 'evidence_excerpt': c['caption'] if c['allowed_actions'] else '',
-                'reason': 'Use this caption.'} for c in context['candidates']])
+            # Explicit decisions for the two synthetic captions supplied by
+            # submit(); production context lists capabilities, not a selection.
+            fixture_actions = {'A deer walks forward.': 'short_walk', 'A cat sits down.': None}
+            actions = []
+            for candidate in context['candidates']:
+                primitive = fixture_actions[candidate['caption']]
+                assert 'preferred_action' not in candidate
+                assert primitive is None or primitive in candidate['allowed_actions']
+                actions.append({'candidate_id': candidate['candidate_id'],
+                    'decision': 'imitate' if primitive else 'skip', 'primitive': primitive,
+                    'evidence_excerpt': candidate['caption'] if primitive else '',
+                    'reason': 'Use the observed deer walk.' if primitive else 'The cat is not the selected species.'})
+            return EncounterActionsDecision(summary='Imitate supported walking.', actions=actions)
 
     settings, repo, index, store = archive
     submit(archive, video)

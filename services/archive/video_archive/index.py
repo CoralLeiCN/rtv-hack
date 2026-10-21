@@ -40,5 +40,15 @@ class VectorIndex:
             query_filter=models.Filter(must=conditions), limit=limit, offset=offset,
             with_payload=False, with_vectors=False).points
 
+    def point_ids(self, offset=None):
+        points, next_offset = self.client.scroll(self.settings.collection,
+            limit=100, offset=offset, with_payload=False, with_vectors=False)
+        return [str(point.id) for point in points], next_offset
+
+    def delete(self, ids):
+        if ids:
+            self.client.delete(self.settings.collection,
+                points_selector=models.PointIdsList(points=[str(value) for value in ids]), wait=True)
+
     def close(self):
         self.client.close()

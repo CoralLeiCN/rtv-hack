@@ -51,10 +51,10 @@ class RolePlan(Decision):
 
 
 class ActionDecision(Decision):
-    candidate_id: str = Field(min_length=1, max_length=100)
-    primitive: ActivePrimitive
+    candidate_id: str | None = Field(min_length=1, max_length=100)
+    primitive: ActivePrimitive | None
     reason: str = Field(min_length=1, max_length=800)
-    role_plan: RolePlan
+    role_plan: RolePlan | None
 
 
 class CodexAgent:
@@ -87,19 +87,24 @@ class CodexAgent:
             'An approach before a hiss or a head raise during alertness can be useful; looking or stillness alone cannot supply an active imitation. '
             'Interactions must be cat–cat or deer–deer, matching the selected species; the alternative is similar solitary motion by that same species. '
             'Do not expand the query to interactions with people or other species. '
-            'Avoid recent clips and failed queries. Candidates with no allowed_actions cannot be executed. For an action, select exactly one supplied candidate_id '
+            'Use recently_used and actual outcomes to avoid pointless repetition, but reuse is allowed when useful or no alternative supports the task; explain why. '
+            'You interpret species, actors, negation, uncertainty and motion. allowed_actions contains controller capabilities and exact review constraints, NOT observed actions. '
+            'Read complete captions and decide semantic eligibility yourself, without a keyword classifier or fixed motion preference. '
+            'Candidates with no allowed_actions cannot be executed. For an action, select exactly one supplied candidate_id '
             'and one of that candidate\'s allowed_actions. The scene has ONE animal companion and the duck, representing the TWO video animals. '
             'For an interaction, assign distinct video subjects to companion and duck; prefer the most active supported observed role for the duck. Quote exact caption excerpts supporting each subject\'s observed behavior in role_plan. '
             'The exact duck evidence excerpt must name the selected species and support its active motion; include the surrounding sentence for pronouns instead of quoting an ambiguous fragment. '
             'Choose a companion_behavior from allowed_companion_behaviors to approximate the first animal, and a duck primitive to approximate the OTHER animal\'s observed action. '
             'Preserve their relationship and order with timing: together, companion_first, or duck_first. Do not invent frame timestamps or unsupported movements. '
             'Only short_walk, ground_pick, head_nod and sit_cycle are eligible duck actions. head_scan and stand_hold are excluded, even if the controller supports them. '
-            'short_walk approximates forward approach/following; ground_pick approximates feeding; head_nod needs explicit vertical head motion; sit_cycle needs sitting/seated evidence, never lying. '
+            'short_walk approximates ordinary forward walking/approach and turning, not reverse steps, running or jumping. '
+            'Walking away can be ordinary forward locomotion; interpret its context. ground_pick approximates feeding; head_nod needs explicit vertical head motion; sit_cycle needs sitting/seated evidence, never lying. '
             'Set duck_behavior to moving, feeding, nodding, or sitting to match that observed role and primitive. '
             'For solitary footage with a supported selected-species behavior, use grounding=single_behavior, assign that observed animal to duck, and quote its exact caption evidence including the species. '
             'Use an unassigned companion subject with empty evidence, companion_behavior=standing and timing=together. Do not invent a second video animal. '
-            'Prefer active supported behavior in this order: short_walk, ground_pick, head_nod, sit_cycle. '
+            'An exact current human review is authoritative; retain its supplied action. '
             'Explain each approximation and its limits, not an arbitrary reaction. Select only clips with an allowed active motion and exact positive evidence for the duck role. '
+            'If no candidate supports an available active motion, return candidate_id=null, primitive=null, role_plan=null and explain why. '
             'No passive or insufficient-evidence fallback is allowed; never invent a motion or claim a second animal was observed. Captions are inferred evidence, not visual review. '
             'Never claim the duck has already performed the requested action.\nINPUT:\n'
         )

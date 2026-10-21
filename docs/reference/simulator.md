@@ -15,14 +15,14 @@ The controller adapter exposes six bounded primitives; retrieval selects four ac
 
 Every action requires an evidence ID. A motion window bounds the requested motion; it is not proof of execution or a promised wall-clock completion time. Non-pick actions have an additional bounded settling watchdog. A sit request shorter than 5500 ms and a pick request shorter than 3000 ms are rejected. The hissing approximation makes no hiss, and a walk does not reproduce facial contact or a cat's exact play pose. See [adapter implementation](../../apps/ranger-duck/frontend/src/simulator/adapter.ts) and [observed completion checks](../../apps/ranger-duck/frontend/src/simulator/adapter.ts).
 
-Within each caption, retrieval-eligible positive behaviors are considered in this order:
-
-`short_walk → ground_pick → head_nod → sit_cycle`
-
-The internal classifier also recognizes `head_scan` and `stand_hold`, but neither
-can be selected as a retrieved reference action.
-
-This makes a walking cat's movement take precedence over a simultaneous standing/looking description, and feeding take precedence over the head lowering involved in feeding. All matches still require the selected species, supported actor attribution, non-negated behavior and complete provenance. A dog's walk cannot become a cat action. Backward walking remains unsupported. Exact current human reviews retain their explicit behavior; inference does not override them. This priority does **not** reorder archive results: the UI still takes the first three compatible references in original retrieval order. See [caption priority and matching](../../apps/ranger-duck/backend/ranger_duck/interaction.py).
+Codex with `gpt-6-luna` chooses among the four active primitives using the complete
+caption, current intent and actual outcomes. No fixed within-caption preference
+or phrase classifier selects the command. The agent must distinguish ordinary
+forward walking away from reverse walking, which this controller cannot reliably
+perform. It must attribute motion to the selected animal, respect negation and
+uncertainty, and retain exact human review constraints. The backend verifies exact
+quotes, evidence identity and bounded command compatibility. Archive order remains
+unchanged: the UI takes the first three agent-approved compatible references.
 
 ## Complete pinned-controller inventory
 

@@ -86,7 +86,10 @@ def create_app(backend_url=None, transport=None, api_key=None):
 
     @app.exception_handler(DemoError)
     async def failed_archive(request, error):
-        return JSONResponse({'detail': error.message}, status_code=error.status)
+        body = {'detail': error.message}
+        if error.code == 'search_limit_reached':
+            body['code'] = error.code
+        return JSONResponse(body, status_code=error.status)
 
     @app.post('/api/v1/search')
     async def search(body: SearchRequest, request: Request):

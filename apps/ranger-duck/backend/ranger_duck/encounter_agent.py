@@ -76,18 +76,25 @@ class EncounterActionsDecision(Decision):
     agent_instructions: ClassVar[str] = COMMON + (
         'Assess each supplied candidate exactly once, preserving its original archive rank. '
         'Create an imitation action only from its own caption or exact human review, never from the search query or requested encounter. '
+        'Use original_prompt as the overall goal when supplied. The encounter and query are retrieval context, not a requirement that every clip reproduce that interaction. '
+        'A different supported movement from the selected species can serve the goal; explain its approximation without claiming the requested interaction was observed. '
         'Single animals are valid. Wrong species, uncertainty, negated motion, incomplete provenance, stale reviews and unsupported motions must be skipped. '
-        'Each candidate has allowed_actions and a preferred_action already bounded by evidence checks; do not select unavailable actions. '
-        'Only four retrieval-driven actions are eligible: short_walk, ground_pick, head_nod, sit_cycle, in that preference order. '
+        'You are responsible for interpreting caption meaning: actor identity, species, negation, uncertainty, motion and paired roles. '
+        'allowed_actions lists controller capabilities restricted only by provenance and exact reviews; it is NOT evidence that any motion occurred. '
+        'Read the complete caption, choose the best supported motion, or skip. No keyword classifier or fixed motion preference decides for you. '
+        'Only four retrieval-driven actions are available: short_walk, ground_pick, head_nod, sit_cycle. '
         'Passive head_scan and stand_hold actions are excluded; skip clips with no allowed active motion, without substituting an invented action. '
         'An exact human review is authoritative and must keep its supplied action. '
         'For an unreviewed imitation, quote an EXACT contiguous caption excerpt that names the selected species and supports that action. '
         'Include the necessary surrounding sentence for pronouns. Do not rewrite, paraphrase or invent the evidence excerpt. '
-        'A walk approximates supported locomotion; pick approximates feeding; nod requires vertical head motion; '
+        'short_walk approximates ordinary walking/approach with forward steps and turning, not reverse walking, running or jumping. '
+        'Walking away can be ordinary forward walking; decide from context rather than treating away as backward steps. '
+        'ground_pick approximates feeding; head_nod requires vertical head motion; '
         'sit_cycle requires sitting/seated evidence, never lying. '
         'Explain the actual supported behavior and approximation briefly. If evidence is insufficient, use decision=skip, primitive=null and empty evidence_excerpt. '
         'Do not downgrade a clearly active clip to an idle response. Use concise reasons and excerpts. '
-        'The application, not you, filters compatible actions and loops the first three in original retrieval order.\nINPUT:\n'
+        'Use recently_used and actual history to avoid pointless repetition, but you may reuse a clip when useful, especially if no alternative supports the task; explain why. '
+        'The application queues the first three actions you approve in original retrieval order.\nINPUT:\n'
     )
     summary: str = Field(min_length=1, max_length=800)
     actions: list[EncounterActionDecision] = Field(max_length=15)
@@ -101,7 +108,7 @@ class RunActionDecision(EncounterActionDecision):
 
 class RunActionsDecision(EncounterActionsDecision):
     agent_instructions: ClassVar[str] = EncounterActionsDecision.agent_instructions.replace('\nINPUT:\n', '') + (
-        ' Only executable candidates are supplied. Keep each explanation and exact excerpt concise. '
+        ' Candidates have passed provenance and review checks; you decide semantic eligibility. Keep each explanation and exact excerpt concise. '
         'Use role_plan=null for a single observed animal behavior; the application assigns the scene companion no video role. '
         'Optionally provide role_plan with grounding=caption_roles only when this caption explicitly supports two distinct same-species actors. '
         'Give exact short caption excerpts for both roles, each including the selected species and its actual behavior. '

@@ -73,6 +73,10 @@ Qdrant server, pinned EmbeddingGemma weights, a pinned Cosmos Reasoner deploymen
 and a real video with known provenance. Follow [archive operations](guides/archive.md)
 for initialization and ingestion commands.
 
+A dedicated local Postgres deployment can exercise the development path. Report
+that separately from Neon validation; it must never double as the disposable
+integration-test database.
+
 1. Check process liveness and authenticated archive readiness. Readiness checks
    database/schema, vector dimensions and media storage, not Cosmos inference.
 2. Ingest a new video without imported captions, then run the worker. Confirm

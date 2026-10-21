@@ -1,8 +1,11 @@
 import hashlib
+from fractions import Fraction
 import json
+import logging
 import math
 import os
 import subprocess
+import tempfile
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from .models import embedding_identity
@@ -13,22 +16,60 @@ def run_media(args):
     return subprocess.run(args, check=True, capture_output=True, timeout=600).stdout
 
 
+def decoded_duration(path, time_base):
+    # Progress timestamps can mark the START of the final frame. Decode the
+    # video timeline and include that frame's duration instead. Spool per-frame
+    # metadata to disk so long videos do not require an unbounded Python buffer.
+    with tempfile.TemporaryFile() as frames:
+        result = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            '-show_frames', '-show_entries',
+            'frame=best_effort_timestamp,duration,pkt_duration:frame_side_data=',
+            '-of', 'compact=p=0:nk=0', str(path)],
+            stdout=frames, stderr=subprocess.PIPE, check=True, timeout=600)
+        if result.stderr:
+            raise ValueError('Cannot decode video timeline')
+        frames.seek(0)
+        first, last, end, last_duration, step = None, None, None, None, None
+        constant_step = True
+        for line in frames:
+            if not line.strip():
+                continue
+            fields = dict(field.split(b'=', 1) for field in line.strip().split(b'|'))
+            timestamp = int(fields[b'best_effort_timestamp'])
+            # FFprobe 5 exposes pkt_duration; newer releases expose duration.
+            reported = fields.get(b'duration', fields.get(b'pkt_duration', b'0'))
+            frame_duration = 0 if reported == b'N/A' else int(reported)
+            if frame_duration < 0:
+                raise ValueError('Invalid video frame duration')
+            if last is not None:
+                delta = timestamp - last
+                constant_step = constant_step and delta > 0 and (step is None or delta == step)
+                step = delta
+            first = timestamp if first is None else min(first, timestamp)
+            end = timestamp + frame_duration if end is None else max(end, timestamp + frame_duration)
+            if last is None or timestamp >= last:
+                last, last_duration = timestamp, frame_duration
+    if first is None:
+        raise ValueError('Source contains no decodable video frames')
+    if not last_duration:
+        # Some containers omit frame durations as well. A constant decoded
+        # cadence establishes the final frame's length without using audio or
+        # an average frame rate that would be wrong for variable-rate footage.
+        if not constant_step or step is None or step <= 0:
+            raise ValueError('Final video frame duration is unavailable')
+        end = max(end, last + step)
+    return float((end - first) * Fraction(time_base))
+
+
 def duration(path):
     probe = json.loads(run_media(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
-                                 '-show_entries', 'stream=duration', '-of', 'json', str(path)]))
+                                 '-show_entries', 'stream=duration,time_base', '-of', 'json', str(path)]))
     if not probe.get('streams'):
         raise ValueError('Source contains no video stream')
     reported = probe['streams'][0].get('duration')
     if reported in (None, 'N/A'):
-        # WebM and some other containers omit per-stream duration. Measure only
-        # decoded video, never fall back to a potentially longer audio timeline.
-        progress = run_media(['ffmpeg', '-nostdin', '-v', 'error', '-xerror', '-i', str(path),
-                              '-map', '0:v:0', '-an', '-vf', 'setpts=PTS-STARTPTS',
-                              '-fps_mode', 'passthrough', '-progress', 'pipe:1', '-stats_period', '600',
-                              '-f', 'null', '-'])
-        times = [float(line.split(b'=', 1)[1]) / 1_000_000 for line in progress.splitlines()
-                 if line.startswith(b'out_time_us=') and not line.endswith(b'N/A')]
-        value = max(times, default=0)
+        # Never use the container duration: it can include an audio-only tail.
+        value = decoded_duration(path, probe['streams'][0]['time_base'])
     else:
         value = float(reported)
     if not math.isfinite(value) or value <= 0 or value > 86400:
@@ -114,6 +155,14 @@ def process_job(job, repo, store, index, embedder, captioner, settings):
         repo.assert_worker()
         index.upsert(row, vector)
         repo.mark_indexed(segment_id)
+        if existing:
+            repo.assert_worker()
+            try:
+                index.delete([existing['index_id']])
+            except Exception:
+                # Publication already succeeded. Retrying the job just because
+                # cleanup failed would create more obsolete points.
+                logging.getLogger(__name__).warning('Vector cleanup deferred; run cleanup-vectors.')
 
 
 def work_once(repo, store, index, embedder, captioner, settings):

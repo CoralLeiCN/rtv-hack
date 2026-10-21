@@ -41,6 +41,14 @@ external writes from an obsolete worker cannot replace its successor's output.
 Search resolves only the active point ID recorded in Postgres; public segment
 IDs and existing captions remain stable across retries.
 
+After publishing a replacement, the worker deletes its previous vector point.
+Deletion failure leaves publication intact and emits a fixed maintenance warning.
+An explicit `cleanup-vectors` command scans the dedicated collection in bounded
+pages under the same advisory lock and database session as ingestion. It retains
+every Postgres-referenced point, including unpublished points and other embedding
+identities, and deletes only explicit unreferenced IDs when `--apply` is supplied.
+The default is a dry run. Cleanup never changes captions, public IDs or media.
+
 Load EmbeddingGemma 2 with query/document task prefixes, normalized 768d output,
 and float32 on CPU or bfloat16 on supported GPUs. Never use float16. Reject
 nonfinite, empty or wrong-dimensional embeddings. Changing model revision or
@@ -50,8 +58,11 @@ embedding is a later extension; the initial searchable evidence is caption text.
 Ingestion accepts a local video, dataset ID, tags, segment length, and optionally
 an ordered JSON caption list. Store the original before queueing. FFprobe checks
 the first video track's duration, excluding audio-only tails. If the container
-omits that duration, decode the video track to measure its timeline. FFmpeg
-creates seekable H.264 MP4 segments with timestamps relative to
+omits that duration, decode the video track and measure from its first frame
+timestamp through the end of its final frame, including that frame's duration.
+When frame duration metadata is absent, use a constant decoded frame cadence;
+reject ambiguous timing rather than substituting the container's audio timeline.
+FFmpeg creates seekable H.264 MP4 segments with timestamps relative to
 the parent. Imported captions must exactly cover generated intervals. Otherwise
 send each segment to Cosmos and preserve its returned final caption. Never
 substitute invented captions or synthetic embeddings on model failure.
@@ -70,7 +81,17 @@ hashes. The simple search UI retains its search-result playback allowlist.
 POST /api/v1/search accepts query, tags and top_k and returns ranked results with
 source, original_video, reasoning_content, segment_start_sec, segment_end_sec,
 similarity_score, dataset and dataset_id. Tags have OR semantics. Only indexed
-segments appear. GET /api/v1/metadata returns indexed tags and datasets.
+segments appear. The first Qdrant request asks for `top_k`; after Postgres
+validation, subsequent requests ask only for the missing count. Preserve Qdrant
+rank order and return each active point at most once. Stop when enough matches
+are accepted or Qdrant returns a short page. At most ten requests are allowed;
+if the last page is full and a deficit remains, return HTTP 503 with
+`detail: "search_limit_reached"`, not a successful empty/partial response.
+Application clients expose a safe maintenance error for this condition. The
+simple UI adapter adds `code: "search_limit_reached"` beside its fixed `detail`
+message; its browser client maps that code to a fixed message and never displays
+arbitrary error bodies.
+GET /api/v1/metadata returns indexed tags and datasets.
 GET /health is process liveness; authenticated GET /ready checks configured
 Postgres, Qdrant collection dimensions and writable media storage.
 GET/HEAD /api/v1/videos/stream?source=media://UUID supports single byte ranges,

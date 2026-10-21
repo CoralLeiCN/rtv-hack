@@ -12,7 +12,7 @@ from ranger_duck.evidence import Manifest
 from ranger_duck.loop_agent import ActionDecision, QueryDecision, CodexAgent, RolePlan
 from ranger_duck.errors import DemoError
 from ranger_duck.encounter_agent import EncounterQueryDecision, EncounterActionsDecision
-from test_backend import SETTINGS, ROW, Upstream, reviewed, EncounterAgent
+from test_backend import SETTINGS, ROW, Upstream, reviewed, EncounterAgent, fixture_primitive
 
 
 def neutral_plan():
@@ -50,10 +50,13 @@ class Agent:
         if schema is QueryDecision:
             return QueryDecision(query=f"A {context['animal']} approaches another {context['animal']}",
                                  individual_query=f"A {context['animal']} walks alone", reason='Follow the prior actual reaction.')
-        selected = next(c for c in context['candidates'] if c['allowed_actions'])
-        primitive = self.primitive or selected['allowed_actions'][0]
+        available = [c for c in context['candidates'] if fixture_primitive(c, context['animal'])]
+        if not available:
+            return ActionDecision(candidate_id=None, primitive=None, reason='No supported motion in these fixture captions.', role_plan=None)
+        selected = next((c for c in available if not c['recently_used']), available[0])
+        primitive = self.primitive or fixture_primitive(selected, context['animal'])
         plan = self.plan or (paired_plan(selected['caption'], primitive) if 'one deer approaches' in selected['caption'] and 'the other deer' in selected['caption'] else single_plan(selected['caption'], primitive))
-        return ActionDecision.model_construct(candidate_id='unknown' if self.invalid_id else next(c['candidate_id'] for c in context['candidates'] if c['allowed_actions']),
+        return ActionDecision.model_construct(candidate_id='unknown' if self.invalid_id else selected['candidate_id'],
                               primitive=primitive, reason='Approximate this observed active motion.', role_plan=plan)
 
 
@@ -338,7 +341,7 @@ def test_top_ten_keep_raw_order_but_only_active_evidence_can_execute(primitive, 
         assert [c['caption'] for c in cycle['candidates']] == captions[:10]
         assert [c['rank'] for c in cycle['candidates']] == list(range(1, 11))
         assert agent.calls[1]['candidates'] == cycle['candidates']
-        assert [c['rank'] for c in cycle['candidates'] if c['allowed_actions']] == [1, 3]
+        assert [c['rank'] for c in cycle['candidates'] if c['allowed_actions']] == list(range(1, 11))
         search = next(r for r in upstream.requests if r.url.path.endswith('/search'))
         payload = json.loads(search.content)
         assert payload['top_k'] == 10
@@ -372,8 +375,10 @@ def test_unexecutable_and_duplicate_results_keep_original_top_ten_slots():
         assert all(not c['allowed_actions'] for c in cycle['candidates'][:3])
         assert cycle['candidates'][3]['caption'] == cycle['candidates'][4]['caption']
         assert client.post('/demo-api/loop/loop-1/outcome', json=outcome(cycle)).status_code == 200
-        # Recent clips remain visible but cannot be immediately executed again.
-        assert next_cycle(client).json()['error']['code'] == 'invalid_agent_action'
+        # Recency is context for the agent, not a hard veto.
+        repeat = next_cycle(client).json()
+        assert repeat['clip']['rank'] == 10
+        assert repeat['candidates'][-1]['recently_used'] is True
 
 
 def test_passive_solitary_clip_has_no_loop_or_encounter_fallback():
@@ -384,7 +389,7 @@ def test_passive_solitary_clip_has_no_loop_or_encounter_fallback():
         old = client.post('/demo-api/search', json={'encounter_id': 'old', 'scenario_id': 'deer-standing'})
         assert old.json()['status'] == 'no_supported_imitation'
         assert old.json()['candidates'][0]['action'] is None
-        assert old.json()['candidates'][0]['eligibility_reason'] == 'passive_behavior_excluded'
+        assert old.json()['candidates'][0]['eligibility_reason'] == 'agent_skipped'
 
 
 def test_loop_skips_passive_ranks_and_keeps_active_caption_sitting_alternative():
@@ -396,17 +401,17 @@ def test_loop_skips_passive_ranks_and_keeps_active_caption_sitting_alternative()
         cycle = next_cycle(client).json()
     assert cycle['clip']['rank'] == 4 and cycle['action']['primitive'] == 'sit_cycle'
     assert [item['rank'] for item in cycle['candidates']] == [1, 2, 3, 4, 5]
-    assert all(item['allowed_actions'] == [] and item['unavailable_reason'] == 'passive_behavior_excluded'
+    assert all(item['allowed_actions'] and item['unavailable_reason'] is None
                for item in cycle['candidates'][:3])
 
 
-def test_loop_all_passive_stops_after_bounded_requery_without_action_planning():
+def test_loop_all_passive_agent_decisions_stop_after_bounded_requery():
     client, upstream, agent, _ = setup([row(0, 'A deer looks around.'), row(1, 'A deer stands still.')])
     with client:
         start(client)
         response = next_cycle(client)
     assert response.json()['error']['code'] == 'no_loop_match'
-    assert len(agent.calls) == 2 and all('candidates' not in context for context in agent.calls)
+    assert len(agent.calls) == 4 and sum('candidates' in context for context in agent.calls) == 2
     assert sum(r.url.path.endswith('/search') for r in upstream.requests) == 2
 
 
@@ -418,13 +423,21 @@ def test_loop_passive_review_is_not_overridden_by_active_caption():
         assert next_cycle(client).json()['error']['code'] == 'no_loop_match'
 
 
-def test_loop_cannot_assign_active_motion_to_a_passive_role_in_an_active_clip():
-    caption = 'Two deer interact; one deer approaches another deer and the other deer watches.'
-    agent = Agent(); agent.primitive = 'short_walk'; agent.plan = paired_plan(caption)
-    client, _, _, _ = setup([row(caption=caption)], agent=agent)
+def test_loop_uses_agent_actor_interpretation_without_phrase_rules():
+    caption = 'A brown deer ambles toward the trees.'
+    class SemanticAgent(Agent):
+        async def decide(self, context, schema):
+            if schema is ActionDecision:
+                candidate = context['candidates'][0]
+                return ActionDecision(candidate_id=candidate['candidate_id'], primitive='short_walk',
+                    reason='Ambling is ordinary walking.', role_plan=single_plan(caption, 'short_walk'))
+            return await super().decide(context, schema)
+    client, _, _, _ = setup([row(caption=caption)], agent=SemanticAgent())
     with client:
         start(client)
-        assert next_cycle(client).json()['error']['code'] == 'invalid_agent_action'
+        result = next_cycle(client).json()
+    assert result['action']['primitive'] == 'short_walk'
+    assert result['role_plan']['duck']['evidence'] == caption
 
 
 @pytest.mark.parametrize('change', ['fabricated_evidence', 'same_subject', 'unsupported_companion', 'wrong_duck_action'])

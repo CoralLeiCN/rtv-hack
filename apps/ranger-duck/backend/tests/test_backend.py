@@ -84,6 +84,18 @@ class Upstream:
         raise AssertionError("Unexpected upstream path")
 
 
+def fixture_primitive(candidate, animal):
+    # Fabricated decisions for legacy fixtures only. Production decisions use Luna;
+    # these examples are not a model evaluation or a semantic validation fallback.
+    from ranger_duck.interaction import classify_interaction, ACTIVE_PRIMITIVES
+    if not candidate['allowed_actions']:
+        return None
+    if candidate.get('review_status') == 'reviewed' or candidate.get('evidence_basis') == 'reviewed':
+        return candidate['allowed_actions'][0]
+    match, _ = classify_interaction(candidate['caption'], animal, allowed_primitives=ACTIVE_PRIMITIVES)
+    return match[1] if match else None
+
+
 class EncounterAgent:
     available = True
 
@@ -98,11 +110,15 @@ class EncounterAgent:
                      f"{animal.capitalize()} {context['encounter']['behavior_hint']}, interacting with another {animal}")
             return EncounterQueryDecision(query=query, individual_query=f"A {animal} alone showing similar observable motion",
                                           reason='Search the chosen encounter and similar observable individual motion.')
-        return EncounterActionsDecision(summary='Use the active observed behaviors, skipping unsupported clips.', actions=[{
-            'candidate_id': c['candidate_id'], 'decision': 'imitate' if c['allowed_actions'] else 'skip',
-            'primitive': c['preferred_action'], 'evidence_excerpt': c['caption'] if c['allowed_actions'] else '',
-            'reason': 'Approximate the supported behavior in this exact caption.' if c['allowed_actions'] else 'No supported behavior.'
-        } for c in context['candidates']])
+        actions = []
+        for candidate in context['candidates']:
+            primitive = fixture_primitive(candidate, context['animal'])
+            actions.append({'candidate_id': candidate['candidate_id'],
+                'decision': 'imitate' if primitive else 'skip', 'primitive': primitive,
+                'evidence_excerpt': candidate['caption'] if primitive else '',
+                'reason': 'Approximate the observed behavior.' if primitive else 'No supported behavior.'})
+        return EncounterActionsDecision(summary='Fixture action decisions.', actions=actions)
+
 
 
 def make_client(upstream=None, manifest=None, settings=SETTINGS, agent=None):
@@ -115,6 +131,19 @@ def search(client):
     response = client.post("/demo-api/search", json=PAYLOAD)
     assert response.status_code == 200, response.text
     return response.json()
+
+
+def test_archive_search_limit_is_visible_without_exposing_upstream_details():
+    async def limited(request):
+        return httpx.Response(503, json={'detail': 'search_limit_reached', 'debug': 'test-secret'})
+    client, _, _ = make_client(limited)
+    with client:
+        response = client.post('/demo-api/search', json=PAYLOAD)
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'search_limit_reached'
+    assert response.json()['error']['retryable'] is False
+    assert 'maintenance' in response.json()['error']['message']
+    assert 'test-secret' not in response.text
 
 
 def test_no_configuration_is_runnable_and_reports_it():

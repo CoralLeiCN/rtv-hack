@@ -5,6 +5,8 @@ ARCHIVE_API_KEY=
 DATABASE_URL=
 # REQUIRED for Neon workers: direct URL, without -pooler in hostname.
 WORKER_DATABASE_URL=
+# Only for compose.local.yml; use a generated local password in both database URLs.
+POSTGRES_PASSWORD=
 QDRANT_URL=http://127.0.0.1:6333
 QDRANT_API_KEY=
 QDRANT_COLLECTION=microduck_embeddinggemma2_768
@@ -14,7 +16,7 @@ EMBEDDING_MODEL=google/embeddinggemma-2
 EMBEDDING_REVISION=main
 EMBEDDING_DEVICE=cpu
 COSMOS_URL=http://127.0.0.1:8002/v1
-# Must match /v1/models on your self-hosted vLLM server.
+# Must match /v1/models on your self-hosted reasoner.
 COSMOS_MODEL=nvidia/Cosmos3-Nano
 COSMOS_REVISION=main
 COSMOS_API_KEY=

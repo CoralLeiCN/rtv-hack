@@ -175,7 +175,7 @@ class Manifest:
 
     def annotate_interaction(self, segment: Segment, animal: str, partner: str, *,
                              allowed_primitives: frozenset[str] | None = None) -> dict:
-        """A scenario selects retrieval scope, never the action for a returned clip."""
+        """Legacy heuristic for offline fixtures; runtime agents use action_evidence."""
         annotation = self.annotate(segment, animal)
         result = {**annotation, "action": None, "action_basis": None,
                   "inferred_behavior": None, "action_reason": None, "interaction_partner": None}

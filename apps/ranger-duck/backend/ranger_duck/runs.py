@@ -245,7 +245,7 @@ class RunService:
             segments = tuple(normalize_segments(result['results']))
             started = time.monotonic()
             annotations, summary = await self.encounters.actions(segments, prepared['scenario'], plan.query,
-                role_plans=True, history=run.history, recent=run.recent)
+                role_plans=True, intent=run.intent, history=run.history, recent=run.recent)
             action_ms = round((time.monotonic() - started) * 1000)
             self.check(run, revision)
             entries = [{'action_id': secrets.token_urlsafe(24), 'index': index}
