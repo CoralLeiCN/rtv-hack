@@ -17,6 +17,20 @@ Each run ID has its own queue, history and cancellation scope, so separate tabs
 sharing that cookie do not replace each other's runs. All are POST requests;
 paths are relative to `/demo-api/runs`.
 
+A browser session retains up to eight runs. Starting another retires its oldest
+paused run, or returns `run_limit_reached` if none is paused; it never silently
+replaces another tab's active run. Original intent and up to nine actual
+acknowledged outcomes guide later queries. Recent live clip identities are kept
+privately to avoid immediate adaptive repetition.
+
+Successful run requests refresh the existing HttpOnly session cookie without
+extending clip capabilities or recorded-round expiry. Cursor responses include
+`pause_reason` (null or `references_expired`). When a round expires before the
+next attempt, the backend acknowledges the completed outcome and returns
+`status: paused`, `execution: null`, `pause_reason: references_expired`.
+Resume then returns `needs_plan`; only that explicit user action starts a fresh
+query/search. Expired or foreign sessions are never renewed by a run request.
+
 | Path | Request | Response / effect |
 | --- | --- | --- |
 | empty path | `{run_id, animal, scenario_id, intent, adaptive}` | Create a run; verify species/preset consistency; advertise 60s query and 180s search/action budgets |
@@ -58,7 +72,7 @@ validation applies equally with the toggle on or off. Solitary behavior remains
 usable without inventing a second video subject.
 
 Normal new rounds use the same two model calls and one archive request for both
-settings. The batch call receives only deterministically eligible captions and
+settings. The batch call receives all captions passing provenance and review checks and
 returns compact action and role plans; there is no per-clip model request. Query
 and search execution are independent of browser navigation. Timings expose real
 query generation, archive retrieval and action-planning duration rather than labeling
@@ -96,9 +110,24 @@ planned again. Explicit Reset cancels the current run and resets physics; the ne
 Start creates a fresh run. Changing the intent/species starts a new run while
 preserving the body.
 
+Pausing or retrying a pending adaptive round retains its selected scenario.
+Replay keeps the recorded scenario without consuming a pending live choice.
+
 Replay uses a round snapshot with recorded intent/scope and refreshed opaque
 playback capabilities. It is labeled as recorded, runs once, then pauses. It does
 not add replay outcomes to live planning history. Video still requires archive access.
+
+## Current frontend integration
+
+1. Await health to establish the session cookie; load the encounter catalog.
+2. Start the scene and create a run with the selected animal, scenario, intent and Loop setting.
+3. Plan, display the generated query/reason, then search with the returned plan ID.
+4. Execute the issued queue entry through the shared playback and simulator coordinator.
+5. Acknowledge actual playback, duck and companion outcomes using the issued IDs.
+6. Follow the returned cursor: execute the next attempt, plan at an adaptive boundary, or stay paused.
+7. On Pause/Reset or replacement, abort browser work and ignore late responses; only Reset resets physics.
+
+The compatibility sequence later in this document is for older clients only.
 
 ## Shared endpoints and compatibility contracts
 
@@ -157,7 +186,7 @@ Health also establishes the browser's HttpOnly demo session cookie. Await this r
 
 IDs are `deer-feeding`, `deer-walking`, `deer-standing`, `cat-hissing`, `cat-greeting`, and `cat-play`. Species and interaction selectors are derived from this catalog. These describe staged scenarios, not verified footage availability. The server's scenario catalog may be adjusted after review; render its returned entries rather than hardcoding labels. `query` and `broader_query` are legacy catalog examples, not executed queries or loading previews; the agent creates the actual query on demand. No scenario includes a robot action.
 
-## Encounter query planning
+## Encounter query planning (compatibility)
 
 `POST /demo-api/encounter-plan`
 
@@ -185,7 +214,7 @@ within five minutes (or the shorter clip TTL). Planning has a 60-second deadline
 and invalidates its plan. Stop, Reset and replacement also abort the browser
 request; the backend watches disconnection and terminates the CLI subprocess.
 
-## Search
+## Search (compatibility)
 
 `POST /demo-api/search`
 
@@ -275,7 +304,7 @@ Candidate rules:
 - `review_status` is `reviewed`, `unreviewed`, or `stale`. A non-null `action` can have `action_basis: "reviewed"` or `"video_caption"`. Caption inference never changes the status to reviewed.
 - `action_reason` explains the observed role and approximation. `inferred_behavior` describes caption-derived behavior; `reviewed_behavior` is reserved for a valid visual review. `animal` and `interaction_partner` identify the supported pair when available.
 - A caption-inferred action requires the selected species, an explicitly supported behavior and complete source/parent/interval metadata. Single-animal footage is eligible. The query permits interactions or similar solitary motion. Shared, solitary and social behavior must retain their actual labels; ambiguous actors, negated statements and unsupported movements remain ineligible.
-- The agent proposal must select a permitted primitive and quote an exact contiguous caption excerpt that independently supports it. Skipped, omitted or unverified proposals remain ineligible (`agent_skipped` or `agent_action_unverified`); unavailable evidence cannot be overridden.
+- The agent proposal must select a permitted primitive and quote an exact contiguous caption excerpt that independently supports it. Skipped or structurally unverified proposals remain ineligible (`agent_skipped` or `agent_action_unverified`); unavailable evidence cannot be overridden. Missing, duplicate or unknown candidate decisions fail the batch.
 - An exact current review can authorize a supported solitary or social behavior. Pair evidence is optional. Stale, invalid or contradictory reviews block caption fallback.
 - `similarity` is a retrieval score, not a probability. `dataset` and interval times may be null for incomplete upstream data; such a result may still be playable without authorizing movement.
 - `caption_hash` hashes the exact upstream caption before display redaction. `review_reason` is a reviewer's actual recorded note, or null. Do not invent a review.
@@ -284,7 +313,13 @@ Candidate rules:
 - `max_duration_ms` bounds the controller command; success requires observed execution and settling. It is not a promised completion time. The adapter rejects a sit window below 5500 ms and preserves the native stand-up when canceled; it does not abruptly switch policies.
 - `warnings` contains human-readable non-secret messages. No SQL, vectors, archive credentials, or private storage URIs are returned.
 
-Within each caption, retrieval-eligible actions are considered in this order: `short_walk`, `ground_pick`, `head_nod`, `sit_cycle`. The underlying classifier retains scan/hold for internal compatibility, but retrieval selection explicitly excludes them. The classifier checks all caption phrases at each priority, preserving selected-species actor attribution, negation and uncertainty checks. This selects active observed behavior over a simultaneous static description; it does not override an exact current review or reorder retrieval results. See the [motion inventory](RANGER_DUCK_ANIMATION.md).
+Codex (`gpt-6-luna`) interprets caption meaning and chooses among `short_walk`,
+`ground_pick`, `head_nod`, and `sit_cycle`, or skips. There is no fixed priority or
+phrase-based semantic veto before or after its decision. The backend enforces
+provenance/review constraints, exact quotations and bounded command/role
+compatibility. These checks do not prove semantic correctness. Recent-clip flags
+and actual outcomes inform the agent; they do not automatically prohibit repeats.
+See [runtime behavior](behavior.md#evidence-and-action-selection).
 
 Both modes exclude `head_scan` and `stand_hold` from retrieval-selected actions. The backend emits no action for passive-only evidence (`passive_behavior_excluded`), and the frontend also filters passive actions from stale or older responses before choosing slots. Mixed captions can still supply a supported active behavior, such as sitting despite also looking around.
 
@@ -320,7 +355,12 @@ Errors use a consistent JSON body:
 
 Expected cases include 422 `invalid_request`, 404 `unknown_scenario`, 503 `live_not_configured`, 502 `upstream_error`, 504 `upstream_timeout`, 409 `replay_unavailable`, and 404 `clip_not_found`. Authentication failures upstream are reported without credential or response-body details. Errors do not contain a fabricated successful result.
 
-## Frontend integration sequence
+An archive search that exhausts its validation request budget returns 503
+`search_limit_reached`, with `retryable: false` and a fixed index-maintenance
+message. Do not turn this into `no_results` or automatically retry it. Follow
+[vector maintenance](../guides/archive.md#vector-maintenance) before retrying.
+
+## Frontend integration sequence (compatibility)
 
 1. Load health and the encounter catalog. Await health before sending any searches to establish the session cookie.
 2. Start the selected scene and create a new encounter ID.
@@ -333,7 +373,7 @@ Frontend cancellation does not guarantee the upstream request stops, so the ID c
 
 Rehearsal controls may demonstrate explicitly labeled local no-match and timeout states. They must not fabricate live search evidence or enable imitation. Returning to Live clears rehearsal state.
 
-## Additional Agent Loop mode
+## Additional Agent Loop mode (compatibility)
 
 Agent
 Loop mode uses separate sessions and may select an eligible result at any
@@ -384,8 +424,8 @@ standing holds are excluded; missing behavior cannot become a neutral fallback.
 
 A supported individual behavior uses `grounding: "single_behavior"`, an exact
 selected-species duck evidence excerpt, an unassigned stationary companion and
-`together` timing. The backend independently checks the excerpt for that
-supported motion. No second observed animal is claimed.
+`together` timing. The backend verifies the literal quote and compatible command; the agent
+interprets the motion and actor. No second observed animal is claimed.
 
 When no supported active behavior can be established, the clip cannot be
 selected. The backend rejects passive or insufficient-evidence plans instead of
@@ -427,24 +467,25 @@ has a 180-second overall deadline, at most two archive searches, and at most fou
 structured Codex decisions (query and action selection per attempt). No-match
 attempts refine the query. Three consecutive failed cycle requests pause the
 session. The browser does not retry configuration failures or simulator failures
-automatically. The last five issued clip intervals cannot execute again, and the last
-five reaction records inform the agent. Clips longer than 120 seconds remain listed but cannot execute,
+automatically. The last five issued clip intervals are marked `recently_used`, and the last
+five reaction records inform the agent, which decides whether repetition is useful. Clips longer than 120 seconds remain listed but cannot execute,
 so playback waiting is bounded. There is no automatic replay fallback.
 
 Loop queries cover cat–cat or deer–deer interactions, or similar individual
 behavior of the selected species, and request `top_k: 10`.
 The cycle response includes `candidates`, the same ranked list given to Codex:
 `candidate_id`, `rank`, `caption`, `observed_behavior`, `evidence_basis`,
-`allowed_actions`, and `unavailable_reason`. Return all available results up to
+`allowed_actions`, `recently_used`, and `unavailable_reason`. Return all available results up to
 10 in upstream order, without pair, species-presence, or behavior filtering,
 deduplication, or promotion from rank 11. Single-animal clips remain selectable when their captions support an active
-action; weak/passive matches remain listed with no allowed actions. The UI shows this list separately from the one selected clip.
+action; weak/passive matches remain available for the agent to assess and skip. The UI shows this list separately from the one selected clip.
 
 Unexecutable results remain listed with an empty `allowed_actions`: incomplete
 provenance, invalid source, stale/contradictory review, duration over 120 seconds,
-a recently issued interval, passive-only evidence or no supported active motion.
-The action list contains only the grounded active primitive for that caption or
-exact review. Supported active ceilings are walking 2000 ms, beak dip 8000 ms,
+or an exact passive review. Unreviewed captions expose all four active controller
+capabilities; an exact active review restricts the list to its approved command.
+The list is not a claim that those motions occurred. The agent may decline all
+candidates, causing the bounded requery/no-match path. Supported active ceilings are walking 2000 ms, beak dip 8000 ms,
 head nod 2400 ms and sit/stand 6000 ms. Backend and frontend both reject scan/hold
 selection. Caption interpretation remains inferred, not visual review.
 

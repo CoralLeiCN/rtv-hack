@@ -1,5 +1,5 @@
 # --- root .md files: whitelist, not blacklist ---
-# Keep the overview, agent instructions and implementation plan at the root.
+# Keep the overview and agent instructions at the root.
 # Other root Markdown files are internal unless explicitly allowed below.
 # Product and operational documentation belongs in docs/.
 /*.md
@@ -51,7 +51,6 @@ verify-vm.sh
 # --- live screen ---
 screen/
 
-!/plan.md
 /media/
 .qdrant/
 *.egg-info/

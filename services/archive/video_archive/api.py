@@ -17,6 +17,8 @@ from .repository import Repository
 for name in ('httpx', 'httpcore'):
     logging.getLogger(name).setLevel(logging.WARNING)
 
+MAX_SEARCH_REQUESTS = 10
+
 
 class Search(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -104,23 +106,30 @@ def create_app(settings=None, repo=None, index=None, embedder=None, store=None):
         vector = embedding.encode(body.query, query=True)
         identity = embedding_identity(settings)
         results = []
-        # Page past stale/unpublished index entries while bounding total work.
-        for offset in range(0, 1000, 100):
-            hits = vector_index.search(vector, body.tags, 100, identity, offset)
+        seen = set()
+        offset = 0
+        # The normal case is one top_k query. Refill only rejected candidates,
+        # with a bounded number of round trips to an unhealthy/stale index.
+        for _ in range(MAX_SEARCH_REQUESTS):
+            limit = body.top_k - len(results)
+            hits = vector_index.search(vector, body.tags, limit, identity, offset)
             records = repo.indexed([p.id for p in hits], body.tags, identity)
             for point in hits:
                 row = records.get(str(point.id))
-                if row is None:
+                if row is None or str(point.id) in seen:
                     continue
+                seen.add(str(point.id))
                 results.append({'source': f"media://{row['id']}", 'original_video': f"media://{row['video_id']}",
                     'reasoning_content': row['caption'], 'segment_start_sec': row['start_sec'],
                     'segment_end_sec': row['end_sec'], 'similarity_score': point.score,
                     'dataset': row['dataset_id'], 'dataset_id': row['dataset_id']})
                 if len(results) == body.top_k:
                     return {'results': results}
-            if len(hits) < 100:
-                break
-        return {'results': results}
+            if len(hits) < limit:
+                return {'results': results}
+            offset += len(hits)
+        # Never present an incomplete scan as a genuine no-match result.
+        raise HTTPException(503, 'search_limit_reached')
 
     @app.get('/api/v1/metadata', dependencies=[Depends(authorize)])
     def metadata():

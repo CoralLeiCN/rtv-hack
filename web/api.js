@@ -34,6 +34,14 @@ export function createApi({ apiBaseUrl = "", fetchImpl = globalThis.fetch, timeo
       });
       if (!response.ok) {
         // Upstream bodies can contain sensitive diagnostics. Show bounded messages.
+        if (response.status === 503) {
+          let error;
+          try { error = await response.json(); }
+          catch (cause) { if (controller.signal.aborted) throw cause; }
+          if (error?.code === "search_limit_reached") {
+            throw new ApiError("Search could not finish validating matches. Archive maintenance is required before retrying.", 503);
+          }
+        }
         if (response.status === 401) throw new ApiError("The search service could not access the video archive. Please try again.", 401);
         if (response.status === 403) throw new ApiError("The search service does not have access to this archive.", 403);
         if (response.status === 429) throw new ApiError("Too many requests. Please wait a moment and try again.", 429);

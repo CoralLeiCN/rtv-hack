@@ -6,11 +6,10 @@ import time
 
 from .encounter_agent import EncounterQueryDecision, EncounterActionsDecision, RunActionsDecision, combined_behavior_query
 from .errors import DemoError
-from .interaction import ACTIVE_PRIMITIVES, classify_interaction
+from .action_evidence import prepare_candidate, bind_action, ACTION_BEHAVIORS
 from .session import COOKIE_NAME
 from .capture import Capture
 from .loop_agent import COMPANION_BEHAVIORS, DUCK_ROLE_ACTIONS
-from .interaction import has_species_pair
 
 PLAN_TIMEOUT = 60
 ENCOUNTER_TIMEOUT = 180
@@ -141,82 +140,73 @@ class EncounterService:
             raise DemoError('encounter_plan_expired', 'Plan this encounter again before searching.', 409)
         return plan
 
-    async def actions(self, segments, scenario, query, *, role_plans=False, history=None, recent=()):
-        """Agent creates proposals; exact reviews and caption checks bound them."""
+    async def actions(self, segments, scenario, query, *, role_plans=False, intent='', history=None, recent=()):
+        """Luna interprets evidence; code enforces provenance and command contracts."""
         self.require_agent()
-        choices, annotations = [], []
+        choices, annotations, evidence_ids = [], [], []
         for segment in segments:
-            annotation = self.manifest.annotate_interaction(segment, scenario['animal'], scenario['interaction_partner'],
-                                                           allowed_primitives=ACTIVE_PRIMITIVES)
+            annotation, allowed, evidence_id = prepare_candidate(self.manifest, segment, scenario['animal'])
             annotations.append(annotation)
-            action = annotation['action']
-            if action and (segment.parent, segment.start, segment.end) in recent:
-                annotation.update(action=None, action_basis=None, eligibility_reason='recent_clip')
-                action = None
-            # A bounded imitation cannot wait on an arbitrarily long reference.
-            if action and segment.end - segment.start > 120:
-                annotation.update(action=None, action_basis=None, eligibility_reason='clip_too_long')
-                action = None
+            evidence_ids.append(evidence_id)
             choices.append({'candidate_id': f'rank-{segment.rank}', 'rank': segment.rank,
                             'caption': self.public_text(segment.caption),
-                            'allowed_actions': [action['primitive']] if action else [],
-                            'preferred_action': action['primitive'] if action else None,
-                            'observed_behavior': annotation.get('inferred_behavior') or annotation.get('reviewed_behavior'),
+                            'allowed_actions': allowed,
+                            'observed_behavior': annotation.get('reviewed_behavior'),
                             'review_status': annotation['review_status'],
-                            'unavailable_reason': None if action else annotation['eligibility_reason']})
-        submitted = [choice for choice in choices if choice['allowed_actions']] if role_plans else choices
+                            'recently_used': (segment.parent, segment.start, segment.end) in recent,
+                            'unavailable_reason': None if allowed else annotation['eligibility_reason']})
+        submitted = [choice for choice in choices if choice['allowed_actions']]
         if not submitted:
-            return tuple(annotations), 'No active supported video motions were found.'
-        context = {'task': 'encounter_actions', 'animal': scenario['animal'], 'query': query, 'candidates': submitted}
+            return tuple(annotations), 'No references with valid provenance and review constraints were found.'
+        context = {'task': 'encounter_actions', 'animal': scenario['animal'], 'query': query,
+                   'candidates': submitted, 'original_prompt': intent, 'history': history or []}
         if role_plans:
-            context.update(history=history or [], allowed_companion_behaviors=COMPANION_BEHAVIORS[scenario['animal']],
+            context.update(allowed_companion_behaviors=COMPANION_BEHAVIORS[scenario['animal']],
                            encounter={key: scenario[key] for key in ('id', 'label', 'interaction', 'behavior_hint')})
         decision = await self.agent.decide(context, RunActionsDecision if role_plans else EncounterActionsDecision)
         identifiers = [item.candidate_id for item in decision.actions]
-        if len(set(identifiers)) != len(identifiers) or any(value not in {c['candidate_id'] for c in submitted} for value in identifiers):
-            raise DemoError('invalid_agent_action', 'The agent returned duplicate or unknown clip decisions. Retry planning.', 502)
+        if len(set(identifiers)) != len(identifiers) or set(identifiers) != {c['candidate_id'] for c in submitted}:
+            raise DemoError('invalid_agent_action', 'The agent must decide each supplied clip exactly once. Retry planning.', 502)
         proposals = {item.candidate_id: item for item in decision.actions}
         output = []
-        for choice, annotation in zip(choices, annotations):
+        for segment, choice, annotation, evidence_id in zip(segments, choices, annotations, evidence_ids):
             item = dict(annotation)
             proposal = proposals.get(choice['candidate_id'])
             item.update(action_planner='agent', agent_reason=None, evidence_excerpt=None)
-            if not item['action']:
-                # Review/provenance/content vetoes are never bypassed by an agent.
+            if not choice['allowed_actions']:
                 output.append(item)
                 continue
-            if proposal:
-                item['agent_reason'] = self.public_text(proposal.reason, 400)
-            if not proposal or proposal.decision != 'imitate':
-                item.update(action=None, action_basis=None, eligibility_reason='agent_skipped',
-                            action_reason=item['agent_reason'] or 'The agent did not establish a supported action for this clip.')
+            item['agent_reason'] = self.public_text(proposal.reason, 400)
+            if proposal.decision == 'skip':
+                item.update(eligibility_reason='agent_skipped', action_reason=item['agent_reason'])
                 output.append(item)
                 continue
-            valid = proposal.primitive in choice['allowed_actions']
-            if item['action_basis'] != 'reviewed':
-                excerpt = proposal.evidence_excerpt.strip()
-                grounded, _ = classify_interaction(excerpt, scenario['animal'], allowed_primitives=ACTIVE_PRIMITIVES)
-                valid &= bool(excerpt and excerpt in choice['caption'] and grounded and grounded[1] == proposal.primitive)
-                if valid:
-                    item['evidence_excerpt'] = excerpt
-            if not valid:
-                item.update(action=None, action_basis=None, eligibility_reason='agent_action_unverified',
-                            action_reason='The agent proposal did not match this clip’s supported behavior and exact caption evidence.')
+            reviewed = item['review_status'] == 'reviewed'
+            excerpt = proposal.evidence_excerpt.strip()
+            valid_quote = bool(excerpt and excerpt in choice['caption'] and excerpt in segment.caption)
+            if proposal.primitive not in choice['allowed_actions'] or (not reviewed and not valid_quote):
+                item.update(eligibility_reason='agent_action_unverified',
+                            action_reason='The agent must select an available command and quote exact caption evidence.')
             else:
-                # The validated action retains its exact source-bound evidence ID,
-                # bounded duration, review status, and canonical approximation.
-                item['action_reason'] = f"{item['agent_reason']} {item['action_reason']}".strip()
+                item.update(action=bind_action(proposal.primitive, evidence_id),
+                            action_basis='reviewed' if reviewed else 'video_caption',
+                            eligibility_reason='reviewed_match' if reviewed else 'caption_behavior_match',
+                            animal=scenario['animal'], evidence_excerpt=excerpt if valid_quote else None,
+                            inferred_behavior=None if reviewed else ACTION_BEHAVIORS[proposal.primitive],
+                            action_reason=item['agent_reason'])
                 if role_plans:
-                    role = self.role_plan(proposal, choice, scenario['animal'], item['action_basis'] == 'reviewed')
+                    role = self.role_plan(proposal, choice, scenario['animal'], segment.caption)
                     if role is None:
                         item.update(action=None, action_basis=None, eligibility_reason='agent_action_unverified',
-                                    action_reason='The proposed video roles do not match this clip’s evidence.')
+                                    action_reason='The proposed video roles need exact quotes and compatible commands.')
                     else:
                         item['role_plan'] = role
+                        if role['grounding'] == 'caption_roles':
+                            item['interaction_partner'] = scenario['animal']
             output.append(item)
         return tuple(output), self.public_text(decision.summary, 800)
 
-    def role_plan(self, proposal, choice, animal, reviewed=False):
+    def role_plan(self, proposal, choice, animal, original_caption):
         primitive = proposal.primitive
         behavior = {'short_walk': 'moving', 'ground_pick': 'feeding', 'head_nod': 'nodding', 'sit_cycle': 'sitting'}[primitive]
         supplied = proposal.role_plan
@@ -226,32 +216,13 @@ class EncounterService:
                     'duck': {'subject': f'The observed {animal}', 'evidence': self.public_text(excerpt or choice['caption'][:800], 800)},
                     'duck_behavior': behavior, 'companion_behavior': 'standing', 'companion_duration_ms': 3000, 'timing': 'together'}
         plan = supplied.model_dump()
-        if (plan['grounding'] != 'caption_roles' or not has_species_pair(choice['caption'], animal)
+        if (plan['grounding'] != 'caption_roles'
                 or plan['companion_behavior'] not in COMPANION_BEHAVIORS[animal]
                 or DUCK_ROLE_ACTIONS.get(plan['duck_behavior']) != primitive
                 or plan['companion']['subject'].strip().casefold() == plan['duck']['subject'].strip().casefold()
                 or any(not plan[role]['subject'].strip() or not plan[role]['evidence'].strip()
-                       or plan[role]['evidence'] not in choice['caption'] for role in ('companion', 'duck'))):
-            return None
-        observed, _ = classify_interaction(plan['duck']['evidence'], animal, allowed_primitives=ACTIVE_PRIMITIVES)
-        if not reviewed and (not observed or observed[1] != primitive):
-            return None
-        companion = plan['companion_behavior']
-        companion_primitives = {'standing': 'stand_hold', 'alert': 'stand_hold', 'hissing': 'stand_hold',
-            'feeding': 'ground_pick', 'walking': 'short_walk', 'approach': 'short_walk',
-            'greeting': 'short_walk', 'play': 'short_walk'}
-        allowed = frozenset({companion_primitives[companion]}) if companion in companion_primitives else None
-        companion_motion, companion_reason = classify_interaction(plan['companion']['evidence'], animal, allowed_primitives=allowed)
-        if companion == 'retreat':
-            if companion_reason != 'unsupported_retreat':
-                return None
-        elif not companion_motion:
-            return None
-        elif companion == 'hissing' and companion_motion[0] not in {'hissing_boundary', 'focal_hissing'}:
-            return None
-        elif companion == 'play' and companion_motion[0] != 'social_play':
-            return None
-        elif companion == 'greeting' and companion_motion[0] != 'social_approach':
+                       or plan[role]['evidence'] not in choice['caption']
+                       or plan[role]['evidence'] not in original_caption for role in ('companion', 'duck'))):
             return None
         for role in ('companion', 'duck'):
             plan[role] = {key: self.public_text(value, 600) for key, value in plan[role].items()}

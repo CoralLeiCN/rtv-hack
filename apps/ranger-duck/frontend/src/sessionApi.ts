@@ -15,6 +15,7 @@ export interface RunCursor {
   round: number;
   pass: number;
   execution: Execution | null;
+  pause_reason?: 'references_expired' | null;
 }
 export interface RunPlan {
   run_id: string; round_id: string; round: number; plan_id: string;
@@ -28,6 +29,7 @@ export interface RunRound extends SearchResult {
   scenario: RunScenario;
   queue: QueueAction[]; execution: Execution | null;
   run_status: 'ready' | 'paused';
+  pause_reason?: 'references_expired' | null;
   adaptive?: boolean;
   timings?: { query_agent_ms?: number; [key: string]: number | undefined };
 }

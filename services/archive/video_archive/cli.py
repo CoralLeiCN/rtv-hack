@@ -9,6 +9,7 @@ from .config import Settings
 from .index import VectorIndex
 from .ingest import enqueue, work_once
 from .media import MediaStore
+from .maintenance import cleanup_vectors
 from .models import Captioner, Embedder
 from .repository import Repository
 
@@ -28,6 +29,8 @@ def main():
     retry = commands.add_parser('retry', help='Requeue a failed/completed job, preserving IDs and captions')
     retry.add_argument('job_id', type=UUID)
     commands.add_parser('status')
+    cleanup = commands.add_parser('cleanup-vectors', help='Inspect unreferenced vector points while holding the worker lock')
+    cleanup.add_argument('--apply', action='store_true', help='Delete unreferenced points; default is a dry run')
     serve = commands.add_parser('serve')
     serve.add_argument('--host', default='127.0.0.1')
     serve.add_argument('--port', type=int, default=18001)
@@ -57,7 +60,13 @@ def main():
         elif args.command == 'retry':
             repo.retry(args.job_id)
             print('Job queued')
+        elif args.command == 'cleanup-vectors':
+            index = VectorIndex(settings)
+            index.ready()
+            print(json.dumps(cleanup_vectors(repo, index, apply=args.apply)))
         elif args.command == 'worker':
+            logging.basicConfig(format='%(message)s', level=logging.WARNING)
+            logging.getLogger('video_archive.ingest').setLevel(logging.INFO)
             index = VectorIndex(settings)
             index.ready()
             embedder, captioner = Embedder(settings), Captioner(settings)

@@ -1,7 +1,12 @@
-# Independent archive implementation plan
+# Completed independent archive implementation
 
-Branch: feature/replace-vast-with-open-source
-Specification: [docs/spec.md](docs/spec.md)
+> Historical implementation and validation record, retained on 19 October 2026.
+> Reported checks below were not rerun during documentation consolidation.
+> Current open work is tracked in [status](../status.md), and repeatable checks
+> are in [testing](../testing.md).
+
+Historical branch: feature/replace-vast-with-open-source
+Specification: [docs/spec.md](../spec.md)
 
 1. [x] Record the approved Qdrant, Neon, filesystem, EmbeddingGemma 2 and Cosmos architecture.
 2. [x] Implement archive settings, Postgres schema/repository, Qdrant index and local media storage.
@@ -51,4 +56,4 @@ server test, Cosmos GPU run or real EmbeddingGemma inference.
 
 Both apps use the independent archive. Documentation covers the current product,
 architecture and operations. Existing simulator behavior and caption review rules
-are preserved. Setup and operational limits are documented in docs/ARCHIVE.md.
+are preserved. Setup and operational limits are documented in [archive operations](../guides/archive.md).

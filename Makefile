@@ -5,7 +5,7 @@ BIND ?= 127.0.0.1
 PORT ?= 8000
 .PHONY: help setup run test demo archive-init archive-run archive-worker
 help:
-	@printf '%s\n' 'Setup: docs/ARCHIVE.md' 'make setup | run | test | demo' 'make archive-init | archive-run | archive-worker'
+	@printf '%s\n' 'Setup: docs/development.md | Docs: docs/README.md' 'make setup | run | test | demo' 'make archive-init | archive-run | archive-worker'
 setup:
 	$(PYTHON) -m venv $(VENV)
 	$(VENV)/bin/pip install -e './apps/ranger-duck/backend[test]' -e './services/archive[models,test]'

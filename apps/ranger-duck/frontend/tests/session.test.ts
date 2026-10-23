@@ -66,6 +66,23 @@ function fixture(adaptive = false) {
 }
 
 describe('one shared encounter session', () => {
+  it('stops on reference expiry and searches again only after explicit Resume', async () => {
+    const f = fixture();
+    f.api.outcome.mockImplementationOnce(async () => ({ ...f.cursor('paused'), pause_reason: 'references_expired' }));
+    f.start();
+    await f.finish();
+    await vi.waitFor(() => expect(f.controller.getSnapshot().phase).toBe('paused'));
+    expect(f.controller.getSnapshot()).toMatchObject({ running: false, execution: null,
+      note: 'Reference access expired. Resume searches for fresh references.' });
+    expect(f.controller.getSnapshot().history).toHaveLength(1);
+    expect(f.api.search).toHaveBeenCalledOnce();
+    expect(f.scene.perform).toHaveBeenCalledOnce();
+    expect(f.video.pause).toHaveBeenCalled();
+    f.api.resume.mockImplementationOnce(async () => f.cursor('needs_plan'));
+    f.controller.resume();
+    await vi.waitFor(() => expect(f.api.search).toHaveBeenCalledTimes(2));
+    f.controller.pause();
+  });
   it('OFF repeats the same three source-ranked actions without another query or search', async () => {
     const f = fixture(); f.start();
     for (let i = 0; i < 4; i++) await f.finish();
@@ -123,6 +140,81 @@ describe('one shared encounter session', () => {
     expect(f.api.create).toHaveBeenCalledTimes(2);
     expect(f.api.create.mock.invocationCallOrder[1]).toBeLessThan(f.api.adaptive.mock.invocationCallOrder[0]);
     f.controller.pause();
+  });
+  it('retries a failed Loop setting before Resume and preserves completed actions', async () => {
+    const f = fixture(), saved = deferred<void>();
+    const adaptive = f.api.adaptive.getMockImplementation()!;
+    f.api.adaptive.mockRejectedValueOnce(new Error('Setting request failed.'))
+      .mockImplementationOnce(async (id, enabled) => { await saved.promise; return adaptive(id, enabled); });
+    try {
+      f.start(); await f.finish(); await f.playing();
+      const interrupted = f.controller.getSnapshot().execution!;
+      f.controller.setAdaptive(true);
+      await vi.waitFor(() => {
+        expect(f.controller.getSnapshot().phase).toBe('paused');
+        expect(f.controller.getSnapshot().stopping).toBe(false);
+      });
+      f.controller.resume();
+      await vi.waitFor(() => expect(f.api.adaptive).toHaveBeenCalledTimes(2));
+      expect(f.api.adaptive).toHaveBeenLastCalledWith('run', true);
+      expect(f.api.resume).not.toHaveBeenCalled();
+      expect(f.scene.perform).toHaveBeenCalledTimes(2);
+      saved.resolve(); await f.playing();
+      expect(f.api.resume).toHaveBeenCalledOnce();
+      expect(f.controller.getSnapshot().execution?.action_id).toBe(interrupted.action_id);
+      expect(f.controller.getSnapshot().execution?.attempt_id).not.toBe(interrupted.attempt_id);
+      expect(f.controller.getSnapshot().rankStates['a-0']).toBe('completed');
+      await f.finish(); await f.finish();
+      await vi.waitFor(() => expect(f.api.plan).toHaveBeenCalledTimes(2));
+    } finally { saved.resolve(); f.controller.pause(); }
+  });
+  it('stays paused if the Loop setting retry fails and allows another Resume attempt', async () => {
+    const f = fixture();
+    f.api.adaptive.mockRejectedValueOnce(new Error('Setting request failed.'))
+      .mockRejectedValueOnce(new Error('Setting retry failed.'));
+    try {
+      f.start(); await f.playing();
+      f.controller.setAdaptive(true);
+      await vi.waitFor(() => {
+        expect(f.controller.getSnapshot().phase).toBe('paused');
+        expect(f.controller.getSnapshot().stopping).toBe(false);
+      });
+      f.controller.resume();
+      await vi.waitFor(() => {
+        expect(f.api.adaptive).toHaveBeenCalledTimes(2);
+        expect(f.controller.getSnapshot().phase).toBe('paused');
+        expect(f.controller.getSnapshot().stopping).toBe(false);
+      });
+      expect(f.controller.getSnapshot().error).toBe('Setting retry failed.');
+      expect(f.api.resume).not.toHaveBeenCalled();
+      expect(f.scene.perform).toHaveBeenCalledOnce();
+      f.controller.resume(); await f.playing();
+      expect(f.api.adaptive).toHaveBeenCalledTimes(3);
+      expect(f.api.resume).toHaveBeenCalledOnce();
+      expect(f.controller.getSnapshot().error).toBeNull();
+    } finally { f.controller.pause(); }
+  });
+  it.each(['pause', 'reset'] as const)('does not resume after %s during a Loop setting retry', async operation => {
+    const f = fixture(), saved = deferred<RunCursor>();
+    f.api.adaptive.mockRejectedValueOnce(new Error('Setting request failed.'))
+      .mockImplementationOnce(() => saved.promise);
+    try {
+      f.start(); await f.playing();
+      f.controller.setAdaptive(true);
+      await vi.waitFor(() => {
+        expect(f.controller.getSnapshot().phase).toBe('paused');
+        expect(f.controller.getSnapshot().stopping).toBe(false);
+      });
+      f.controller.resume();
+      await vi.waitFor(() => expect(f.api.adaptive).toHaveBeenCalledTimes(2));
+      f.controller[operation]();
+      saved.resolve(f.cursor('paused'));
+      await vi.waitFor(() => expect(f.api.pause).toHaveBeenCalledTimes(2));
+      expect(f.api.resume).not.toHaveBeenCalled();
+      expect(f.scene.perform).toHaveBeenCalledOnce();
+      expect(f.controller.getSnapshot().running).toBe(false);
+      expect(f.controller.getSnapshot().phase).toBe(operation === 'reset' ? 'idle' : 'paused');
+    } finally { saved.resolve(f.cursor('paused')); f.controller.pause(); }
   });
   it('Pause/Resume restarts only the interrupted action with a fresh attempt, preserving completed actions', async () => {
     const f = fixture(); f.start(); await f.finish(); await f.playing();

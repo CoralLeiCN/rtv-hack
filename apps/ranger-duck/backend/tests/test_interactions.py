@@ -118,11 +118,11 @@ def test_search_uses_each_ranked_caption_even_if_it_differs_from_encounter_hint(
     assert result["status"] == "ok" and result["match_type"] == "species_interaction"
     assert [item["rank"] for item in result["candidates"]] == [1, 2, 3]
     assert [item["action"]["primitive"] if item["action"] else None for item in result["candidates"]] == [None, "short_walk", None]
-    assert result["candidates"][0]["eligibility_reason"] == "passive_behavior_excluded"
-    assert result["candidates"][2]["eligibility_reason"] == "unsupported_retreat"
+    assert result["candidates"][0]["eligibility_reason"] == "agent_skipped"
+    assert result["candidates"][2]["eligibility_reason"] == "agent_skipped"
     assert all(item["action_basis"] == "video_caption" and item["review_status"] == "unreviewed"
                for item in result["candidates"][1:2])
-    assert result["candidates"][1]["interaction_partner"] == "cat"
+    assert result["candidates"][1]["interaction_partner"] is None  # no role plan was requested
     assert result["warnings"]
     sent = json.loads(next(r.content for r in upstream.requests if r.url.path.endswith("/search")))
     assert sent["tags"] == ["meow-10k", "cat-behavior"] and "another cat" in sent["query"]

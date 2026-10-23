@@ -117,7 +117,16 @@ export class SessionController {
     if (!id || this.active) return;
     this.resumeOnVisible = false;
     this.launch(async (signal, current) => {
-      await this.cleanup; await this.settings; checkActive(signal);
+      await this.cleanup; checkActive(signal);
+      try { await this.settings; }
+      catch {
+        checkActive(signal);
+        // Re-send the selected value: a failed response may still have saved it.
+        // Keep Resume behind its acknowledgement, and let another failure pause.
+        this.setAdaptive(this.state.adaptive);
+        await this.settings;
+      }
+      checkActive(signal);
       const cursor = await this.options.api().resume(id, signal);
       if (!current()) return;
       await this.advance(cursor, signal, current);
@@ -143,7 +152,7 @@ export class SessionController {
       await this.options.api().adaptive(id, adaptive);
       // An adaptive acknowledgement never drives an execution cursor.
     });
-    void this.settings.catch(error => { if (this.state.runId === id) { this.pause('The Loop setting could not be saved. Resume after retrying the setting.'); this.update({ error: error instanceof Error ? error.message : 'The Loop setting could not be saved.' }); } });
+    void this.settings.catch(error => { if (this.state.runId === id) { this.pause('The Loop setting could not be saved. Press Resume to retry it.'); this.update({ error: error instanceof Error ? error.message : 'The Loop setting could not be saved.' }); } });
   }
   replay() {
     const id = this.state.runId;
@@ -160,7 +169,7 @@ export class SessionController {
   }
   private cursor(round: RunRound): RunCursor {
     return { run_id: round.run_id, status: round.run_status ?? (round.execution ? 'ready' : 'paused'), adaptive: round.adaptive ?? this.state.adaptive,
-      round_id: round.round_id, round: round.round, pass: round.pass ?? 1, execution: round.execution };
+      round_id: round.round_id, round: round.round, pass: round.pass ?? 1, execution: round.execution, pause_reason: round.pause_reason };
   }
   private applyScenario(scenario: RunScenario) {
     if (!scenario || scenario.animal !== this.animal || !scenario.id || !scenario.label || !scenario.behavior_hint) throw new Error('The agent round returned an invalid animal encounter.');
@@ -177,7 +186,7 @@ export class SessionController {
     this.update({ round, plan: null, replay, pass: round.pass ?? 1, execution: round.execution,
       selectedId: round.queue[0]?.candidate.clip_id ?? null, rankStates: {}, phase: round.queue.length ? 'approaching' : 'empty',
       elapsedMs: this.state.startedAt == null ? round.elapsed_ms : this.now() - this.state.startedAt, startedAt: null,
-      roundAdaptive: this.state.adaptive, note: round.queue.length ? null : 'No active supported motion. Try another intent or a broader search.' });
+      roundAdaptive: this.state.adaptive, note: round.queue.length ? null : 'No action selected. Check the agent’s explanation or try a broader search.' });
   }
   private async advance(first: RunCursor, signal: AbortSignal, current: () => boolean) {
     let cursor = first;
@@ -207,7 +216,9 @@ export class SessionController {
         // approach running after the UI has stopped offering Pause.
         this.stopLocal();
         this.update({ phase: this.state.round?.queue.length ? 'paused' : 'empty', running: false, execution: null,
-          note: this.state.replay ? 'Saved round finished. Resume returns to the live run.' : this.state.note ?? 'Run paused. Resume when ready.' });
+          note: cursor.pause_reason === 'references_expired'
+            ? 'Reference access expired. Resume searches for fresh references.'
+            : this.state.replay ? 'Saved round finished. Resume returns to the live run.' : this.state.note ?? 'Run paused. Resume when ready.' });
         return;
       }
       const round = this.state.round;
@@ -288,6 +299,6 @@ export function sessionLabel(state: SessionState): string {
   const item = state.round?.queue.find(entry => entry.action_id === state.execution?.action_id);
   const position = item ? state.round!.queue.indexOf(item) + 1 : null;
   const prefix = state.round ? `Round ${state.round.round} · pass ${state.pass}${position ? ` · action ${position}/${state.round.queue.length}` : ''}` : '';
-  const phase: Record<SessionPhase, string> = { idle: 'Choose an animal and press Start', starting: 'Starting the encounter', planning: 'Agent generating query', searching: 'Searching archive and planning actions', approaching: 'Facing and approaching the animal', playback: 'Waiting for reference playback', acting: item?.candidate.action ? motionLabel(item.candidate.action.primitive) : 'Acting', reporting: 'Recording actual outcome', complete: 'Action completed', paused: 'Paused', empty: 'No active supported motion', failed: 'Run paused after an error' };
+  const phase: Record<SessionPhase, string> = { idle: 'Choose an animal and press Start', starting: 'Starting the encounter', planning: 'Agent generating query', searching: 'Searching archive and planning actions', approaching: 'Facing and approaching the animal', playback: 'Waiting for reference playback', acting: item?.candidate.action ? motionLabel(item.candidate.action.primitive) : 'Acting', reporting: 'Recording actual outcome', complete: 'Action completed', paused: 'Paused', empty: 'No action selected', failed: 'Run paused after an error' };
   return `${prefix ? `${prefix} · ` : ''}${phase[state.phase]}`;
 }

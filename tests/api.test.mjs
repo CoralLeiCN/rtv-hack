@@ -99,8 +99,28 @@ test("network failures and externally aborted requests do not expose transport d
   }
 });
 
+test("search limit shows a fixed maintenance message without echoing diagnostics", async () => {
+  const api = createApi({ fetchImpl: async () => jsonResponse({
+    code: "search_limit_reached", detail: "private upstream diagnostic",
+  }, 503) });
+  await assert.rejects(api.search("deer"), {
+    name: "ApiError", status: 503,
+    message: "Search could not finish validating matches. Archive maintenance is required before retrying.",
+  });
+});
+
+test("unrecognized and malformed service-unavailable bodies remain private", async () => {
+  for (const body of [null, [], { code: "unknown", detail: "private diagnostic" }, "not-json"]) {
+    const api = createApi({ fetchImpl: async () => typeof body === "string"
+      ? new Response(body, { status: 503 }) : jsonResponse(body, 503) });
+    await assert.rejects(api.search("deer"), {
+      name: "ApiError", status: 503, message: "The request failed. Please try again.",
+    });
+  }
+});
+
 test("timeouts abort both pending fetches and pending response reads", async () => {
-  for (const stalledStage of ["fetch", "json"]) {
+  for (const stalledStage of ["fetch", "json", "error-json"]) {
     let requestSignal;
     const api = createApi({
       timeoutMs: 5,
@@ -109,7 +129,7 @@ test("timeouts abort both pending fetches and pending response reads", async () 
         const pending = () => new Promise((_resolve, reject) => {
           signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
         });
-        return stalledStage === "fetch" ? pending() : { ok: true, json: pending };
+        return stalledStage === "fetch" ? pending() : { ok: stalledStage !== "error-json", status: stalledStage === "error-json" ? 503 : 200, json: pending };
       },
     });
     await assert.rejects(api.search("forklift"), {

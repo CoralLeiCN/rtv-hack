@@ -1,0 +1,345 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "cat-walk-away",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat turns and walks away with forward steps.",
+      "challenge": "supported",
+      "expected_actions": [
+        "short_walk"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "cat-feed",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat lowers its head and eats food from the ground.",
+      "challenge": "supported",
+      "expected_actions": [
+        "ground_pick"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "cat-vertical-head",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat repeatedly raises and lowers its head vertically.",
+      "challenge": "supported",
+      "expected_actions": [
+        "head_nod"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "cat-sit",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat sits down on its haunches and remains seated upright.",
+      "challenge": "supported",
+      "expected_actions": [
+        "sit_cycle"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "cat-paired",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A first cat stands still. A second cat walks toward the first cat.",
+      "challenge": "paired",
+      "expected_actions": [
+        "short_walk"
+      ],
+      "expected_grounding": "caption_roles",
+      "expected_companion": "standing",
+      "expected_duck_evidence": "A second cat walks toward the first cat."
+    },
+    {
+      "id": "cat-negation",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat does not walk or feed; it remains standing motionless.",
+      "challenge": "negation",
+      "expected_actions": []
+    },
+    {
+      "id": "cat-uncertainty",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A distant cat might be walking, but the motion is obscured and cannot be determined.",
+      "challenge": "uncertainty",
+      "expected_actions": []
+    },
+    {
+      "id": "cat-wrong-actor",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat stands still while a dog walks past it.",
+      "challenge": "wrong_species",
+      "expected_actions": []
+    },
+    {
+      "id": "cat-wrong-species",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A dog walks forward and eats from the ground.",
+      "challenge": "wrong_species",
+      "expected_actions": []
+    },
+    {
+      "id": "cat-lying",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat lies flat on its side and sleeps without moving.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "cat-reverse",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat takes several backward steps without turning around.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "cat-running",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat runs fast and jumps over a log.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "cat-pronoun",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat appears beside a tree. It then walks forward.",
+      "challenge": "supported",
+      "expected_actions": [
+        "short_walk"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "cat-alternative",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat walks slowly, then lowers its head to feed.",
+      "challenge": "supported",
+      "expected_actions": [
+        "short_walk",
+        "ground_pick"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "deer-walk-away",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer turns and walks away with forward steps.",
+      "challenge": "supported",
+      "expected_actions": [
+        "short_walk"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "deer-feed",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer lowers its head and eats food from the ground.",
+      "challenge": "supported",
+      "expected_actions": [
+        "ground_pick"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "deer-vertical-head",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer repeatedly raises and lowers its head vertically.",
+      "challenge": "supported",
+      "expected_actions": [
+        "head_nod"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "deer-sit",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer sits down on its haunches and remains seated upright.",
+      "challenge": "supported",
+      "expected_actions": [
+        "sit_cycle"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "deer-paired",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A first deer stands still. A second deer walks toward the first deer.",
+      "challenge": "paired",
+      "expected_actions": [
+        "short_walk"
+      ],
+      "expected_grounding": "caption_roles",
+      "expected_companion": "standing",
+      "expected_duck_evidence": "A second deer walks toward the first deer."
+    },
+    {
+      "id": "deer-negation",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer does not walk or feed; it remains standing motionless.",
+      "challenge": "negation",
+      "expected_actions": []
+    },
+    {
+      "id": "deer-uncertainty",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A distant deer might be walking, but the motion is obscured and cannot be determined.",
+      "challenge": "uncertainty",
+      "expected_actions": []
+    },
+    {
+      "id": "deer-wrong-actor",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer stands still while a horse walks past it.",
+      "challenge": "wrong_species",
+      "expected_actions": []
+    },
+    {
+      "id": "deer-wrong-species",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A horse walks forward and eats from the ground.",
+      "challenge": "wrong_species",
+      "expected_actions": []
+    },
+    {
+      "id": "deer-lying",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer lies flat on its side and sleeps without moving.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "deer-reverse",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer takes several backward steps without turning around.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "deer-running",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer runs fast and jumps over a log.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "deer-pronoun",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer appears beside a tree. It then walks forward.",
+      "challenge": "supported",
+      "expected_actions": [
+        "short_walk"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "deer-alternative",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer walks slowly, then lowers its head to feed.",
+      "challenge": "supported",
+      "expected_actions": [
+        "short_walk",
+        "ground_pick"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "cat-unspecified-head",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat shifts its head while watching its surroundings.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "cat-grooming",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat licks its foreleg to groom itself.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "cat-seated-looking",
+      "animal": "cat",
+      "evidence_kind": "supplied_caption",
+      "caption": "A cat is seated upright and looks from side to side.",
+      "challenge": "supported",
+      "expected_actions": [
+        "sit_cycle"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    },
+    {
+      "id": "deer-unspecified-head",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer shifts its head while watching its surroundings.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "deer-grooming",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer licks its foreleg to groom itself.",
+      "challenge": "unsupported",
+      "expected_actions": []
+    },
+    {
+      "id": "deer-seated-looking",
+      "animal": "deer",
+      "evidence_kind": "supplied_caption",
+      "caption": "A deer is seated upright and looks from side to side.",
+      "challenge": "supported",
+      "expected_actions": [
+        "sit_cycle"
+      ],
+      "expected_grounding": "single_behavior",
+      "expected_companion": "standing"
+    }
+  ]
+}

@@ -114,6 +114,17 @@ class Repository:
                 ([UUID(str(item)) for item in ids], identity, tags, tags)).fetchall()
             return {str(row['index_id']): row for row in rows}
 
+    def referenced_index_ids(self, ids):
+        self.assert_worker()
+        if not ids:
+            return set()
+        with self.connect() as conn:
+            rows = conn.execute('SELECT index_id FROM archive_segments WHERE index_id=ANY(%s)',
+                                ([UUID(str(value)) for value in ids],)).fetchall()
+            # Pending publication is still a reference. Never reuse search's
+            # indexed/tag/model predicates to decide whether a point is orphaned.
+            return {str(row['index_id']) for row in rows}
+
     def metadata(self):
         with self.connect() as conn:
             tags = conn.execute('SELECT DISTINCT unnest(tags) AS tag FROM archive_segments WHERE indexed ORDER BY tag').fetchall()

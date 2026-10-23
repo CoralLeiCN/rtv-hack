@@ -1,11 +1,46 @@
 import hashlib
+from contextlib import contextmanager
+from fractions import Fraction
 import json
+import logging
 import math
 import os
 import subprocess
+import tempfile
+import time
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from .models import embedding_identity
+
+
+class IngestionProgress:
+    """Log only fixed stage names, database UUIDs, statuses and elapsed times."""
+    def __init__(self, job_id):
+        self.job_id = str(UUID(str(job_id)))
+        self.error_code = 'ingestion_failed'
+
+    @contextmanager
+    def stage(self, name, segment_id=None):
+        if name not in {'configuration', 'media', 'captioning', 'embedding', 'indexing', 'database'}:
+            raise ValueError('Unknown ingestion stage')
+        fields = {'event': 'ingestion_stage', 'job_id': self.job_id, 'stage': name,
+                  'segment_id': str(UUID(str(segment_id))) if segment_id else None}
+        started = time.monotonic()
+        failed = False
+        try:
+            yield
+        except BaseException:
+            failed = True
+            if self.error_code == 'ingestion_failed':
+                self.error_code = name + '_failed'
+            fields['error_code'] = self.error_code
+            raise
+        finally:
+            fields.update(status='failed' if failed else 'complete',
+                          elapsed_ms=round((time.monotonic() - started) * 1000))
+            # Never log exception messages, tracebacks, paths or model input.
+            logging.getLogger(__name__).log(logging.WARNING if failed else logging.INFO,
+                                           json.dumps(fields, sort_keys=True))
 
 
 def run_media(args):
@@ -13,22 +48,60 @@ def run_media(args):
     return subprocess.run(args, check=True, capture_output=True, timeout=600).stdout
 
 
+def decoded_duration(path, time_base):
+    # Progress timestamps can mark the START of the final frame. Decode the
+    # video timeline and include that frame's duration instead. Spool per-frame
+    # metadata to disk so long videos do not require an unbounded Python buffer.
+    with tempfile.TemporaryFile() as frames:
+        result = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            '-show_frames', '-show_entries',
+            'frame=best_effort_timestamp,duration,pkt_duration:frame_side_data=',
+            '-of', 'compact=p=0:nk=0', str(path)],
+            stdout=frames, stderr=subprocess.PIPE, check=True, timeout=600)
+        if result.stderr:
+            raise ValueError('Cannot decode video timeline')
+        frames.seek(0)
+        first, last, end, last_duration, step = None, None, None, None, None
+        constant_step = True
+        for line in frames:
+            if not line.strip():
+                continue
+            fields = dict(field.split(b'=', 1) for field in line.strip().split(b'|'))
+            timestamp = int(fields[b'best_effort_timestamp'])
+            # FFprobe 5 exposes pkt_duration; newer releases expose duration.
+            reported = fields.get(b'duration', fields.get(b'pkt_duration', b'0'))
+            frame_duration = 0 if reported == b'N/A' else int(reported)
+            if frame_duration < 0:
+                raise ValueError('Invalid video frame duration')
+            if last is not None:
+                delta = timestamp - last
+                constant_step = constant_step and delta > 0 and (step is None or delta == step)
+                step = delta
+            first = timestamp if first is None else min(first, timestamp)
+            end = timestamp + frame_duration if end is None else max(end, timestamp + frame_duration)
+            if last is None or timestamp >= last:
+                last, last_duration = timestamp, frame_duration
+    if first is None:
+        raise ValueError('Source contains no decodable video frames')
+    if not last_duration:
+        # Some containers omit frame durations as well. A constant decoded
+        # cadence establishes the final frame's length without using audio or
+        # an average frame rate that would be wrong for variable-rate footage.
+        if not constant_step or step is None or step <= 0:
+            raise ValueError('Final video frame duration is unavailable')
+        end = max(end, last + step)
+    return float((end - first) * Fraction(time_base))
+
+
 def duration(path):
     probe = json.loads(run_media(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
-                                 '-show_entries', 'stream=duration', '-of', 'json', str(path)]))
+                                 '-show_entries', 'stream=duration,time_base', '-of', 'json', str(path)]))
     if not probe.get('streams'):
         raise ValueError('Source contains no video stream')
     reported = probe['streams'][0].get('duration')
     if reported in (None, 'N/A'):
-        # WebM and some other containers omit per-stream duration. Measure only
-        # decoded video, never fall back to a potentially longer audio timeline.
-        progress = run_media(['ffmpeg', '-nostdin', '-v', 'error', '-xerror', '-i', str(path),
-                              '-map', '0:v:0', '-an', '-vf', 'setpts=PTS-STARTPTS',
-                              '-fps_mode', 'passthrough', '-progress', 'pipe:1', '-stats_period', '600',
-                              '-f', 'null', '-'])
-        times = [float(line.split(b'=', 1)[1]) / 1_000_000 for line in progress.splitlines()
-                 if line.startswith(b'out_time_us=') and not line.endswith(b'N/A')]
-        value = max(times, default=0)
+        # Never use the container duration: it can include an audio-only tail.
+        value = decoded_duration(path, probe['streams'][0]['time_base'])
     else:
         value = float(reported)
     if not math.isfinite(value) or value <= 0 or value > 86400:
@@ -70,50 +143,75 @@ def enqueue(repo, store, settings, source, dataset_id, tags, segment_seconds=10,
     return repo.enqueue(video_id, checksum, key, job_id, options)
 
 
-def process_job(job, repo, store, index, embedder, captioner, settings):
-    repo.assert_worker()
-    attempt_id = uuid4()
-    options = job['settings']
-    if options['embedding_identity'] != embedding_identity(settings):
-        raise ValueError('Queued embedding configuration differs from the active model')
-    if options['captions'] is None and (options['cosmos_model'] != settings.cosmos_model or options['cosmos_revision'] != settings.cosmos_revision):
-        raise ValueError('Queued Cosmos configuration differs from the active model')
-    parent = repo.video(job['video_id'])
-    source = store.path(parent['storage_key'])
-    for number, (start, end) in enumerate(intervals(options['duration'], options['segment_seconds'])):
+def process_job(job, repo, store, index, embedder, captioner, settings, progress=None):
+    progress = progress or IngestionProgress(job['id'])
+    with progress.stage('database'):
         repo.assert_worker()
+    attempt_id = uuid4()
+    with progress.stage('configuration'):
+        options = job['settings']
+        if options['embedding_identity'] != embedding_identity(settings):
+            raise ValueError('Queued embedding configuration differs from the active model')
+        if options['captions'] is None and (options['cosmos_model'] != settings.cosmos_model or options['cosmos_revision'] != settings.cosmos_revision):
+            raise ValueError('Queued Cosmos configuration differs from the active model')
+    with progress.stage('database'):
+        parent = repo.video(job['video_id'])
+    with progress.stage('media'):
+        source = store.path(parent['storage_key'])
+    for number, (start, end) in enumerate(intervals(options['duration'], options['segment_seconds'])):
         segment_id = uuid5(UUID(str(job['id'])), str(number))
-        existing = repo.segment(segment_id)
+        with progress.stage('database', segment_id):
+            repo.assert_worker()
+            existing = repo.segment(segment_id)
         # An obsolete worker may finish an in-flight external write after losing
         # its session. Give each attempt isolated files and vector point IDs.
-        key = (existing['storage_key'] if existing and store.path(existing['storage_key']).is_file()
-               else f'segments/{segment_id}/{attempt_id}.mp4')
-        target = store.path(key)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.is_file():
-            temporary = target.with_suffix('.partial.mp4')
+        with progress.stage('media', segment_id):
+            key = (existing['storage_key'] if existing and store.path(existing['storage_key']).is_file()
+                   else f'segments/{segment_id}/{attempt_id}.mp4')
+            target = store.path(key)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = None
             try:
-                run_media(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', str(start), '-i', str(source),
-                           '-t', str(end-start), '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264',
-                           '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
-                           '-movflags', '+faststart', str(temporary)])
-                validate_video(temporary)
-                repo.assert_worker()
-                os.replace(temporary, target)
+                if not target.is_file():
+                    temporary = target.with_suffix('.partial.mp4')
+                    run_media(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', str(start), '-i', str(source),
+                               '-t', str(end-start), '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264',
+                               '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
+                               '-movflags', '+faststart', str(temporary)])
+                    validate_video(temporary)
+                    with progress.stage('database', segment_id):
+                        repo.assert_worker()
+                    os.replace(temporary, target)
+                else:
+                    validate_video(target)
             finally:
-                temporary.unlink(missing_ok=True)
-        else:
-            validate_video(target)
-        caption = existing['caption'] if existing else (options['captions'][number] if options['captions'] is not None else captioner.caption(target))
+                if temporary:
+                    temporary.unlink(missing_ok=True)
+        with progress.stage('captioning', segment_id):
+            caption = existing['caption'] if existing else (options['captions'][number] if options['captions'] is not None else captioner.caption(target))
         row = {'id': segment_id, 'index_id': uuid5(attempt_id, str(segment_id)),
                'job_id': job['id'], 'video_id': job['video_id'], 'storage_key': key,
                'caption': caption, 'start_sec': start, 'end_sec': end, 'dataset_id': options['dataset_id'],
                'tags': options['tags'], 'embedding_identity': options['embedding_identity']}
-        repo.save_segment(row)
-        vector = embedder.encode(caption)
-        repo.assert_worker()
-        index.upsert(row, vector)
-        repo.mark_indexed(segment_id)
+        with progress.stage('database', segment_id):
+            repo.save_segment(row)
+        with progress.stage('embedding', segment_id):
+            vector = embedder.encode(caption)
+        with progress.stage('database', segment_id):
+            repo.assert_worker()
+        with progress.stage('indexing', segment_id):
+            index.upsert(row, vector)
+        with progress.stage('database', segment_id):
+            repo.mark_indexed(segment_id)
+        if existing:
+            with progress.stage('database', segment_id):
+                repo.assert_worker()
+            try:
+                index.delete([existing['index_id']])
+            except Exception:
+                # Publication already succeeded. Retrying the job just because
+                # cleanup failed would create more obsolete points.
+                logging.getLogger(__name__).warning('Vector cleanup deferred; run cleanup-vectors.')
 
 
 def work_once(repo, store, index, embedder, captioner, settings):
@@ -121,11 +219,13 @@ def work_once(repo, store, index, embedder, captioner, settings):
         job = repo.next_job()
         if job is None:
             return False
+        progress = IngestionProgress(job['id'])
         try:
-            process_job(job, repo, store, index, embedder, captioner, settings)
+            process_job(job, repo, store, index, embedder, captioner, settings, progress)
         except Exception:
             # Persist only a safe code; model/DB errors may contain credentials.
-            repo.finish(job['id'], 'ingestion_failed')
+            repo.finish(job['id'], progress.error_code)
             return True
-        repo.finish(job['id'])
+        with progress.stage('database'):
+            repo.finish(job['id'])
         return True

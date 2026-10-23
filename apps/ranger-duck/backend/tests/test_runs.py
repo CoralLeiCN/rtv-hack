@@ -87,7 +87,7 @@ def test_both_toggle_states_share_two_agent_calls_one_search_and_ordered_active_
         result = search(client, planned)
         agent = app.state.encounter_service.agent.agent
         assert len(agent.calls) == 2
-        assert [candidate['rank'] for candidate in agent.calls[1]['candidates']] == [2, 3, 5, 6]
+        assert [candidate['rank'] for candidate in agent.calls[1]['candidates']] == [1, 2, 3, 4, 5, 6]
         assert [entry['candidate']['rank'] for entry in result['queue']] == [2, 3, 5]
         assert result['queue'][2]['candidate']['action']['primitive'] == 'sit_cycle'
         assert all(entry['role_plan']['grounding'] == 'single_behavior' for entry in result['queue'])
@@ -191,14 +191,14 @@ def test_replay_uses_saved_plan_and_fresh_attempts_without_live_history_or_infer
         assert sum(r.url.path.endswith('/search') for r in upstream.requests) == 1
 
 
-def test_no_match_avoids_action_agent_call_and_pauses_without_hidden_retry():
+def test_agent_no_match_pauses_without_hidden_retry():
     client, upstream, app = setup(clips=[{**ROW, 'reasoning_content': 'A cat stands still.'}])
     with client:
         start(client, True)
         result = search(client)
     assert result['queue'] == [] and result['execution'] is None and result['run_status'] == 'paused'
-    assert result['candidates'][0]['eligibility_reason'] == 'passive_behavior_excluded'
-    assert len(app.state.encounter_service.agent.agent.calls) == 1
+    assert result['candidates'][0]['eligibility_reason'] == 'agent_skipped'
+    assert len(app.state.encounter_service.agent.agent.calls) == 2
     assert sum(r.url.path.endswith('/search') for r in upstream.requests) == 1
 
 
@@ -216,12 +216,66 @@ def test_expired_queue_and_failed_motion_require_resume_without_false_completion
         assert client.post('/demo-api/runs/run-1/resume').json()['status'] == 'needs_plan'
 
 
-def test_fabricated_companion_behavior_is_skipped_and_later_active_clip_fills_queue():
+@pytest.mark.parametrize('at_boundary,replay', [(False, False), (True, False), (False, True)])
+def test_expired_references_pause_before_another_attempt_and_resume_replans(at_boundary, replay):
+    client, upstream, app = setup()
+    with client:
+        start(client)
+        result = search(client)
+        if replay:
+            result = client.post('/demo-api/runs/run-1/replay').json()
+        cursor = result
+        if at_boundary:
+            for _ in result['queue'][:-1]:
+                cursor = outcome(client, report(result, cursor))
+        run = next(iter(app.state.run_service.runs.values()))
+        run.round.expires = 0
+        session = app.state.registry.sessions[run.owner]
+        for entry in result['queue']:
+            clip = entry['candidate']['clip_id']
+            source, _ = session.clips[clip]
+            session.clips[clip] = (source, 0)
+        body = report(result, cursor)
+        paused = outcome(client, body)
+        assert paused['status'] == 'paused' and paused['execution'] is None
+        assert paused['pause_reason'] == 'references_expired'
+        assert outcome(client, body) == paused  # The completed attempt stays idempotent.
+        assert run.pending is None and run.id not in session.protected_clips
+        assert len(app.state.encounter_service.agent.agent.calls) == 2
+        assert sum(r.url.path.endswith('/search') for r in upstream.requests) == 1
+        resumed = client.post('/demo-api/runs/run-1/resume').json()
+        assert resumed['status'] == 'needs_plan' and resumed['execution'] is None
+        assert resumed['pause_reason'] is None
+        fresh = search(client)
+        assert fresh['round_id'] != result['round_id'] and fresh['execution']
+        assert client.get(fresh['queue'][0]['candidate']['video_url']).status_code == 200
+
+
+def test_run_activity_renews_cookie_without_extending_reference_expiry():
+    client, _, app = setup()
+    with client:
+        start(client)
+        result = search(client)
+        run = next(iter(app.state.run_service.runs.values()))
+        expiry = run.round.expires
+        session = app.state.registry.sessions[run.owner]
+        clips = dict(session.clips)
+        response = client.post('/demo-api/runs/run-1/outcome', json=report(result, result))
+        assert response.status_code == 200
+        cookie = response.headers['set-cookie']
+        assert 'HttpOnly' in cookie and 'SameSite=lax' in cookie and 'Max-Age=1800' in cookie
+        assert run.round.expires == expiry and session.clips == clips
+        client.cookies.clear()
+        denied = client.post('/demo-api/runs/run-1/resume')
+        assert denied.status_code == 409 and 'set-cookie' not in denied.headers
+
+
+def test_fabricated_companion_quote_is_skipped_and_later_active_clip_fills_queue():
     clips = rows()
     clips[1]['reasoning_content'] = 'Two cats are visible. One cat stands still. The other cat walks.'
     def change(data):
-        data['actions'][0]['role_plan'] = {'grounding': 'caption_roles',
-            'companion': {'subject': 'Standing cat', 'evidence': 'One cat stands still.'},
+        data['actions'][1]['role_plan'] = {'grounding': 'caption_roles',
+            'companion': {'subject': 'Standing cat', 'evidence': 'One cat hisses.'},
             'duck': {'subject': 'Walking cat', 'evidence': 'The other cat walks.'},
             'companion_behavior': 'hissing', 'duck_behavior': 'moving', 'timing': 'together'}
     client, _, _ = setup(agent=RunAgent(change), clips=clips)

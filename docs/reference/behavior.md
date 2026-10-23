@@ -1,12 +1,12 @@
-# Ranger Duck unified implementation plan
+# Ranger Duck runtime behavior
 
 One page and one agent pipeline support encounter and adaptive Loop behavior.
-The [archive specification](spec.md) defines retrieval, ingestion and media
-storage; the [implementation plan](../plan.md) records validation status.
+The [archive specification](../spec.md) defines retrieval, ingestion and media
+storage; the [status](../status.md) records remaining work and validation limits.
 
-The interface follows the [design handoff](../apps/ranger-duck/design/README.md).
-See the [API contract](RANGER_DUCK_API.md), [startup guide](../apps/ranger-duck/README.md),
-[behavior research](RANGER_DUCK_INTERACTIONS.md) and [motion inventory](RANGER_DUCK_ANIMATION.md).
+The interface follows the [design guide](../../apps/ranger-duck/design/README.md).
+See the [API contract](ranger-duck-api.md), [startup guide](../../apps/ranger-duck/README.md),
+[behavior research](interactions.md) and [motion inventory](simulator.md).
 
 ## One page, one Loop toggle
 
@@ -20,6 +20,11 @@ There is one persistent duck and one animal outside its arena.
 - Changing the toggle preserves the current action and queue. It controls the next round boundary; an already-running search may finish.
 - Both toggle positions use the same query model, archive settings, batch action/role planner, validation and execution coordinator.
 - A changed intent/species creates a new run without replacing the physics body. Only explicit Reset resets the duck.
+
+If a Loop setting update fails, pause the run and retain the selected value.
+Resume retries that value once and waits for the backend acknowledgement before
+restarting execution. Another failure leaves the run paused for a later Resume;
+Pause or Reset during the retry prevents execution from restarting.
 
 ## Inputs and outputs
 
@@ -49,15 +54,18 @@ selection adds no model call or archive request.
 ## Shared architecture and latency
 
 The browser runs React, Three.js, MuJoCo WASM and the existing ONNX controller.
-The local FastAPI backend runs the existing Codex CLI decision agent. The
+The local FastAPI backend runs Codex CLI with `gpt-6-luna` for query and action
+decisions. The
 independent archive provides retrieval and playback using Qdrant, Neon Postgres
 and local media; Cosmos and EmbeddingGemma 2 support ingestion and search.
 
 One RunService owns planning, retrieval, queue/attempt state, outcome history,
 cancellation and replay. Both toggle settings use two agent calls per normal
-new round: query generation and one batch action/role plan. Only deterministically
-eligible candidates require model action planning. There is no per-clip agent
-call. The outcome acknowledgement issues the next queued attempt directly.
+new round: query generation and one batch action/role plan. All captions with valid provenance and review constraints require model action
+planning, including passive or ambiguous descriptions. There is no per-clip agent
+call. An all-blocked result skips the batch decision and pauses. Unified runs
+have no hidden model/search retries; a broader search is an explicit user retry.
+The outcome acknowledgement issues the next queued attempt directly.
 
 Query planning begins alongside animal-facing/approach navigation. Navigation
 must not delay the archive request. Expose query_agent_ms, vss_search_ms and
@@ -72,17 +80,28 @@ filter and absent result metadata must not be fabricated. Deer uses wildlife.
 
 ## Evidence and action selection
 
-Require complete source/parent/interval metadata and positive selected-species
-behavior evidence, or an exact current human review. Apply actor attribution,
-negation and uncertainty checks. Stale, invalid or contradictory reviews veto
-inference. Keep caption inference visibly distinct from visual review.
+Code requires complete source/parent/interval metadata and enforces exact current
+review constraints, caption quotation, command types and duration limits. Stale,
+invalid or contradictory reviews veto inference. Keep caption inference visibly
+distinct from visual review.
 
-Eligible retrieved actions, in within-caption preference order, are short_walk,
-ground_pick, head_nod and sit_cycle. Head scan and standing hold remain internal
-controller capabilities but never occupy a reference action slot. Hiss-only,
-watching-only or stillness-only clips cannot supply active imitation. A mixed
-caption can supply its supported active behavior, such as sitting while looking.
-Unsupported jumping, retreat, climbing, grooming and lying are not invented motions.
+Codex with `gpt-6-luna` decides whether each full caption describes a supported
+selected-species action, which actor performs it, and whether evidence is negated
+or uncertain. It chooses among short_walk, ground_pick, head_nod and sit_cycle,
+or skips the clip with a reason. There is no phrase classifier or fixed
+within-caption action priority in the runtime path. A walk away may be ordinary
+forward locomotion; the agent distinguishes that from unsupported reverse steps.
+Head scan and standing hold remain internal controller capabilities. Rolling,
+jumping, climbing, grooming and lying have no enabled imitation command.
+Planner instructions explicitly distinguish unspecified head motion from a
+vertical nod and grooming a body part from feeding. A positively described
+seated pose supports sit/stand even when no sit-down transition is described.
+
+The agent receives recent-clip flags and actual outcome history. It should avoid
+pointless repetition but may explain a useful repeat when alternatives are absent.
+Recency does not automatically veto a reference. The application verifies exact
+quotes and command/role compatibility, not the semantic correctness of the model's
+interpretation; real model evaluation remains necessary.
 
 Filter before taking three; retain archive rank separately from queue position.
 Show the actual count when fewer qualify. Bound no-match recovery and report
@@ -94,6 +113,7 @@ Before each action, settle the animal at its outside-arena anchor, align the duc
 inside its arrival corridor, and wait for balance. Start the grounded roles when
 video playback begins. Their timing may be together, companion_first or duck_first.
 Advance only after playback, duck motion and required companion animation finish.
+Blocked autoplay shows a Play control and cannot start movement.
 Capture completed physics telemetry before navigation changes the controller state.
 
 The same body and simulation clock continue across references, passes, fresh
@@ -106,14 +126,24 @@ video, navigation and both roles, retaining acknowledged entries. An in-progress
 sit uses its native standing return. Resume restarts an interrupted entry from
 the beginning with a new attempt ID; a paused/expired search requires planning
 again. A visibility-only pause can resume automatically when the tab returns;
-manual Pause and reference inspection remain paused.
+manual Pause and reference inspection remain paused. Preset and intent edits
+while paused require Start new run; they do not silently replace the queue.
+
+Reference access has a fixed lifetime (30 minutes by default). Before issuing
+another action, the backend checks the round's expiry. An expired queue pauses
+with `references_expired`, retaining the completed outcome and issuing no new
+attempt. The UI explains that Resume searches for fresh references. There is no
+automatic search or extension of old playback capabilities. Successful run
+requests renew the owning browser's session cookie, independently of reference
+expiry; an idle expired session still requires a new run.
 
 ## Recorded rounds
 
 Replay saved round uses recorded decisions through the same queue/player/controller.
 It issues fresh playback capabilities, makes no agent/search call, stays clearly
 labeled as recorded and ends paused after one pass. Replay outcomes do not enter
-live planning history. Playback still needs archive access. Snapshot identity belongs
+live planning history. Resume after a finished replay plans a fresh live round.
+Playback still needs archive access. Snapshot identity belongs
 to the run/round and its intent/scope, not only a scenario name.
 
 ## Verification

@@ -14,7 +14,7 @@ from .loop_evidence import annotate_response
 from .loop_agent import CodexAgent, QueryDecision, ActionDecision, Primitive, LIMITS, CYCLE_TIMEOUT, CompanionBehavior, COMPANION_BEHAVIORS, DUCK_ROLE_ACTIONS
 from .session import COOKIE_NAME
 from .encounter_agent import combined_behavior_query
-from .interaction import ACTIVE_PRIMITIVES, classify_interaction
+from .action_evidence import ACTION_BEHAVIORS
 from .archive import animal_search_scope
 from .capture import Capture
 
@@ -133,8 +133,6 @@ class LoopService:
                 unavailable = None if annotation['allowed_actions'] else annotation['eligibility_reason']
                 if segment and segment.complete and segment.end - segment.start > 120:
                     unavailable = 'clip_too_long'
-                if identity in loop.recent:
-                    unavailable = 'recent_clip'
                 allowed = [] if unavailable else annotation['allowed_actions']
                 candidate_id = secrets.token_urlsafe(16)
                 caption = raw.get('reasoning_content', '') if isinstance(raw, dict) else ''
@@ -142,40 +140,39 @@ class LoopService:
                                 'caption': self.public_text(caption),
                                 'observed_behavior': annotation['observed_behavior'],
                                 'evidence_basis': annotation['evidence_basis'],
-                                'allowed_actions': allowed, 'unavailable_reason': unavailable})
+                                'allowed_actions': allowed, 'unavailable_reason': unavailable,
+                                'recently_used': identity in loop.recent})
                 segments[candidate_id] = (segment, annotation, identity)
             if not any(c['allowed_actions'] for c in choices):
                 rejected_queries.append({'query': actual_query, 'reason': 'No new executable clips in the top ten.'})
                 continue
             selection = await self.agent.decide({**context, 'query': actual_query, 'candidates': choices,
                                                 'allowed_companion_behaviors': COMPANION_BEHAVIORS[loop.animal]}, ActionDecision)
+            if selection.candidate_id is None and selection.primitive is None and selection.role_plan is None:
+                rejected_queries.append({'query': actual_query, 'reason': self.public_text(selection.reason, 800)})
+                continue
             chosen = next((c for c in choices if c['candidate_id'] == selection.candidate_id), None)
-            if chosen is None or selection.primitive not in chosen['allowed_actions']:
+            if chosen is None or selection.primitive not in chosen['allowed_actions'] or selection.role_plan is None:
                 raise DemoError('invalid_agent_action', 'Codex selected an unavailable clip or unsupported response. Retry the loop.', 502)
+            segment, annotation, identity = segments[selection.candidate_id]
             plan = selection.role_plan.model_dump()
             primitive = selection.primitive
             if plan['grounding'] == 'insufficient_evidence':
                 raise DemoError('invalid_agent_action', 'The selected clip needs an active supported behavior; a passive fallback is not allowed.', 502)
             elif plan['grounding'] == 'single_behavior':
                 evidence = plan['duck']['evidence'].strip()
-                observed, _ = classify_interaction(chosen['caption'], loop.animal, allowed_primitives=ACTIVE_PRIMITIVES)
-                quoted, _ = classify_interaction(evidence, loop.animal, allowed_primitives=ACTIVE_PRIMITIVES)
                 if (not plan['duck']['subject'].strip() or not evidence or evidence not in chosen['caption']
-                        or DUCK_ROLE_ACTIONS.get(plan['duck_behavior']) != primitive
-                        or not observed or not quoted or observed[1] != primitive or quoted[1] != primitive):
+                        or evidence not in segment.caption
+                        or DUCK_ROLE_ACTIONS.get(plan['duck_behavior']) != primitive):
                     raise DemoError('invalid_agent_action', 'The single animal response needs a supported positive behavior and exact selected-species caption evidence.', 502)
                 plan.update(companion_behavior='standing', timing='together',
                             companion={'subject': 'Unassigned scene companion', 'evidence': ''})
             elif (plan['companion_behavior'] not in COMPANION_BEHAVIORS[loop.animal]
                   or DUCK_ROLE_ACTIONS.get(plan['duck_behavior']) != primitive
                   or plan['companion']['subject'].strip().casefold() == plan['duck']['subject'].strip().casefold()
-                  or any(not plan[role]['subject'].strip() or not plan[role]['evidence'].strip() or plan[role]['evidence'] not in chosen['caption']
+                  or any(not plan[role]['subject'].strip() or not plan[role]['evidence'].strip() or plan[role]['evidence'] not in chosen['caption'] or plan[role]['evidence'] not in segment.caption
                          for role in ('companion', 'duck'))):
                 raise DemoError('invalid_agent_action', 'The two video roles need distinct subjects and evidence from the selected caption.', 502)
-            elif plan['grounding'] == 'caption_roles':
-                quoted, _ = classify_interaction(plan['duck']['evidence'], loop.animal, allowed_primitives=ACTIVE_PRIMITIVES)
-                if not quoted or quoted[1] != primitive:
-                    raise DemoError('invalid_agent_action', 'The duck role needs exact positive caption evidence for its active motion.', 502)
             for role in ('companion', 'duck'):
                 plan[role] = {key: self.public_text(value, 600) for key, value in plan[role].items()}
             plan['companion_duration_ms'] = 3000
@@ -184,12 +181,13 @@ class LoopService:
             self.registry._prune()
             if loop.owner not in self.registry.sessions:
                 raise DemoError('loop_session_expired', 'Start a new loop after reconnecting.', 409)
-            segment, annotation, identity = segments[selection.candidate_id]
             clip_id = self.registry.add(loop.owner, segment.source)
             loop.cycle += 1
             cycle_id = secrets.token_urlsafe(24)
             action = {'primitive': primitive, 'max_duration_ms': LIMITS[primitive],
                       'evidence_id': annotation['evidence_id']}
+            chosen = {**chosen, 'observed_behavior': annotation['observed_behavior'] or ACTION_BEHAVIORS[primitive],
+                      'evidence_basis': annotation['evidence_basis'] or 'video_caption'}
             reason = self.public_text(selection.reason, 800)
             record = {'query': actual_query, 'caption': chosen['caption'],
                       'observed_behavior': chosen['observed_behavior'], 'action': action, 'reason': reason, 'role_plan': plan}
