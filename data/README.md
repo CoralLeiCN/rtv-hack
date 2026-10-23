@@ -5,6 +5,10 @@ the independent archive using [the ingestion guide](../docs/guides/archive.md#in
 
 ## Source catalog
 
+[Candidate video datasets](candidate-datasets.md) records the researched UK,
+wildlife, deep-sea and accessibility sources, including download links, geography,
+media formats and limitations. It is a research shortlist, not an inventory.
+
 [external-videos.json](external-videos.json) retains source identities, checksums,
 citations and timestamped observations from earlier Meow-10k cat-video and
 MammAlps wildlife imports. Download/indexing counts are historical, not the
