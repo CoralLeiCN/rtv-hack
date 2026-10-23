@@ -93,6 +93,9 @@ within-caption action priority in the runtime path. A walk away may be ordinary
 forward locomotion; the agent distinguishes that from unsupported reverse steps.
 Head scan and standing hold remain internal controller capabilities. Rolling,
 jumping, climbing, grooming and lying have no enabled imitation command.
+Planner instructions explicitly distinguish unspecified head motion from a
+vertical nod and grooming a body part from feeding. A positively described
+seated pose supports sit/stand even when no sit-down transition is described.
 
 The agent receives recent-clip flags and actual outcome history. It should avoid
 pointless repetition but may explain a useful repeat when alternatives are absent.
@@ -125,6 +128,14 @@ the beginning with a new attempt ID; a paused/expired search requires planning
 again. A visibility-only pause can resume automatically when the tab returns;
 manual Pause and reference inspection remain paused. Preset and intent edits
 while paused require Start new run; they do not silently replace the queue.
+
+Reference access has a fixed lifetime (30 minutes by default). Before issuing
+another action, the backend checks the round's expiry. An expired queue pauses
+with `references_expired`, retaining the completed outcome and issuing no new
+attempt. The UI explains that Resume searches for fresh references. There is no
+automatic search or extension of old playback capabilities. Successful run
+requests renew the owning browser's session cookie, independently of reference
+expiry; an idle expired session still requires a new run.
 
 ## Recorded rounds
 

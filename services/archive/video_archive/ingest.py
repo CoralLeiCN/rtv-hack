@@ -1,4 +1,5 @@
 import hashlib
+from contextlib import contextmanager
 from fractions import Fraction
 import json
 import logging
@@ -6,9 +7,40 @@ import math
 import os
 import subprocess
 import tempfile
+import time
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from .models import embedding_identity
+
+
+class IngestionProgress:
+    """Log only fixed stage names, database UUIDs, statuses and elapsed times."""
+    def __init__(self, job_id):
+        self.job_id = str(UUID(str(job_id)))
+        self.error_code = 'ingestion_failed'
+
+    @contextmanager
+    def stage(self, name, segment_id=None):
+        if name not in {'configuration', 'media', 'captioning', 'embedding', 'indexing', 'database'}:
+            raise ValueError('Unknown ingestion stage')
+        fields = {'event': 'ingestion_stage', 'job_id': self.job_id, 'stage': name,
+                  'segment_id': str(UUID(str(segment_id))) if segment_id else None}
+        started = time.monotonic()
+        failed = False
+        try:
+            yield
+        except BaseException:
+            failed = True
+            if self.error_code == 'ingestion_failed':
+                self.error_code = name + '_failed'
+            fields['error_code'] = self.error_code
+            raise
+        finally:
+            fields.update(status='failed' if failed else 'complete',
+                          elapsed_ms=round((time.monotonic() - started) * 1000))
+            # Never log exception messages, tracebacks, paths or model input.
+            logging.getLogger(__name__).log(logging.WARNING if failed else logging.INFO,
+                                           json.dumps(fields, sort_keys=True))
 
 
 def run_media(args):
@@ -111,52 +143,69 @@ def enqueue(repo, store, settings, source, dataset_id, tags, segment_seconds=10,
     return repo.enqueue(video_id, checksum, key, job_id, options)
 
 
-def process_job(job, repo, store, index, embedder, captioner, settings):
-    repo.assert_worker()
-    attempt_id = uuid4()
-    options = job['settings']
-    if options['embedding_identity'] != embedding_identity(settings):
-        raise ValueError('Queued embedding configuration differs from the active model')
-    if options['captions'] is None and (options['cosmos_model'] != settings.cosmos_model or options['cosmos_revision'] != settings.cosmos_revision):
-        raise ValueError('Queued Cosmos configuration differs from the active model')
-    parent = repo.video(job['video_id'])
-    source = store.path(parent['storage_key'])
-    for number, (start, end) in enumerate(intervals(options['duration'], options['segment_seconds'])):
+def process_job(job, repo, store, index, embedder, captioner, settings, progress=None):
+    progress = progress or IngestionProgress(job['id'])
+    with progress.stage('database'):
         repo.assert_worker()
+    attempt_id = uuid4()
+    with progress.stage('configuration'):
+        options = job['settings']
+        if options['embedding_identity'] != embedding_identity(settings):
+            raise ValueError('Queued embedding configuration differs from the active model')
+        if options['captions'] is None and (options['cosmos_model'] != settings.cosmos_model or options['cosmos_revision'] != settings.cosmos_revision):
+            raise ValueError('Queued Cosmos configuration differs from the active model')
+    with progress.stage('database'):
+        parent = repo.video(job['video_id'])
+    with progress.stage('media'):
+        source = store.path(parent['storage_key'])
+    for number, (start, end) in enumerate(intervals(options['duration'], options['segment_seconds'])):
         segment_id = uuid5(UUID(str(job['id'])), str(number))
-        existing = repo.segment(segment_id)
+        with progress.stage('database', segment_id):
+            repo.assert_worker()
+            existing = repo.segment(segment_id)
         # An obsolete worker may finish an in-flight external write after losing
         # its session. Give each attempt isolated files and vector point IDs.
-        key = (existing['storage_key'] if existing and store.path(existing['storage_key']).is_file()
-               else f'segments/{segment_id}/{attempt_id}.mp4')
-        target = store.path(key)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.is_file():
-            temporary = target.with_suffix('.partial.mp4')
+        with progress.stage('media', segment_id):
+            key = (existing['storage_key'] if existing and store.path(existing['storage_key']).is_file()
+                   else f'segments/{segment_id}/{attempt_id}.mp4')
+            target = store.path(key)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = None
             try:
-                run_media(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', str(start), '-i', str(source),
-                           '-t', str(end-start), '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264',
-                           '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
-                           '-movflags', '+faststart', str(temporary)])
-                validate_video(temporary)
-                repo.assert_worker()
-                os.replace(temporary, target)
+                if not target.is_file():
+                    temporary = target.with_suffix('.partial.mp4')
+                    run_media(['ffmpeg', '-nostdin', '-v', 'error', '-y', '-ss', str(start), '-i', str(source),
+                               '-t', str(end-start), '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264',
+                               '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p', '-c:a', 'aac',
+                               '-movflags', '+faststart', str(temporary)])
+                    validate_video(temporary)
+                    with progress.stage('database', segment_id):
+                        repo.assert_worker()
+                    os.replace(temporary, target)
+                else:
+                    validate_video(target)
             finally:
-                temporary.unlink(missing_ok=True)
-        else:
-            validate_video(target)
-        caption = existing['caption'] if existing else (options['captions'][number] if options['captions'] is not None else captioner.caption(target))
+                if temporary:
+                    temporary.unlink(missing_ok=True)
+        with progress.stage('captioning', segment_id):
+            caption = existing['caption'] if existing else (options['captions'][number] if options['captions'] is not None else captioner.caption(target))
         row = {'id': segment_id, 'index_id': uuid5(attempt_id, str(segment_id)),
                'job_id': job['id'], 'video_id': job['video_id'], 'storage_key': key,
                'caption': caption, 'start_sec': start, 'end_sec': end, 'dataset_id': options['dataset_id'],
                'tags': options['tags'], 'embedding_identity': options['embedding_identity']}
-        repo.save_segment(row)
-        vector = embedder.encode(caption)
-        repo.assert_worker()
-        index.upsert(row, vector)
-        repo.mark_indexed(segment_id)
-        if existing:
+        with progress.stage('database', segment_id):
+            repo.save_segment(row)
+        with progress.stage('embedding', segment_id):
+            vector = embedder.encode(caption)
+        with progress.stage('database', segment_id):
             repo.assert_worker()
+        with progress.stage('indexing', segment_id):
+            index.upsert(row, vector)
+        with progress.stage('database', segment_id):
+            repo.mark_indexed(segment_id)
+        if existing:
+            with progress.stage('database', segment_id):
+                repo.assert_worker()
             try:
                 index.delete([existing['index_id']])
             except Exception:
@@ -170,11 +219,13 @@ def work_once(repo, store, index, embedder, captioner, settings):
         job = repo.next_job()
         if job is None:
             return False
+        progress = IngestionProgress(job['id'])
         try:
-            process_job(job, repo, store, index, embedder, captioner, settings)
+            process_job(job, repo, store, index, embedder, captioner, settings, progress)
         except Exception:
             # Persist only a safe code; model/DB errors may contain credentials.
-            repo.finish(job['id'], 'ingestion_failed')
+            repo.finish(job['id'], progress.error_code)
             return True
-        repo.finish(job['id'])
+        with progress.stage('database'):
+            repo.finish(job['id'])
         return True

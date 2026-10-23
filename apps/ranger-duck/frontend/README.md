@@ -6,8 +6,8 @@ and the [design guide](../design/README.md).
 
 Use Node.js 22.12+. Install dependencies with `npm ci` in this directory
 (or the root-relative command in [development](../../../docs/development.md)).
-The Vite proxy defaults to `http://127.0.0.1:8000`; use
-`RANGER_BACKEND_URL=http://127.0.0.1:18000 npm run dev` for Ranger Duck.
+The Vite proxy uses Ranger Duck's default backend address. Override it with
+`RANGER_BACKEND_URL` as described in [development](../../../docs/development.md#run-locally).
 Only the proxy target belongs in that variable; credentials stay on the backend.
 
 ## Code map

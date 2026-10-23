@@ -41,6 +41,13 @@ external writes from an obsolete worker cannot replace its successor's output.
 Search resolves only the active point ID recorded in Postgres; public segment
 IDs and existing captions remain stable across retries.
 
+Worker failures record a fixed stage code: `configuration_failed`, `media_failed`,
+`captioning_failed`, `embedding_failed`, `indexing_failed` or `database_failed`.
+Unexpected failures outside those stages retain `ingestion_failed`. Structured
+worker logs contain the job UUID, optional segment UUID, stage, status and elapsed
+milliseconds; they never contain exception text, captions, paths or configuration.
+Diagnostics do not change retries, publication order or database-session ownership.
+
 After publishing a replacement, the worker deletes its previous vector point.
 Deletion failure leaves publication intact and emits a fixed maintenance warning.
 An explicit `cleanup-vectors` command scans the dedicated collection in bounded

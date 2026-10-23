@@ -1,6 +1,6 @@
 # Implementation status
 
-Documentation reconciled on 19 October 2026. This page separates implemented
+Documentation updated on 21 October 2026. This page separates implemented
 behavior from validation still required; it is not a live service-health report.
 
 ## Implemented
@@ -30,8 +30,9 @@ The [21 October live validation record](history/live-e2e-validation-2026-10-21.m
 connects real Cosmos/EmbeddingGemma ingestion and retrieval to browser playback,
 six completed walking actions and two adaptive follow-up rounds. Codex with
 `gpt-6-luna` now interprets captions and selects actions, replacing runtime phrase
-rules. It reused the one random Meow sample with explicit reasons; broader video,
-paired-role and motion coverage remain untested live. The local Postgres/Metal
+rules. It reused the one random Meow sample with explicit reasons. The separate
+video evaluation below broadens caption/planner coverage; paired-role simulation
+and the other three motion primitives remain untested live. The local Postgres/Metal
 setup does not establish Neon or remote Cosmos deployment readiness. A separate
 disposable-DB run exposed an existing FFmpeg duration discrepancy, since fixed
 and verified as recorded below.
@@ -39,6 +40,22 @@ The [development workflow](development.md#working-with-a-coding-agent) defines
 the plan lifecycle.
 
 ## Recorded validation
+
+The [21 October reliability/evaluation record](history/reliability-and-evaluation-2026-10-21.md)
+documents clean reference-expiry pausing, safe ingestion stage diagnostics and
+aligned development ports. Its final disposable integration run passed 389
+Python tests without skips; 15 root JavaScript tests, 108 frontend tests and the
+production build also passed. A real browser completed three walking passes and
+paused on reference expiry without another issued action or search.
+
+The new semantic evaluator passed 68/68 live planner decisions on 34 supplied
+caption cases. Ten additional real-video segments were captioned by Cosmos and
+evaluated twice against explicit **agent sampled-frame reviews**, with 14/20
+attempts passing after instruction clarification. Remaining failures include a
+pose disagreement, missing species evidence and an omitted second actor. These
+are recorded model/label limitations, not passing validation or human reviews.
+See [semantic evaluation](testing.md#semantic-action-evaluation) for rerun commands,
+coverage gates, metrics and the separation from actual simulator execution.
 
 On 21 October, follow-up fixes replaced the duration fallback with decoded frame
 timing that includes the final frame, and updated the archive integration agent

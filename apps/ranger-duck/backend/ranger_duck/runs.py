@@ -6,7 +6,7 @@ import secrets
 import time
 from typing import Literal
 
-from fastapi import Request
+from fastapi import Depends, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import Field
 
@@ -95,6 +95,7 @@ class Run:
     cursor: int = 0
     pass_number: int = 1
     pending: dict | None = None
+    pause_reason: str | None = None
     history: list = field(default_factory=list)
     recent: list = field(default_factory=list)
     acknowledgements: dict = field(default_factory=dict)
@@ -139,13 +140,24 @@ class RunService:
         return {'run_id': run.id, 'status': status, 'adaptive': run.adaptive,
                 'round_id': run.round.id if run.round else None,
                 'round': run.round.number if run.round else run.counter,
-                'pass': run.pass_number, 'execution': copy.deepcopy(run.pending)}
+                'pass': run.pass_number, 'execution': copy.deepcopy(run.pending),
+                'pause_reason': run.pause_reason}
 
     def issue(self, run):
         if not run.round or not run.round.entries or run.cursor >= len(run.round.entries):
             run.pending = None
             run.phase = 'needs_plan'
             return
+        # A fixed queue may repeat longer than its playback capabilities live.
+        # Acknowledge the finished attempt, but never authorize another expired
+        # reference or silently replace this queue with a new search.
+        if run.round.expires <= time.monotonic():
+            run.pending = None
+            run.phase = 'paused'
+            run.pause_reason = 'references_expired'
+            self.registry.release(run.owner, run.id)
+            return
+        run.pause_reason = None
         run.phase = 'ready'
         run.pending = {'action_id': run.round.entries[run.cursor]['action_id'], 'attempt_id': secrets.token_urlsafe(24)}
         entry = run.round.entries[run.cursor]
@@ -177,6 +189,7 @@ class RunService:
     def resume(self, run):
         if run.phase != 'paused':
             return self.reply(run)
+        run.pause_reason = None
         if not run.round or run.round.expires <= time.monotonic() or not run.round.entries:
             run.round = None
             run.phase = 'needs_plan'
@@ -283,7 +296,7 @@ class RunService:
         return {'run_id': run.id, 'encounter_id': run.id, 'round_id': record.id, 'round': record.number,
                 'scenario': public_scenario(record.scenario),
                 'pass': run.pass_number, 'adaptive': run.adaptive, 'run_status': self.reply(run)['status'],
-                'execution': copy.deepcopy(run.pending), 'queue': queue,
+                'execution': copy.deepcopy(run.pending), 'queue': queue, 'pause_reason': run.pause_reason,
                 'search_id': record.id, 'mode': record.origin,
                 'status': 'ok' if queue else 'no_supported_imitation' if candidates else 'no_results',
                 'query': record.query, 'query_reason': record.reason, 'query_basis': 'agent',
@@ -364,6 +377,13 @@ class RunService:
 
 
 def install_run_routes(app, service, scenarios, establish_cookie):
+    async def owned_run(run_id: str, request: Request, response: Response):
+        run = service.get(request, run_id)
+        # Server-side activity already extends the session. Renew the browser
+        # cookie too, without extending the lifetime of individual references.
+        establish_cookie(response, run.owner)
+        return run
+
     @app.post('/demo-api/runs')
     async def start(payload: StartRun, request: Request):
         scenario = scenarios.get(payload.scenario_id)
@@ -397,31 +417,30 @@ def install_run_routes(app, service, scenarios, establish_cookie):
         return response
 
     @app.post('/demo-api/runs/{run_id}/plan')
-    async def plan(run_id: str, payload: PlanRun, request: Request):
-        return await service.plan_round(service.get(request, run_id), payload, request)
+    async def plan(payload: PlanRun, request: Request, run=Depends(owned_run)):
+        return await service.plan_round(run, payload, request)
 
     @app.post('/demo-api/runs/{run_id}/search')
-    async def search(run_id: str, payload: SearchRun, request: Request):
-        return await service.search_round(service.get(request, run_id), payload, request)
+    async def search(payload: SearchRun, request: Request, run=Depends(owned_run)):
+        return await service.search_round(run, payload, request)
 
     @app.post('/demo-api/runs/{run_id}/outcome')
-    async def outcome(run_id: str, payload: RunOutcome, request: Request):
-        return service.outcome(service.get(request, run_id), payload)
+    async def outcome(payload: RunOutcome, run=Depends(owned_run)):
+        return service.outcome(run, payload)
 
     @app.post('/demo-api/runs/{run_id}/pause')
-    async def pause(run_id: str, request: Request):
-        return service.pause(service.get(request, run_id))
+    async def pause(run=Depends(owned_run)):
+        return service.pause(run)
 
     @app.post('/demo-api/runs/{run_id}/resume')
-    async def resume(run_id: str, request: Request):
-        return service.resume(service.get(request, run_id))
+    async def resume(run=Depends(owned_run)):
+        return service.resume(run)
 
     @app.post('/demo-api/runs/{run_id}/adaptive')
-    async def adaptive(run_id: str, payload: AdaptiveRun, request: Request):
-        run = service.get(request, run_id)
+    async def adaptive(payload: AdaptiveRun, run=Depends(owned_run)):
         run.adaptive = payload.adaptive
         return service.reply(run)
 
     @app.post('/demo-api/runs/{run_id}/replay')
-    async def replay(run_id: str, request: Request):
-        return service.replay(service.get(request, run_id))
+    async def replay(run=Depends(owned_run)):
+        return service.replay(run)

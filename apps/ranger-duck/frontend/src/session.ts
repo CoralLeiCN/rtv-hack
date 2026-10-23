@@ -169,7 +169,7 @@ export class SessionController {
   }
   private cursor(round: RunRound): RunCursor {
     return { run_id: round.run_id, status: round.run_status ?? (round.execution ? 'ready' : 'paused'), adaptive: round.adaptive ?? this.state.adaptive,
-      round_id: round.round_id, round: round.round, pass: round.pass ?? 1, execution: round.execution };
+      round_id: round.round_id, round: round.round, pass: round.pass ?? 1, execution: round.execution, pause_reason: round.pause_reason };
   }
   private applyScenario(scenario: RunScenario) {
     if (!scenario || scenario.animal !== this.animal || !scenario.id || !scenario.label || !scenario.behavior_hint) throw new Error('The agent round returned an invalid animal encounter.');
@@ -216,7 +216,9 @@ export class SessionController {
         // approach running after the UI has stopped offering Pause.
         this.stopLocal();
         this.update({ phase: this.state.round?.queue.length ? 'paused' : 'empty', running: false, execution: null,
-          note: this.state.replay ? 'Saved round finished. Resume returns to the live run.' : this.state.note ?? 'Run paused. Resume when ready.' });
+          note: cursor.pause_reason === 'references_expired'
+            ? 'Reference access expired. Resume searches for fresh references.'
+            : this.state.replay ? 'Saved round finished. Resume returns to the live run.' : this.state.note ?? 'Run paused. Resume when ready.' });
         return;
       }
       const round = this.state.round;

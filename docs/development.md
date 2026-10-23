@@ -48,8 +48,8 @@ See [service connections](guides/archive.md#service-connections) for variable na
    simple search UI at `http://127.0.0.1:8000`.
 
 The archive defaults to port 18001 and Ranger Duck to 18000. The frontend proxy
-defaults to 8000 in code, so explicitly set `RANGER_BACKEND_URL` to port 18000
-when running Ranger Duck. Browser API and playback calls stay on the frontend
+also defaults to 18000; set `RANGER_BACKEND_URL` only when using another backend
+address. Browser API and playback calls stay on the frontend
 origin. Use one Ranger backend worker: session capabilities and replay are in
 memory and disappear on restart.
 

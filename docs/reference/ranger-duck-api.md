@@ -23,6 +23,14 @@ replaces another tab's active run. Original intent and up to nine actual
 acknowledged outcomes guide later queries. Recent live clip identities are kept
 privately to avoid immediate adaptive repetition.
 
+Successful run requests refresh the existing HttpOnly session cookie without
+extending clip capabilities or recorded-round expiry. Cursor responses include
+`pause_reason` (null or `references_expired`). When a round expires before the
+next attempt, the backend acknowledges the completed outcome and returns
+`status: paused`, `execution: null`, `pause_reason: references_expired`.
+Resume then returns `needs_plan`; only that explicit user action starts a fresh
+query/search. Expired or foreign sessions are never renewed by a run request.
+
 | Path | Request | Response / effect |
 | --- | --- | --- |
 | empty path | `{run_id, animal, scenario_id, intent, adaptive}` | Create a run; verify species/preset consistency; advertise 60s query and 180s search/action budgets |

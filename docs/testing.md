@@ -90,3 +90,65 @@ integration-test database.
 Record model/package revisions, checks, results and missing prerequisites without
 publishing private configuration or source identities. Fixture captions, synthetic
 embeddings and imported captions cannot establish live Cosmos validation.
+
+## Semantic action evaluation
+
+The versioned [caption suite](../apps/ranger-duck/evaluation/caption-cases.json)
+contains 34 supplied examples covering cat/deer, all four actions, paired actors,
+negation, uncertainty, wrong species/actors and unsupported motion. It exercises
+the production `EncounterService.actions` path, including quotation, provenance
+and role checks. Expected labels are withheld from the model. It does not run
+video understanding, retrieval or simulation.
+Regression cases distinguish unspecified head motion from a vertical nod,
+grooming from feeding, and an upright seated pose from lying down.
+
+```bash
+.venv/bin/python -m ranger_duck.evaluation validate --suite apps/ranger-duck/evaluation/caption-cases.json
+.venv/bin/python -m ranger_duck.evaluation run --suite apps/ranger-duck/evaluation/caption-cases.json --repeats 2 --output /tmp/ranger-caption-evaluation.json
+```
+
+`run` requires the existing Codex CLI login and uses the production `gpt-6-luna`
+planner and its deadline, without hidden retries. Reports are created exclusively
+with owner-only permissions. They include suite/instruction hashes, model,
+timestamp, case IDs and scores, without captions, source identities or private
+paths. Nonzero exit means invalid inputs (1), failed cases or required coverage
+missing (2). Repeated runs need a new output filename.
+
+For real-video evaluation, prepare a **private** suite using the same case fields
+and `evidence_kind: reviewed_video`. Each case additionally needs a `video` object:
+absolute `path` to the exact evaluated clip, its `sha256`, exact `caption_sha256`,
+source-relative `start_sec` and `end_sec`,
+`source_url`, immutable `source_revision`, `licence`, actual `caption_model` and
+`caption_revision`, `review_method` (`human_video` or `agent_sampled_frames`),
+`reviewed_by`, `review_note`, and `confirmed_viewed: true`.
+Use the actual Cosmos caption, never the dataset description or a rewritten
+caption. Inspect the clip before assigning `expected_actions` (empty for rejection),
+optional `expected_grounding`, `expected_companion` and `expected_duck_evidence`.
+State who reviewed it and how; an agent's sampled-frame inspection is not a human
+review or full temporal validation. The evaluator verifies file/caption hashes
+and viewing confirmation, but cannot independently prove the review's truth or
+the model provenance supplied by its operator. Evaluation labels are never loaded
+as runtime human-review overrides.
+The runner derives local evaluation identities from checksums and provenance;
+they are never registered as public archive IDs or playback capabilities.
+
+Run the private suite with `--require-video-coverage` to fail on incomplete video
+coverage as well as incorrect decisions. Keep these clips separate from the real
+archive unless ingestion is explicitly part of the evaluation. Store licences,
+revisions, checksums and any derived-clip intervals beside them.
+
+Reports separate `supplied_caption` and `reviewed_video`; absent groups say
+`not_run`. Coverage lists missing species, actions and challenge categories.
+Video groups also report counts by review method, keeping sampled-frame labels
+distinct from human video review.
+Both groups require both species and all four actions; video coverage requires
+paired, supported, unsupported, uncertain and wrong-species cases. Negation is
+additionally required for the supplied-caption language tests.
+False-selection rate divides unsupported selections by all issued selections;
+missed-action rate divides cases with no correct supported selection by cases
+with expected active actions. A wrong action can count in both. Role mismatches
+are counted separately. Agent errors fail affected cases, including expected
+rejections, and count as misses for expected active cases. Zero denominators are
+null. Coverage does not establish broad dataset accuracy; report fixture checks,
+caption-only live evaluation, reviewed-video evaluation and actual simulator
+execution separately in [status](status.md).

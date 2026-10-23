@@ -108,7 +108,7 @@ def test_failed_upsert_is_hidden_and_retry_preserves_evidence(archive, video):
             raise RuntimeError('private-password')
     assert work_once(repo, store, BrokenIndex(), FixtureEmbedding(), NoCaptioner(), settings)
     assert repo.jobs()[0]['status'] == 'pending'
-    assert repo.jobs()[0]['error_code'] == 'ingestion_failed'
+    assert repo.jobs()[0]['error_code'] == 'indexing_failed'
     with repo.connect() as conn:
         first = conn.execute('SELECT * FROM archive_segments').fetchone()
     assert not first['indexed']
@@ -285,7 +285,7 @@ def test_audio_only_output_is_not_published(archive, video, monkeypatch, tmp_pat
 
     monkeypatch.setattr(ingestion, 'run_media', faulty_transcode)
     assert work_once(repo, store, index, FixtureEmbedding(), NoCaptioner(), settings)
-    assert repo.jobs()[0]['error_code'] == 'ingestion_failed'
+    assert repo.jobs()[0]['error_code'] == 'media_failed'
     assert index.client.count(settings.collection).count == 0
     with repo.connect() as conn:
         assert conn.execute('SELECT count(*) AS n FROM archive_segments').fetchone()['n'] == 0
@@ -370,7 +370,7 @@ def test_changed_model_identity_cannot_process_old_job(archive, video):
     settings, repo, index, store = archive
     submit(archive, video)
     work_once(repo, store, index, FixtureEmbedding(), NoCaptioner(), replace(settings, embedding_revision='new-revision'))
-    assert repo.jobs()[0]['error_code'] == 'ingestion_failed'
+    assert repo.jobs()[0]['error_code'] == 'configuration_failed'
     assert index.client.count(settings.collection).count == 0
 
 

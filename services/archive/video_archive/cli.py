@@ -65,6 +65,8 @@ def main():
             index.ready()
             print(json.dumps(cleanup_vectors(repo, index, apply=args.apply)))
         elif args.command == 'worker':
+            logging.basicConfig(format='%(message)s', level=logging.WARNING)
+            logging.getLogger('video_archive.ingest').setLevel(logging.INFO)
             index = VectorIndex(settings)
             index.ready()
             embedder, captioner = Embedder(settings), Captioner(settings)

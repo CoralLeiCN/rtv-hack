@@ -66,6 +66,23 @@ function fixture(adaptive = false) {
 }
 
 describe('one shared encounter session', () => {
+  it('stops on reference expiry and searches again only after explicit Resume', async () => {
+    const f = fixture();
+    f.api.outcome.mockImplementationOnce(async () => ({ ...f.cursor('paused'), pause_reason: 'references_expired' }));
+    f.start();
+    await f.finish();
+    await vi.waitFor(() => expect(f.controller.getSnapshot().phase).toBe('paused'));
+    expect(f.controller.getSnapshot()).toMatchObject({ running: false, execution: null,
+      note: 'Reference access expired. Resume searches for fresh references.' });
+    expect(f.controller.getSnapshot().history).toHaveLength(1);
+    expect(f.api.search).toHaveBeenCalledOnce();
+    expect(f.scene.perform).toHaveBeenCalledOnce();
+    expect(f.video.pause).toHaveBeenCalled();
+    f.api.resume.mockImplementationOnce(async () => f.cursor('needs_plan'));
+    f.controller.resume();
+    await vi.waitFor(() => expect(f.api.search).toHaveBeenCalledTimes(2));
+    f.controller.pause();
+  });
   it('OFF repeats the same three source-ranked actions without another query or search', async () => {
     const f = fixture(); f.start();
     for (let i = 0; i < 4; i++) await f.finish();

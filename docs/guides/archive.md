@@ -200,6 +200,15 @@ the retry budget, including for completed jobs when rebuilding an index. Stop th
 continuous worker before retrying; the CLI takes the same database lock.
 Errors expose fixed codes rather than upstream diagnostics or credentials.
 
+`status` reports the last failure code. Worker stderr emits JSON stage events
+with `job_id`, `segment_id` (null for job-wide stages), `stage`, `status` and
+`elapsed_ms`. Failed events also include `error_code`. Use these fields to locate
+the failing segment and distinguish configuration, media/FFmpeg, captioning,
+embedding, indexing and database failures. Exception bodies, model input, source
+paths and connection values are suppressed. Successful stage events describe
+work performed or reused; they do not imply a new model call. Database-session
+loss still terminates the worker rather than reconnecting to write diagnostics.
+
 ### Vector maintenance
 
 Search requests `top_k` candidates first and fetches only the shortfall after

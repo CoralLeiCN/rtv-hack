@@ -216,6 +216,60 @@ def test_expired_queue_and_failed_motion_require_resume_without_false_completion
         assert client.post('/demo-api/runs/run-1/resume').json()['status'] == 'needs_plan'
 
 
+@pytest.mark.parametrize('at_boundary,replay', [(False, False), (True, False), (False, True)])
+def test_expired_references_pause_before_another_attempt_and_resume_replans(at_boundary, replay):
+    client, upstream, app = setup()
+    with client:
+        start(client)
+        result = search(client)
+        if replay:
+            result = client.post('/demo-api/runs/run-1/replay').json()
+        cursor = result
+        if at_boundary:
+            for _ in result['queue'][:-1]:
+                cursor = outcome(client, report(result, cursor))
+        run = next(iter(app.state.run_service.runs.values()))
+        run.round.expires = 0
+        session = app.state.registry.sessions[run.owner]
+        for entry in result['queue']:
+            clip = entry['candidate']['clip_id']
+            source, _ = session.clips[clip]
+            session.clips[clip] = (source, 0)
+        body = report(result, cursor)
+        paused = outcome(client, body)
+        assert paused['status'] == 'paused' and paused['execution'] is None
+        assert paused['pause_reason'] == 'references_expired'
+        assert outcome(client, body) == paused  # The completed attempt stays idempotent.
+        assert run.pending is None and run.id not in session.protected_clips
+        assert len(app.state.encounter_service.agent.agent.calls) == 2
+        assert sum(r.url.path.endswith('/search') for r in upstream.requests) == 1
+        resumed = client.post('/demo-api/runs/run-1/resume').json()
+        assert resumed['status'] == 'needs_plan' and resumed['execution'] is None
+        assert resumed['pause_reason'] is None
+        fresh = search(client)
+        assert fresh['round_id'] != result['round_id'] and fresh['execution']
+        assert client.get(fresh['queue'][0]['candidate']['video_url']).status_code == 200
+
+
+def test_run_activity_renews_cookie_without_extending_reference_expiry():
+    client, _, app = setup()
+    with client:
+        start(client)
+        result = search(client)
+        run = next(iter(app.state.run_service.runs.values()))
+        expiry = run.round.expires
+        session = app.state.registry.sessions[run.owner]
+        clips = dict(session.clips)
+        response = client.post('/demo-api/runs/run-1/outcome', json=report(result, result))
+        assert response.status_code == 200
+        cookie = response.headers['set-cookie']
+        assert 'HttpOnly' in cookie and 'SameSite=lax' in cookie and 'Max-Age=1800' in cookie
+        assert run.round.expires == expiry and session.clips == clips
+        client.cookies.clear()
+        denied = client.post('/demo-api/runs/run-1/resume')
+        assert denied.status_code == 409 and 'set-cookie' not in denied.headers
+
+
 def test_fabricated_companion_quote_is_skipped_and_later_active_clip_fills_queue():
     clips = rows()
     clips[1]['reasoning_content'] = 'Two cats are visible. One cat stands still. The other cat walks.'
